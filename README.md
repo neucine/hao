@@ -11,6 +11,10 @@ without baking Affon module names into the engine.
 Host applications register native packages through `hao.Package`, combining
 embedded source modules with QuickJS C modules.
 
+The `hao:` namespace is reserved for Hao-owned first-party runtime modules.
+Host applications should use their own prefixes, such as `affon:` or `myapp:`,
+for product/domain modules.
+
 Run a script:
 
 ```bash

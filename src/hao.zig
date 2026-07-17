@@ -4,6 +4,7 @@ pub const package = @import("package.zig");
 pub const module = @import("module.zig");
 pub const native_module = @import("native_module.zig");
 pub const runtime = @import("runtime.zig");
+pub const standard = @import("standard.zig");
 pub const transpiler = @import("transpiler.zig");
 
 pub const Runtime = qjs.Runtime;
@@ -22,5 +23,6 @@ test {
     _ = module;
     _ = native_module;
     _ = runtime;
+    _ = standard;
     _ = transpiler;
 }

@@ -19,6 +19,21 @@ pub const Package = struct {
     install: ?*const fn (*qjs.Runtime) anyerror!void = null,
 };
 
+pub fn isHaoSpecifier(specifier: []const u8) bool {
+    return std.mem.startsWith(u8, specifier, "hao:");
+}
+
+pub fn isHaoPackageName(name: []const u8) bool {
+    return std.mem.eql(u8, name, "hao");
+}
+
+fn ownsSpecifier(package_name: []const u8, specifier: []const u8) bool {
+    if (isHaoPackageName(package_name)) return isHaoSpecifier(specifier);
+    if (isHaoSpecifier(specifier)) return false;
+    if (!std.mem.startsWith(u8, specifier, package_name)) return false;
+    return specifier.len == package_name.len or specifier[package_name.len] == ':';
+}
+
 pub const Registry = struct {
     allocator: std.mem.Allocator,
     packages: std.ArrayList(Package),
@@ -39,10 +54,10 @@ pub const Registry = struct {
         if (package.name.len == 0) return error.EmptyPackageName;
         if (self.findPackage(package.name) != null) return error.DuplicatePackage;
         for (package.sources) |source| {
-            if (!std.mem.startsWith(u8, source.specifier, package.name)) return error.PackageSpecifierMismatch;
+            if (!ownsSpecifier(package.name, source.specifier)) return error.PackageSpecifierMismatch;
         }
         for (package.native_modules) |native_module| {
-            if (!std.mem.startsWith(u8, native_module.specifier, package.name)) return error.PackageSpecifierMismatch;
+            if (!ownsSpecifier(package.name, native_module.specifier)) return error.PackageSpecifierMismatch;
         }
         try self.packages.append(self.allocator, package);
     }
@@ -331,4 +346,27 @@ test "registry rejects package-owned modules outside package prefix" {
         .name = "demo",
         .sources = &sources,
     }));
+}
+
+test "hao namespace is reserved for the hao package" {
+    var registry = Registry.init(std.testing.allocator);
+    defer registry.deinit();
+
+    const bad_sources = [_]SourceModule{.{
+        .specifier = "hao:runtime",
+        .source = "",
+    }};
+    try std.testing.expectError(error.PackageSpecifierMismatch, registry.register(.{
+        .name = "demo",
+        .sources = &bad_sources,
+    }));
+
+    const good_sources = [_]SourceModule{.{
+        .specifier = "hao:runtime",
+        .source = "",
+    }};
+    try registry.register(.{
+        .name = "hao",
+        .sources = &good_sources,
+    });
 }

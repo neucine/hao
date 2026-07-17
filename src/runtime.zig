@@ -5,6 +5,7 @@ const async_loop = @import("async/loop.zig");
 const global_timer = @import("global/timer.zig");
 const module = @import("module.zig");
 const packages = @import("package.zig");
+const standard = @import("standard.zig");
 
 pub const Host = struct {
     runtime: qjs.Runtime,
@@ -56,6 +57,7 @@ pub const Host = struct {
     pub fn evalModuleSource(self: *Host, source: []const u8, source_name: []const u8) !void {
         var registry = packages.Registry.init(self.allocator);
         defer registry.deinit();
+        try standard.register(&registry);
         try self.evalModuleSourceWithRegistry(source, source_name, &registry);
     }
 
@@ -70,6 +72,7 @@ pub const Host = struct {
     pub fn runFile(self: *Host, path: []const u8) !void {
         var registry = packages.Registry.init(self.allocator);
         defer registry.deinit();
+        try standard.register(&registry);
         try self.runFileWithRegistry(path, &registry);
     }
 
@@ -139,4 +142,21 @@ test "runtime host runs a TypeScript entry file" {
     var out: f64 = 0;
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &out, result));
     try std.testing.expectEqual(@as(f64, 42), out);
+}
+
+test "runtime host includes hao namespace modules by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        "import { namespace } from 'hao:runtime'; globalThis.__hao_namespace_value = namespace;",
+        "<hao-runtime-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+    const result = qjs.getProperty(host.runtime.ctx, global, "__hao_namespace_value");
+    defer qjs.freeValue(host.runtime.ctx, result);
+    const text = try qjs.valueToStringAlloc(host.runtime.ctx, result, std.testing.allocator);
+    defer std.testing.allocator.free(text);
+    try std.testing.expectEqualStrings("hao:", text);
 }
