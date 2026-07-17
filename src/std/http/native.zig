@@ -1,6 +1,6 @@
 const std = @import("std");
 const async_loop = @import("../../async/loop.zig");
-const native_module = @import("../../js/abi.zig");
+const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 const uv = @import("../../async/uv.zig").c;
 
@@ -83,7 +83,7 @@ const HttpRequestOp = struct {
     }
 };
 
-const functions = [_]native_module.LegacyFunction{
+const functions = [_]js_abi.LegacyFunction{
     .{ .name = "requestNative", .function = jsRequest, .length = 1 },
 };
 
@@ -96,11 +96,11 @@ pub fn detachIo() void {
 }
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return native_module.createLegacyFunctionModule(ctx, module_name, init, &functions);
+    return js_abi.createLegacyFunctionModule(ctx, module_name, init, &functions);
 }
 
 fn init(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return native_module.bindLegacyFunctionExports(ctx, module, &functions);
+    return js_abi.bindLegacyFunctionExports(ctx, module, &functions);
 }
 
 fn throwType(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {

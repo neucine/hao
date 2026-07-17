@@ -49,14 +49,21 @@ typedef struct JsContextApi {
     JsValue (*int32_value)(JsContext* ctx, int32_t value);
     JsValue (*float64_value)(JsContext* ctx, double value);
     JsValue (*string_value)(JsContext* ctx, const char* value);
-    JsValue (*object_value)(JsContext* ctx);
-    int (*set_property)(JsContext* ctx, JsValue object, const char* key, JsValue value);
     int (*to_bool)(JsContext* ctx, JsValue value, int* out);
     int (*to_int32)(JsContext* ctx, JsValue value, int32_t* out);
     int (*to_float64)(JsContext* ctx, JsValue value, double* out);
     const char* (*to_string)(JsContext* ctx, JsValue value);
     JsValue (*throw_type_error)(JsContext* ctx, const char* message);
     JsValue (*throw_error)(JsContext* ctx, const char* message);
+    JsValue (*object_value)(JsContext* ctx);
+    int (*set_property)(JsContext* ctx, JsValue object, const char* key, JsValue value);
+    JsValue (*get_property)(JsContext* ctx, JsValue object, const char* key);
+    int (*is_undefined)(JsContext* ctx, JsValue value);
+    int (*is_null)(JsContext* ctx, JsValue value);
+    int (*is_object)(JsContext* ctx, JsValue value);
+    int (*is_array)(JsContext* ctx, JsValue value);
+    int (*array_length)(JsContext* ctx, JsValue value, uint32_t* out);
+    JsValue (*array_get)(JsContext* ctx, JsValue value, uint32_t index);
 } JsContextApi;
 
 struct JsContext {
@@ -108,6 +115,34 @@ static inline int js_set_property(
     JsValue value
 ) {
     return ctx->api->set_property(ctx, object, key, value);
+}
+
+static inline JsValue js_get_property(JsContext* ctx, JsValue object, const char* key) {
+    return ctx->api->get_property(ctx, object, key);
+}
+
+static inline int js_is_undefined(JsContext* ctx, JsValue value) {
+    return ctx->api->is_undefined(ctx, value);
+}
+
+static inline int js_is_null(JsContext* ctx, JsValue value) {
+    return ctx->api->is_null(ctx, value);
+}
+
+static inline int js_is_object(JsContext* ctx, JsValue value) {
+    return ctx->api->is_object(ctx, value);
+}
+
+static inline int js_is_array(JsContext* ctx, JsValue value) {
+    return ctx->api->is_array(ctx, value);
+}
+
+static inline int js_array_length(JsContext* ctx, JsValue value, uint32_t* out) {
+    return ctx->api->array_length(ctx, value, out);
+}
+
+static inline JsValue js_array_get(JsContext* ctx, JsValue value, uint32_t index) {
+    return ctx->api->array_get(ctx, value, index);
 }
 
 static inline int js_to_bool(JsContext* ctx, JsValue value, int* out) {

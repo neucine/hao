@@ -1,6 +1,6 @@
 const std = @import("std");
 const errors = @import("../../errors.zig");
-const native_module = @import("../../js/abi.zig");
+const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 const parser = @import("c_abi/parser.zig");
 const lower = @import("c_abi/lower.zig");
@@ -14,7 +14,7 @@ pub const specifier: [:0]const u8 = "hao:ffi/c/native";
 
 const alloc = std.heap.page_allocator;
 
-const module_functions = [_]native_module.LegacyFunction{
+const module_functions = [_]js_abi.LegacyFunction{
     .{ .name = "openNative", .function = js_openNative, .length = 3 },
     .{ .name = "callNative", .function = js_callNative, .length = 3 },
     .{ .name = "closeNative", .function = js_closeNative, .length = 1 },
@@ -51,11 +51,11 @@ var libraries: std.AutoHashMapUnmanaged(u32, *OpenCLibrary) = .empty;
 var next_library_id: u32 = 1;
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return native_module.createLegacyFunctionModule(ctx, module_name, init, &module_functions);
+    return js_abi.createLegacyFunctionModule(ctx, module_name, init, &module_functions);
 }
 
 fn init(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return native_module.bindLegacyFunctionExports(ctx, module, &module_functions);
+    return js_abi.bindLegacyFunctionExports(ctx, module, &module_functions);
 }
 
 fn js_prepareNative(

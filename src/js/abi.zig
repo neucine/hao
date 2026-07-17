@@ -49,14 +49,21 @@ pub const ContextApi = extern struct {
     int32_value: *const fn (*Context, i32) callconv(.c) Value,
     float64_value: *const fn (*Context, f64) callconv(.c) Value,
     string_value: *const fn (*Context, [*:0]const u8) callconv(.c) Value,
-    object_value: *const fn (*Context) callconv(.c) Value,
-    set_property: *const fn (*Context, Value, [*:0]const u8, Value) callconv(.c) c_int,
     to_bool: *const fn (*Context, Value, *c_int) callconv(.c) c_int,
     to_int32: *const fn (*Context, Value, *i32) callconv(.c) c_int,
     to_float64: *const fn (*Context, Value, *f64) callconv(.c) c_int,
     to_string: *const fn (*Context, Value) callconv(.c) ?[*:0]const u8,
     throw_type_error: *const fn (*Context, [*:0]const u8) callconv(.c) Value,
     throw_error: *const fn (*Context, [*:0]const u8) callconv(.c) Value,
+    object_value: *const fn (*Context) callconv(.c) Value,
+    set_property: *const fn (*Context, Value, [*:0]const u8, Value) callconv(.c) c_int,
+    get_property: *const fn (*Context, Value, [*:0]const u8) callconv(.c) Value,
+    is_undefined: *const fn (*Context, Value) callconv(.c) c_int,
+    is_null: *const fn (*Context, Value) callconv(.c) c_int,
+    is_object: *const fn (*Context, Value) callconv(.c) c_int,
+    is_array: *const fn (*Context, Value) callconv(.c) c_int,
+    array_length: *const fn (*Context, Value, *u32) callconv(.c) c_int,
+    array_get: *const fn (*Context, Value, u32) callconv(.c) Value,
 };
 
 const CallFrame = struct {
@@ -230,6 +237,49 @@ fn contextSetProperty(context: *Context, object: Value, key: [*:0]const u8, valu
     return 0;
 }
 
+fn contextGetProperty(context: *Context, object: Value, key: [*:0]const u8) callconv(.c) Value {
+    const js_object = valueToJs(context, object) orelse return contextData(context).frame.pushException("invalid object handle");
+    return pushJs(context, qjs.getProperty(contextData(context).frame.ctx, js_object, std.mem.span(key)));
+}
+
+fn contextIsUndefined(context: *Context, value: Value) callconv(.c) c_int {
+    const js_value = valueToJs(context, value) orelse return 0;
+    return if (qjs.isUndefined(js_value)) 1 else 0;
+}
+
+fn contextIsNull(context: *Context, value: Value) callconv(.c) c_int {
+    const js_value = valueToJs(context, value) orelse return 0;
+    return if (qjs.isNull(js_value)) 1 else 0;
+}
+
+fn contextIsObject(context: *Context, value: Value) callconv(.c) c_int {
+    const js_value = valueToJs(context, value) orelse return 0;
+    return if (qjs.isObject(js_value)) 1 else 0;
+}
+
+fn contextIsArray(context: *Context, value: Value) callconv(.c) c_int {
+    const data = contextData(context);
+    const js_value = valueToJs(context, value) orelse return 0;
+    return if (qjs.isArray(data.frame.ctx, js_value)) 1 else 0;
+}
+
+fn contextArrayLength(context: *Context, value: Value, out: *u32) callconv(.c) c_int {
+    const data = contextData(context);
+    const js_value = valueToJs(context, value) orelse return -1;
+    const length_value = qjs.getProperty(data.frame.ctx, js_value, "length");
+    defer qjs.freeValue(data.frame.ctx, length_value);
+    var length_i32: i32 = 0;
+    if (qjs.c.JS_ToInt32(data.frame.ctx, &length_i32, length_value) < 0 or length_i32 < 0) return -1;
+    out.* = @intCast(length_i32);
+    return 0;
+}
+
+fn contextArrayGet(context: *Context, value: Value, index: u32) callconv(.c) Value {
+    const data = contextData(context);
+    const js_value = valueToJs(context, value) orelse return data.frame.pushException("invalid array handle");
+    return pushJs(context, qjs.c.JS_GetPropertyUint32(data.frame.ctx, js_value, index));
+}
+
 fn contextToBool(context: *Context, value: Value, out: *c_int) callconv(.c) c_int {
     const js_value = valueToJs(context, value) orelse return -1;
     out.* = qjs.c.JS_ToBool(contextData(context).frame.ctx, js_value);
@@ -278,14 +328,21 @@ const context_api = ContextApi{
     .int32_value = contextInt32,
     .float64_value = contextFloat64,
     .string_value = contextString,
-    .object_value = contextObject,
-    .set_property = contextSetProperty,
     .to_bool = contextToBool,
     .to_int32 = contextToInt32,
     .to_float64 = contextToFloat64,
     .to_string = contextToString,
     .throw_type_error = contextThrowTypeError,
     .throw_error = contextThrowError,
+    .object_value = contextObject,
+    .set_property = contextSetProperty,
+    .get_property = contextGetProperty,
+    .is_undefined = contextIsUndefined,
+    .is_null = contextIsNull,
+    .is_object = contextIsObject,
+    .is_array = contextIsArray,
+    .array_length = contextArrayLength,
+    .array_get = contextArrayGet,
 };
 
 pub fn createFunctionModule(
