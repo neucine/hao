@@ -28,5 +28,11 @@ zig build
 ./zig-out/bin/hao path/to/main.ts
 ```
 
+Check TypeScript declarations:
+
+```bash
+bun x tsc -p test/types/tsconfig.json --noEmit
+```
+
 Affon remains unchanged during extraction. Once Hao has a stable embedded
 runtime API, Affon can switch to consuming Hao as a sibling dependency.

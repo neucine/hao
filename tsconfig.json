@@ -10,7 +10,7 @@
     "skipLibCheck": true
   },
   "include": [
-    "test/**/*.ts",
+    "test/e2e/**/*.ts",
     "types/**/*.d.ts",
     "src/std/**/*.d.ts"
   ]
