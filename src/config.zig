@@ -12,6 +12,7 @@ pub const Config = struct {
     quickjs: QuickJS = .{},
     libuv: Libuv = .{},
     debug: Debug = .{},
+    telemetry: Telemetry = .{},
 
     pub const QuickJS = struct {
         stack_size: usize = default_quickjs_stack_size,
@@ -23,6 +24,11 @@ pub const Config = struct {
 
     pub const Debug = struct {
         native_stack_trace: bool = false,
+    };
+
+    pub const Telemetry = struct {
+        console_enabled: bool = false,
+        console_port: u16 = 0,
     };
 };
 
@@ -63,6 +69,12 @@ fn loadUsize(key: [:0]const u8, dest: *usize) void {
 fn loadOptionalUsize(key: [:0]const u8, dest: *?usize) void {
     const val = getenv(key) orelse return;
     if (parsePositiveUsize(val)) |n| dest.* = n;
+}
+
+fn loadUsizeAllowZero(key: [:0]const u8, dest: *u16) void {
+    const val = getenv(key) orelse return;
+    const n = std.fmt.parseInt(u16, val, 10) catch return;
+    dest.* = n;
 }
 
 fn loadBool(key: [:0]const u8, dest: *bool) void {
@@ -181,6 +193,8 @@ pub fn loadFromEnv() !void {
     loadUsize("HAO_QJS_STACK_SIZE", &config.quickjs.stack_size);
     loadOptionalUsize("HAO_LIBUV_THREADPOOL_SIZE", &config.libuv.thread_pool_size);
     loadBool("HAO_NATIVE_STACK_TRACE", &config.debug.native_stack_trace);
+    loadBool("HAO_TELEMETRY_CONSOLE", &config.telemetry.console_enabled);
+    loadUsizeAllowZero("HAO_TELEMETRY_CONSOLE_PORT", &config.telemetry.console_port);
     try syncLibuvThreadPoolEnv();
 }
 
@@ -195,6 +209,8 @@ test "Config defaults are correct" {
     try std.testing.expectEqual(@as(usize, 8 * 1024 * 1024), def.quickjs.stack_size);
     try std.testing.expectEqual(@as(?usize, null), def.libuv.thread_pool_size);
     try std.testing.expectEqual(false, def.debug.native_stack_trace);
+    try std.testing.expectEqual(false, def.telemetry.console_enabled);
+    try std.testing.expectEqual(@as(u16, 0), def.telemetry.console_port);
 }
 
 test "loadUsize ignores missing env key" {

@@ -10,6 +10,7 @@ pub const test_runner = @import("std/test/runner.zig");
 pub const transpiler = @import("transpiler.zig");
 pub const config = @import("config.zig");
 pub const errors = @import("errors.zig");
+pub const telemetry = @import("telemetry/index.zig");
 pub const version_info = @import("version.zig");
 
 pub const version = version_info.string;
@@ -20,8 +21,7 @@ pub const SourceModule = package.SourceModule;
 pub const NativeModule = package.NativeModule;
 pub const Registry = package.Registry;
 pub const Loader = module.Loader;
-pub const RuntimeHost = runtime.RuntimeHost;
-pub const StdHost = runtime.StdHost;
+pub const RuntimeEnvironment = runtime.RuntimeEnvironment;
 
 test {
     _ = qjs;
@@ -36,5 +36,6 @@ test {
     _ = transpiler;
     _ = config;
     _ = errors;
+    _ = telemetry;
     _ = version_info;
 }

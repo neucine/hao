@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hao Telemetry</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background: #111827; color: #e5e7eb; }
+    body { margin: 0; background: #111827; }
+    header { padding: 18px 24px; border-bottom: 1px solid #374151; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    h1 { margin: 0; font-size: 20px; font-weight: 650; }
+    main { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 18px; padding: 18px 24px; }
+    section { min-width: 0; }
+    .panel { border: 1px solid #374151; background: #172033; padding: 14px; }
+    .panel h2 { margin: 0 0 12px; font-size: 14px; color: #93c5fd; }
+    .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    label { display: block; padding: 7px 0; font-size: 13px; color: #d1d5db; }
+    input[type=checkbox] { margin-right: 8px; accent-color: #60a5fa; }
+    select, button { border: 1px solid #4b5563; background: #111827; color: #e5e7eb; padding: 6px 8px; }
+    button { cursor: pointer; }
+    .metrics { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .metric { border: 1px solid #374151; background: #172033; padding: 12px; }
+    .metric-title { font-size: 13px; color: #bfdbfe; }
+    .metric-value { font-size: 24px; margin: 8px 0; font-variant-numeric: tabular-nums; }
+    canvas { width: 100%; height: 90px; display: block; background: #111827; }
+    .trace-stream { display: grid; gap: 4px; max-height: 520px; overflow: auto; font: 12px ui-monospace, SFMono-Regular, monospace; }
+    .trace-row { padding: 5px 8px; border-left: 2px solid #60a5fa; background: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .trace-row.event { border-left-color: #fbbf24; }
+    .muted { color: #9ca3af; font-size: 12px; }
+    @media (max-width: 760px) { main { grid-template-columns: 1fr; padding: 14px; } header { padding: 14px; } }
+  </style>
+</head>
+<body>
+  <header><h1>Hao Telemetry</h1><div class="controls"><span class="muted" id="status">Connecting</span><label>Interval <select id="interval"><option value="1000">1s</option><option value="2000" selected>2s</option><option value="5000">5s</option><option value="10000">10s</option></select></label></div></header>
+  <main>
+    <aside class="panel"><h2>Metrics</h2><div id="metric-list" class="muted">Loading metrics...</div></aside>
+    <section>
+      <div class="metrics" id="metric-grid"></div>
+      <div class="panel" style="margin-top:18px"><h2>Trace Stream</h2><div id="trace-stream" class="trace-stream"><span class="muted">No trace records yet.</span></div></div>
+    </section>
+  </main>
+  <script>
+    const selected = new Set(), history = new Map(); let cursor = 0, timer;
+    const $ = (id) => document.getElementById(id);
+    function esc(value) { return String(value).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function format(value) { return Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }); }
+    function renderMetricList(metrics) {
+      const list = $('metric-list'); list.replaceChildren();
+      metrics.forEach((metric) => { const id = String(metric.id), label = document.createElement('label'), input = document.createElement('input'); input.type='checkbox'; input.checked=selected.has(id); input.onchange=() => { input.checked ? selected.add(id) : selected.delete(id); renderMetrics(metrics); }; label.append(input, document.createTextNode(`${metric.scope}.${metric.name}`)); list.append(label); });
+      if (!metrics.length) list.textContent = 'No metrics registered.';
+    }
+    function renderMetrics(metrics) {
+      const grid = $('metric-grid'); grid.replaceChildren();
+      metrics.filter((metric) => selected.has(String(metric.id))).forEach((metric) => { const card = document.createElement('div'); card.className='metric'; const title = document.createElement('div'); title.className='metric-title'; title.textContent=`${metric.scope}.${metric.name} (${metric.kind})`; const value = document.createElement('div'); value.className='metric-value'; value.textContent=format(metric.value); const canvas=document.createElement('canvas'); canvas.width=640; canvas.height=180; card.append(title,value,canvas); const points=history.get(String(metric.id))||[]; points.push(Number(metric.value)); history.set(String(metric.id), points.slice(-60)); const ctx=canvas.getContext('2d'); ctx.strokeStyle='#60a5fa'; ctx.lineWidth=3; ctx.beginPath(); points.forEach((point,index)=>{ const x=index/(Math.max(points.length-1,1))*canvas.width, y=canvas.height-(point/(Math.max(...points,1)))*140-20; index?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); grid.append(card); });
+    }
+    function renderTraces(result) {
+      if (result.missed) $('trace-stream').insertAdjacentHTML('afterbegin','<span class="muted">Earlier records were overwritten.</span>');
+      result.records.forEach((record) => { const row=document.createElement('div'); row.className='trace-row '+(record.kind==='event'?'event':''); const indent=record.parent_span_id && !/^0+$/.test(record.parent_span_id) ? '  ' : ''; row.textContent=`${record.sequence} ${indent}${record.kind} ${record.name} [${record.status}]`; $('trace-stream').append(row); });
+      cursor=result.next_cursor; while ($('trace-stream').children.length>300) $('trace-stream').firstElementChild.remove();
+    }
+    async function refresh() { try { const [m,t]=await Promise.all([fetch('/api/metrics').then((r)=>r.json()),fetch(`/api/traces?since=${cursor}&limit=128`).then((r)=>r.json())]); if (!$('metric-list').children.length) renderMetricList(m); renderMetrics(m); renderTraces(t); $('status').textContent=`Updated ${new Date().toLocaleTimeString()}`; } catch (error) { $('status').textContent='Disconnected'; } }
+    function schedule() { clearInterval(timer); timer=setInterval(refresh, Number($('interval').value)); }
+    $('interval').onchange=schedule; refresh(); schedule();
+  </script>
+</body>
+</html>

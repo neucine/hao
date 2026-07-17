@@ -1,22 +1,21 @@
 # Embedding Hao
 
-Hao exposes two host layers from Zig:
+Hao exposes one environment from Zig. It owns the runtime, async loop, globals,
+module loader, package registry support, and optionally the built-in `std:`
+modules.
 
-- `hao.RuntimeHost`: runtime, async loop, globals, module loader, and package registry support.
-- `hao.StdHost`: `RuntimeHost` plus the built-in `std:` standard modules and test/runtime conveniences used by the CLI.
+Use `RuntimeEnvironment` with `.std = false` when an application wants to own its
+module surface. Use `.std = true` for the same batteries-included behavior as the
+`hao` CLI.
 
-Use `RuntimeHost` when an application wants to own its module surface. Use `StdHost`
-when the application wants the same batteries-included behavior as the `hao`
-CLI.
-
-## Runtime Host
+## Runtime Environment
 
 ```zig
 const std = @import("std");
 const hao = @import("hao");
 
 pub fn runScript(source: []const u8) !void {
-    var host = try hao.RuntimeHost.init(std.heap.page_allocator);
+    var host = try hao.RuntimeEnvironment.init(std.heap.page_allocator, .{ .std = false });
     defer host.deinit();
 
     var registry = hao.Registry.init(std.heap.page_allocator);
@@ -45,25 +44,25 @@ pub fn runScript(source: []const u8) !void {
 }
 ```
 
-`RuntimeHost.installGlobals()` installs `RuntimeError`, `console`, and timers.
+`RuntimeEnvironment.installGlobals()` installs `RuntimeError`, `console`, and timers.
 It does not register the built-in `std:` standard modules, and it does not initialize
 the `std:test` registry.
 
-When using `RuntimeHost`, the caller owns package lifecycle. If a package installs
+When using `RuntimeEnvironment`, the caller owns package lifecycle. If a package installs
 native state or stores JavaScript values, call `registry.deinitPackages()` before
 deinitializing the host runtime.
 
-## Std Host
+## Standard Modules
 
 ```zig
-var host = try hao.StdHost.initWithIo(allocator, io);
+var host = try hao.RuntimeEnvironment.initWithIo(allocator, io, .{ .std = true });
 defer host.deinit();
 
 try host.runFile("main.ts");
 ```
 
-`StdHost` registers the built-in `std:` modules and wires IO-backed native modules
-such as `std:process` and `std:http`.
+With `.std = true`, the environment registers the built-in `std:` modules and
+wires IO-backed native modules such as `std:process` and `std:http`.
 
 ## Version
 

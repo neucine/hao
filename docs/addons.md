@@ -100,6 +100,46 @@ return obj;
 
 Return `js_throw_type_error` or `js_throw_error` to raise JavaScript errors.
 
+## Metrics
+
+Native callbacks can emit telemetry without touching QuickJS directly. Register
+the metric lazily, keep the returned id in static addon state, then update it
+from later calls:
+
+```c
+static uint32_t calls_id;
+static int calls_ready;
+
+static JsValue work(JsContext* ctx, int argc, const JsValue* argv) {
+    (void)argc;
+    (void)argv;
+
+    if (!calls_ready) {
+        JsMetricDefinition def = {
+            .scope = "foo.native",
+            .name = "calls",
+            .kind = JS_METRIC_COUNTER,
+            .unit = "count",
+        };
+        if (js_metric_register(ctx, &def, &calls_id) != 0) {
+            return js_throw_error(ctx, "failed to register metric");
+        }
+        calls_ready = 1;
+    }
+
+    js_metric_add(ctx, calls_id, 1);
+    return js_undefined(ctx);
+}
+```
+
+TypeScript can inspect snapshots through `std:telemetry`:
+
+```ts
+import { metrics } from "std:telemetry"
+
+console.log(metrics())
+```
+
 ## Example
 
 See `examples/native-addon/native.c` for a complete addon with string, number,

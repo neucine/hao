@@ -19,6 +19,7 @@ Current modules include:
 - `std:process`
 - `std:http`
 - `std:ffi`
+- `std:telemetry`
 - `std:util`
 - `std:test`
 - `std:plot`
@@ -30,6 +31,8 @@ their product modules.
 
 - [Embedding Hao](docs/embedding.md)
 - [Native Addons](docs/addons.md)
+- [Telemetry](docs/telemetry.md)
+- [Releasing Hao](docs/releasing.md)
 - [TODO](docs/TODO.md)
 
 ## Try It

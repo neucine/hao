@@ -14,7 +14,11 @@
 extern "C" {
 #endif
 
-#define JS_ADDON_ABI_VERSION 1
+#define JS_ADDON_ABI_VERSION 2
+
+#define JS_METRIC_COUNTER 1
+#define JS_METRIC_GAUGE 2
+#define JS_METRIC_HISTOGRAM 3
 
 /*
  * Hao addon ABI notes:
@@ -57,6 +61,13 @@ typedef struct JsModule {
     const JsFunction* functions;
 } JsModule;
 
+typedef struct JsMetricDefinition {
+    const char* scope;
+    const char* name;
+    uint32_t kind;
+    const char* unit;
+} JsMetricDefinition;
+
 typedef struct JsRegistryApi {
     uint32_t abi_version;
     int (*add_module)(JsRegistry* registry, const JsModule* module);
@@ -93,6 +104,11 @@ typedef struct JsContextApi {
     JsValue (*array_get)(JsContext* ctx, JsValue value, uint32_t index);
     JsValue (*array_value)(JsContext* ctx);
     int (*array_set)(JsContext* ctx, JsValue array, uint32_t index, JsValue value);
+    int (*metric_register)(JsContext* ctx, const JsMetricDefinition* definition, uint32_t* out_id);
+    int (*metric_add)(JsContext* ctx, uint32_t id, double delta);
+    int (*metric_set)(JsContext* ctx, uint32_t id, double value);
+    int (*metric_observe)(JsContext* ctx, uint32_t id, double value);
+    int (*metric_value)(JsContext* ctx, uint32_t id, double* out);
 } JsContextApi;
 
 struct JsContext {
@@ -115,6 +131,11 @@ HAO_STATIC_ASSERT(offsetof(JsFunction, length) == sizeof(void*) * 2, "JsFunction
 HAO_STATIC_ASSERT(offsetof(JsModule, specifier) == 0, "JsModule.specifier offset changed");
 HAO_STATIC_ASSERT(offsetof(JsModule, functions) == sizeof(void*), "JsModule.functions offset changed");
 HAO_STATIC_ASSERT(sizeof(JsModule) == sizeof(void*) * 2, "JsModule size changed");
+HAO_STATIC_ASSERT(offsetof(JsMetricDefinition, scope) == 0, "JsMetricDefinition.scope offset changed");
+HAO_STATIC_ASSERT(offsetof(JsMetricDefinition, name) == sizeof(void*), "JsMetricDefinition.name offset changed");
+HAO_STATIC_ASSERT(offsetof(JsMetricDefinition, kind) == sizeof(void*) * 2, "JsMetricDefinition.kind offset changed");
+HAO_STATIC_ASSERT(offsetof(JsMetricDefinition, unit) == sizeof(void*) * 3, "JsMetricDefinition.unit offset changed");
+HAO_STATIC_ASSERT(sizeof(JsMetricDefinition) == sizeof(void*) * 4, "JsMetricDefinition size changed");
 HAO_STATIC_ASSERT(offsetof(JsRegistryApi, abi_version) == 0, "JsRegistryApi.abi_version offset changed");
 HAO_STATIC_ASSERT(offsetof(JsRegistryApi, add_module) == sizeof(void*), "JsRegistryApi.add_module offset changed");
 HAO_STATIC_ASSERT(sizeof(JsRegistryApi) == sizeof(void*) * 2, "JsRegistryApi size changed");
@@ -122,7 +143,9 @@ HAO_STATIC_ASSERT(offsetof(JsContextApi, abi_version) == 0, "JsContextApi.abi_ve
 HAO_STATIC_ASSERT(offsetof(JsContextApi, undefined) == sizeof(void*), "JsContextApi.undefined offset changed");
 HAO_STATIC_ASSERT(offsetof(JsContextApi, null_value) == sizeof(void*) * 2, "JsContextApi.null_value offset changed");
 HAO_STATIC_ASSERT(offsetof(JsContextApi, array_set) == sizeof(void*) * 24, "JsContextApi.array_set offset changed");
-HAO_STATIC_ASSERT(sizeof(JsContextApi) == sizeof(void*) * 25, "JsContextApi size changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, metric_register) == sizeof(void*) * 25, "JsContextApi.metric_register offset changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, metric_value) == sizeof(void*) * 29, "JsContextApi.metric_value offset changed");
+HAO_STATIC_ASSERT(sizeof(JsContextApi) == sizeof(void*) * 30, "JsContextApi size changed");
 
 static inline int js_add_module(
     JsRegistry* registry,
@@ -235,6 +258,30 @@ static inline JsValue js_throw_type_error(JsContext* ctx, const char* message) {
 
 static inline JsValue js_throw_error(JsContext* ctx, const char* message) {
     return ctx->api->throw_error(ctx, message);
+}
+
+static inline int js_metric_register(
+    JsContext* ctx,
+    const JsMetricDefinition* definition,
+    uint32_t* out_id
+) {
+    return ctx->api->metric_register(ctx, definition, out_id);
+}
+
+static inline int js_metric_add(JsContext* ctx, uint32_t id, double delta) {
+    return ctx->api->metric_add(ctx, id, delta);
+}
+
+static inline int js_metric_set(JsContext* ctx, uint32_t id, double value) {
+    return ctx->api->metric_set(ctx, id, value);
+}
+
+static inline int js_metric_observe(JsContext* ctx, uint32_t id, double value) {
+    return ctx->api->metric_observe(ctx, id, value);
+}
+
+static inline int js_metric_value(JsContext* ctx, uint32_t id, double* out) {
+    return ctx->api->metric_value(ctx, id, out);
 }
 
 #undef HAO_STATIC_ASSERT

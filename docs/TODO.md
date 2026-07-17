@@ -7,13 +7,11 @@ dependency used by Affon and other hosts.
 
 - Validate the Affon integration path by replacing copied runtime pieces with a
   Hao dependency in an Affon branch or worktree.
-- Add a release checklist that keeps `build.zig.zon` and `src/version.zig`
-  versions in sync.
 - Add the future runtime/embedder C header. `include/addon.h` is now the addon
   ABI; `include/hao.h` should eventually describe the runtime embedding ABI.
 - Decide the Jupyter boundary: core CLI/runtime feature, optional package, or
   separate package.
-- Smooth package lifecycle helpers so `RuntimeHost` users do not have to manage
+- Smooth package lifecycle helpers so `RuntimeEnvironment` users do not have to manage
   package deinit manually.
 
 ## Addon ABI
@@ -22,6 +20,13 @@ dependency used by Affon and other hosts.
 - Add property enumeration helpers.
 - Add function-call helpers.
 - Add external pointer or resource finalizer support.
+
+## Tracing
+
+- Connect the runtime-independent trace buffer to `std:telemetry`.
+- Add async context propagation across promises, timers, and native callbacks.
+- Define the host consumer/export policy before exposing tracing through the
+  addon ABI.
 
 ## Docs And Examples
 

@@ -6,6 +6,8 @@ const package = @import("package.zig");
 const process_native = @import("std/process/native.zig");
 const test_native = @import("std/test/native.zig");
 const test_registry = @import("std/test/registry.zig");
+const telemetry_native = @import("std/telemetry/native.zig");
+const telemetry_metrics = @import("telemetry/metrics.zig");
 const util_native = @import("std/util/native.zig");
 
 pub const sources = [_]package.SourceModule{
@@ -45,6 +47,10 @@ pub const sources = [_]package.SourceModule{
         .specifier = "std:ffi/c",
         .source = @embedFile("std/ffi/c.ts"),
     },
+    .{
+        .specifier = "std:telemetry",
+        .source = @embedFile("std/telemetry/index.ts"),
+    },
 };
 
 pub const native_modules = [_]package.NativeModule{
@@ -76,6 +82,10 @@ pub const native_modules = [_]package.NativeModule{
         .specifier = test_native.specifier,
         .load = test_native.load,
     },
+    .{
+        .specifier = telemetry_native.specifier,
+        .load = telemetry_native.load,
+    },
 };
 
 pub const package_descriptor = package.Package{
@@ -96,4 +106,5 @@ fn install(context: *package.PackageContext) !void {
 
 fn deinit(context: *package.PackageContext) void {
     test_registry.deinit(context.runtime.ctx);
+    telemetry_metrics.clear();
 }

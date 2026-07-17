@@ -1,7 +1,8 @@
 const std = @import("std");
 const qjs = @import("../qjs.zig");
+const telemetry_metrics = @import("../telemetry/metrics.zig");
 
-pub const abi_version: u32 = 1;
+pub const abi_version: u32 = 2;
 pub const register_symbol_name = "js_register_modules";
 pub const Value = usize;
 
@@ -26,6 +27,13 @@ pub const Function = extern struct {
 pub const Module = extern struct {
     specifier: [*:0]const u8,
     functions: [*c]const Function,
+};
+
+pub const MetricDefinition = extern struct {
+    scope: [*c]const u8,
+    name: [*c]const u8,
+    kind: u32,
+    unit: [*c]const u8,
 };
 
 pub const RegisterModulesFn = *const fn (*Registry) callconv(.c) c_int;
@@ -61,6 +69,11 @@ pub const ContextApi = extern struct {
     array_get: *const fn (*Context, Value, u32) callconv(.c) Value,
     array_value: *const fn (*Context) callconv(.c) Value,
     array_set: *const fn (*Context, Value, u32, Value) callconv(.c) c_int,
+    metric_register: *const fn (*Context, *const MetricDefinition, *u32) callconv(.c) c_int,
+    metric_add: *const fn (*Context, u32, f64) callconv(.c) c_int,
+    metric_set: *const fn (*Context, u32, f64) callconv(.c) c_int,
+    metric_observe: *const fn (*Context, u32, f64) callconv(.c) c_int,
+    metric_value: *const fn (*Context, u32, *f64) callconv(.c) c_int,
 };
 
 fn alignedSize(size: usize, alignment: usize) usize {
@@ -89,6 +102,11 @@ test "native abi structs keep C layout" {
     try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(Module, "functions"));
     try std.testing.expectEqual(@as(usize, ptr_size * 2), @sizeOf(Module));
 
+    try std.testing.expectEqual(@as(usize, 0), @offsetOf(MetricDefinition, "scope"));
+    try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(MetricDefinition, "name"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @offsetOf(MetricDefinition, "kind"));
+    try std.testing.expectEqual(alignedSize(ptr_size * 3 + @sizeOf(u32), @alignOf(MetricDefinition)), @sizeOf(MetricDefinition));
+
     try std.testing.expectEqual(@as(usize, 0), @offsetOf(RegistryApi, "abi_version"));
     try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(RegistryApi, "add_module"));
     try std.testing.expectEqual(@as(usize, ptr_size * 2), @sizeOf(RegistryApi));
@@ -97,7 +115,9 @@ test "native abi structs keep C layout" {
     try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(ContextApi, "undefined"));
     try std.testing.expectEqual(@as(usize, ptr_size * 2), @offsetOf(ContextApi, "null_value"));
     try std.testing.expectEqual(@as(usize, ptr_size * 24), @offsetOf(ContextApi, "array_set"));
-    try std.testing.expectEqual(@as(usize, ptr_size * 25), @sizeOf(ContextApi));
+    try std.testing.expectEqual(@as(usize, ptr_size * 25), @offsetOf(ContextApi, "metric_register"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 29), @offsetOf(ContextApi, "metric_value"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 30), @sizeOf(ContextApi));
 }
 
 const CallFrame = struct {
@@ -345,6 +365,50 @@ fn contextArraySet(context: *Context, array: Value, index: u32, value: Value) ca
     return qjs.c.JS_SetPropertyUint32(data.frame.ctx, js_array, index, qjs.dupValue(data.frame.ctx, js_value));
 }
 
+fn metricKindFromAbi(kind: u32) ?telemetry_metrics.Kind {
+    return switch (kind) {
+        @intFromEnum(telemetry_metrics.Kind.counter) => .counter,
+        @intFromEnum(telemetry_metrics.Kind.gauge) => .gauge,
+        @intFromEnum(telemetry_metrics.Kind.histogram) => .histogram,
+        else => null,
+    };
+}
+
+fn contextMetricRegister(_: *Context, definition: *const MetricDefinition, out_id: *u32) callconv(.c) c_int {
+    const scope_ptr = definition.scope orelse return -1;
+    const name_ptr = definition.name orelse return -1;
+    const kind = metricKindFromAbi(definition.kind) orelse return -1;
+    const unit = if (definition.unit) |unit_ptr| std.mem.span(unit_ptr) else "";
+    const id = telemetry_metrics.register(.{
+        .scope = std.mem.span(scope_ptr),
+        .name = std.mem.span(name_ptr),
+        .kind = kind,
+        .unit = unit,
+    }) catch return -1;
+    out_id.* = id;
+    return 0;
+}
+
+fn contextMetricAdd(_: *Context, id: u32, delta: f64) callconv(.c) c_int {
+    telemetry_metrics.add(id, delta) catch return -1;
+    return 0;
+}
+
+fn contextMetricSet(_: *Context, id: u32, value: f64) callconv(.c) c_int {
+    telemetry_metrics.set(id, value) catch return -1;
+    return 0;
+}
+
+fn contextMetricObserve(_: *Context, id: u32, value: f64) callconv(.c) c_int {
+    telemetry_metrics.observe(id, value) catch return -1;
+    return 0;
+}
+
+fn contextMetricValue(_: *Context, id: u32, out: *f64) callconv(.c) c_int {
+    out.* = telemetry_metrics.value(id) catch return -1;
+    return 0;
+}
+
 fn contextToBool(context: *Context, value: Value, out: *c_int) callconv(.c) c_int {
     const js_value = valueToJs(context, value) orelse return -1;
     out.* = qjs.c.JS_ToBool(contextData(context).frame.ctx, js_value);
@@ -411,6 +475,11 @@ const context_api = ContextApi{
     .array_get = contextArrayGet,
     .array_value = contextArray,
     .array_set = contextArraySet,
+    .metric_register = contextMetricRegister,
+    .metric_add = contextMetricAdd,
+    .metric_set = contextMetricSet,
+    .metric_observe = contextMetricObserve,
+    .metric_value = contextMetricValue,
 };
 
 pub fn createFunctionModule(
@@ -505,4 +574,47 @@ test "native abi creates a callable function module" {
     try collector.addModule(&module_descriptor);
     const module = createFunctionModule(std.testing.allocator, runtime.ctx, "demo:native", collector.modules.items[0].functions);
     try std.testing.expect(module != null);
+}
+
+test "native abi exposes metric helpers to callbacks" {
+    telemetry_metrics.clear();
+    defer telemetry_metrics.clear();
+
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const function = Function{
+        .name = "record",
+        .callback = struct {
+            fn call(ctx: *Context, _: c_int, _: [*c]const Value) callconv(.c) Value {
+                const definition = MetricDefinition{
+                    .scope = "addon.test",
+                    .name = "calls",
+                    .kind = @intFromEnum(telemetry_metrics.Kind.counter),
+                    .unit = "count",
+                };
+                var id: u32 = 0;
+                if (ctx.api.metric_register(ctx, &definition, &id) != 0) return ctx.api.throw_error(ctx, "metric register failed");
+                if (ctx.api.metric_add(ctx, id, 1) != 0) return ctx.api.throw_error(ctx, "metric add failed");
+                var current: f64 = 0;
+                if (ctx.api.metric_value(ctx, id, &current) != 0) return ctx.api.throw_error(ctx, "metric value failed");
+                return ctx.api.float64_value(ctx, current);
+            }
+        }.call,
+        .length = 0,
+    };
+    var argv: [1]qjs.c.JSValueConst = undefined;
+    var handles: [1]Value = undefined;
+    var frame = CallFrame.init(runtime.ctx, 0, &argv);
+    var data = ContextData{ .allocator = std.testing.allocator, .frame = &frame };
+    var context = Context{ .api = &context_api, .data = &data };
+    _ = function.callback(&context, 0, &handles);
+    frame.deinit(std.testing.allocator, 0);
+
+    var buffer: [telemetry_metrics.max_metrics]telemetry_metrics.Snapshot = undefined;
+    const view = telemetry_metrics.snapshot(&buffer);
+    try std.testing.expectEqual(@as(usize, 1), view.len);
+    try std.testing.expectEqualStrings("addon.test", view[0].scope);
+    try std.testing.expectEqualStrings("calls", view[0].name);
+    try std.testing.expectEqual(@as(f64, 1), view[0].value);
 }

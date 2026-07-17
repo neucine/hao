@@ -6,4 +6,5 @@
 /// <reference path="../src/std/plot/index.d.ts" />
 /// <reference path="../src/std/ffi/index.d.ts" />
 /// <reference path="../src/std/ffi/c.d.ts" />
+/// <reference path="../src/std/telemetry/index.d.ts" />
 /// <reference path="../src/std/test/index.d.ts" />
