@@ -1,0 +1,59 @@
+const std = @import("std");
+const hao = @import("hao.zig");
+
+const c = @cImport({
+    @cInclude("stdio.h");
+});
+
+fn writeStderr(bytes: []const u8) void {
+    if (bytes.len == 0) return;
+    const stderr = c.stderr();
+    _ = c.fwrite(bytes.ptr, 1, bytes.len, stderr);
+    _ = c.fflush(stderr);
+}
+
+fn usage() void {
+    writeStderr(
+        \\Usage: hao <file.ts|file.js>
+        \\
+    );
+}
+
+pub fn main(init: std.process.Init) !void {
+    var gpa = std.heap.DebugAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var args = std.process.Args.Iterator.init(init.minimal.args);
+    _ = args.next();
+    const path = args.next() orelse {
+        usage();
+        std.process.exit(2);
+    };
+    if (args.next() != null) {
+        usage();
+        std.process.exit(2);
+    }
+
+    var host = try hao.Host.init(allocator);
+    defer host.deinit();
+    host.runFile(path) catch |err| {
+        if (hao.module.lastError()) |message| {
+            writeStderr(message);
+            writeStderr("\n");
+        } else if (err == error.JavaScriptError) {
+            const message = hao.qjs.getExceptionAlloc(host.runtime.ctx, allocator) catch null;
+            defer if (message) |text| allocator.free(text);
+            if (message) |text| {
+                writeStderr(text);
+                writeStderr("\n");
+            } else {
+                writeStderr("JavaScript error\n");
+            }
+        } else {
+            writeStderr(@errorName(err));
+            writeStderr("\n");
+        }
+        std.process.exit(1);
+    };
+}

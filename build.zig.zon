@@ -1,0 +1,23 @@
+.{
+    .name = .hao,
+    .version = "0.1.0",
+    .fingerprint = 0x186e65a5c2bc0a31,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .libuv = .{
+            .url = "https://dist.libuv.org/dist/v1.51.0/libuv-v1.51.0.tar.gz",
+            .hash = "N-V-__8AABtNRAB58M85Dm0p6z6iRHP3Zz3eyo08HU4EF5mq",
+        },
+        .quickjs = .{
+            .url = "https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.13.0.tar.gz",
+            .hash = "N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "libs/transpiler",
+        "README.md",
+    },
+}

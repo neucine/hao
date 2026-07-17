@@ -1,0 +1,22 @@
+# Hao JS
+
+Hao JS is an embeddable JavaScript/TypeScript runtime substrate for native packages.
+
+This repository is being extracted from Affon. The first boundary is intentionally
+small: QuickJS lifecycle helpers, TypeScript transform bindings, filesystem and
+package resolution, libuv-backed timer/event-loop driving, and a package
+registry that lets host applications provide source modules and native modules
+without baking Affon module names into the engine.
+
+Host applications register native packages through `hao.Package`, combining
+embedded source modules with QuickJS C modules.
+
+Run a script:
+
+```bash
+zig build
+./zig-out/bin/hao path/to/main.ts
+```
+
+Affon remains unchanged during extraction. Once Hao has a stable embedded
+runtime API, Affon can switch to consuming Hao as a sibling dependency.

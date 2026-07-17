@@ -1,0 +1,313 @@
+const std = @import("std");
+const fs = @import("fs.zig");
+const qjs = @import("qjs.zig");
+const native_module = @import("native_module.zig");
+const packages = @import("package.zig");
+const transpiler = @import("transpiler.zig");
+
+var last_error_storage: [4096]u8 = undefined;
+var last_error_len: usize = 0;
+
+pub const Loader = struct {
+    allocator: std.mem.Allocator,
+    registry: *const packages.Registry,
+
+    pub fn install(self: *Loader, runtime: *qjs.Runtime) void {
+        qjs.c.JS_SetModuleLoaderFunc(runtime.rt, normalizeModule, loadModule, self);
+    }
+};
+
+pub fn clearLastError() void {
+    last_error_len = 0;
+}
+
+pub fn lastError() ?[]const u8 {
+    if (last_error_len == 0) return null;
+    return last_error_storage[0..last_error_len];
+}
+
+fn rememberLastError(message: []const u8) void {
+    last_error_len = @min(message.len, last_error_storage.len);
+    @memcpy(last_error_storage[0..last_error_len], message[0..last_error_len]);
+}
+
+fn rememberTranspileFailure(allocator: std.mem.Allocator, fallback_path: []const u8) void {
+    if (transpiler.takeLastError(allocator)) |message| {
+        defer allocator.free(message);
+        rememberLastError(message);
+        return;
+    }
+
+    var buf: [512]u8 = undefined;
+    const msg = std.fmt.bufPrint(&buf, "Transpile failed in {s}", .{fallback_path}) catch "Transpile failed";
+    rememberLastError(msg);
+}
+
+pub fn evalModuleSource(
+    loader: *Loader,
+    runtime: *qjs.Runtime,
+    source: []const u8,
+    source_name: []const u8,
+) !void {
+    clearLastError();
+    qjs.updateStackTop(runtime.rt);
+
+    const transformed = transpiler.transformEsmModule(source, source_name, loader.allocator) catch |err| {
+        if (err == error.TranspileFailed) rememberTranspileFailure(loader.allocator, source_name);
+        return err;
+    };
+    defer transformed.deinit(loader.allocator);
+
+    const source_z = try loader.allocator.dupeZ(u8, transformed.code);
+    defer loader.allocator.free(source_z);
+    const file_name = try loader.allocator.dupeZ(u8, transformed.source_url);
+    defer loader.allocator.free(file_name);
+
+    const compiled = qjs.eval(runtime.ctx, source_z, file_name, qjs.EvalFlags.module_compile_only);
+    if (qjs.isException(compiled)) return error.JavaScriptError;
+    defer qjs.freeValue(runtime.ctx, compiled);
+
+    const value = qjs.c.JS_EvalFunction(runtime.ctx, qjs.dupValue(runtime.ctx, compiled));
+    defer qjs.freeValue(runtime.ctx, value);
+    if (qjs.isException(value)) return error.JavaScriptError;
+}
+
+pub fn evalPackageModule(loader: *Loader, runtime: *qjs.Runtime, specifier: []const u8) !void {
+    const source = loader.registry.findSource(specifier) orelse {
+        rememberLastError("Package module not found");
+        return error.ModuleNotFound;
+    };
+    try evalModuleSource(loader, runtime, source.source, source.specifier);
+}
+
+fn trackedModuleResolutionCopy(allocator: std.mem.Allocator, value: []const u8) ![]u8 {
+    const out = try allocator.alloc(u8, value.len);
+    @memcpy(out, value);
+    return out;
+}
+
+fn freeTrackedModuleResolution(allocator: std.mem.Allocator, value: []u8) void {
+    allocator.free(value);
+}
+
+fn readFileSource(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    return fs.readFileAlloc(allocator, path, 10 * 1024 * 1024);
+}
+
+fn normalizeModule(
+    ctx: ?*qjs.c.JSContext,
+    module_base_name: [*c]const u8,
+    module_name: [*c]const u8,
+    loader_opaque: ?*anyopaque,
+) callconv(.c) [*c]u8 {
+    const loader: *Loader = @ptrCast(@alignCast(loader_opaque orelse return null));
+    const qjs_ctx = ctx orelse return null;
+    if (module_base_name == null or module_name == null) return null;
+
+    const base = std.mem.span(module_base_name);
+    const specifier = std.mem.span(module_name);
+    const resolved = resolveSpecifier(loader, base, specifier) catch return null;
+    defer freeTrackedModuleResolution(loader.allocator, resolved);
+
+    const out = qjs.c.js_malloc(qjs_ctx, resolved.len + 1) orelse return null;
+    const buffer: [*]u8 = @ptrCast(out);
+    @memcpy(buffer[0..resolved.len], resolved);
+    buffer[resolved.len] = 0;
+    return @ptrCast(buffer);
+}
+
+fn loadModule(
+    ctx: ?*qjs.c.JSContext,
+    module_name: [*c]const u8,
+    loader_opaque: ?*anyopaque,
+) callconv(.c) ?*qjs.c.JSModuleDef {
+    const loader: *Loader = @ptrCast(@alignCast(loader_opaque orelse return null));
+    qjs.updateStackTop(qjs.c.JS_GetRuntime(ctx));
+    if (module_name == null) return null;
+    const name = std.mem.span(module_name);
+
+    if (loader.registry.findNativeModule(name)) |native| {
+        const name_z = loader.allocator.dupeZ(u8, native.specifier) catch return null;
+        defer loader.allocator.free(name_z);
+        return native.load(ctx, name_z.ptr);
+    }
+
+    const source_info = loader.registry.findSource(name);
+    const source = if (source_info) |entry|
+        entry.source
+    else
+        readFileSource(loader.allocator, name) catch {
+            rememberLastError("Module source not found");
+            return null;
+        };
+    defer if (source_info == null) loader.allocator.free(@constCast(source));
+
+    const source_name = if (source_info) |entry| entry.specifier else name;
+    const transformed = transpiler.transformEsmModule(source, source_name, loader.allocator) catch |err| {
+        if (err == error.TranspileFailed) rememberTranspileFailure(loader.allocator, source_name) else rememberLastError("Failed to transform module");
+        return null;
+    };
+    defer transformed.deinit(loader.allocator);
+
+    const source_z = loader.allocator.dupeZ(u8, transformed.code) catch return null;
+    defer loader.allocator.free(source_z);
+    const file_name = loader.allocator.dupeZ(u8, transformed.source_url) catch return null;
+    defer loader.allocator.free(file_name);
+
+    const compiled = qjs.eval(ctx, source_z, file_name, qjs.EvalFlags.module_compile_only);
+    if (qjs.isException(compiled)) return null;
+    defer qjs.freeValue(ctx, compiled);
+
+    return @ptrCast(@alignCast(qjs.c.JS_VALUE_GET_PTR(compiled)));
+}
+
+fn resolveSpecifier(loader: *const Loader, current_file: []const u8, specifier: []const u8) ![]u8 {
+    if (loader.registry.findSource(specifier) != null or loader.registry.findNativeModule(specifier) != null) {
+        return trackedModuleResolutionCopy(loader.allocator, specifier);
+    }
+
+    if (std.mem.startsWith(u8, specifier, "./") or std.mem.startsWith(u8, specifier, "../")) {
+        const current_dir = std.fs.path.dirname(current_file) orelse ".";
+        const joined = try std.fs.path.resolve(loader.allocator, &.{ current_dir, specifier });
+        errdefer loader.allocator.free(joined);
+        return joined;
+    }
+
+    const resolved = packages.resolveImport(current_file, specifier, loader.allocator) catch |err| {
+        rememberLastError(switch (err) {
+            error.UnsupportedCommonJS => "CommonJS packages are not supported",
+            else => "Cannot resolve module",
+        });
+        return err;
+    };
+    defer resolved.deinit(loader.allocator);
+    return trackedModuleResolutionCopy(loader.allocator, resolved.abs_path);
+}
+
+fn getGlobalNumber(ctx: ?*qjs.c.JSContext, name: [:0]const u8) !f64 {
+    const global = qjs.c.JS_GetGlobalObject(ctx);
+    defer qjs.freeValue(ctx, global);
+    const value = qjs.getProperty(ctx, global, name);
+    defer qjs.freeValue(ctx, value);
+
+    var out: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(ctx, &out, value));
+    return out;
+}
+
+test "loader imports package source module" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const sources = [_]packages.SourceModule{.{
+        .specifier = "demo:math",
+        .source = "export const value = 21;",
+    }};
+    var registry = packages.Registry.init(std.testing.allocator);
+    defer registry.deinit();
+    try registry.register(.{
+        .name = "demo",
+        .sources = &sources,
+    });
+
+    var loader = Loader{
+        .allocator = std.testing.allocator,
+        .registry = &registry,
+    };
+    loader.install(&runtime);
+
+    try evalModuleSource(
+        &loader,
+        &runtime,
+        "import { value } from 'demo:math'; globalThis.__hao_loader_value = value * 2;",
+        "<test-entry>",
+    );
+
+    try std.testing.expectEqual(@as(f64, 42), try getGlobalNumber(runtime.ctx, "__hao_loader_value"));
+}
+
+test "loader resolves relative TypeScript files and node_modules packages" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const root = ".zig-cache/hao-tests/module-loader";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo-pkg");
+    try fs.writeFile(root ++ "/dep.ts", "export const localValue: number = 20;");
+    try fs.writeFile(
+        root ++ "/main.ts",
+        \\import { localValue } from './dep.ts';
+        \\import { packageValue } from 'demo-pkg';
+        \\globalThis.__hao_file_loader_value = localValue + packageValue;
+        ,
+    );
+    try fs.writeFile(root ++ "/node_modules/demo-pkg/package.json", "{\"type\":\"module\",\"exports\":\"./index.ts\"}");
+    try fs.writeFile(root ++ "/node_modules/demo-pkg/index.ts", "export const packageValue: number = 22;");
+
+    const entry_path = root ++ "/main.ts";
+    const entry_source = try readFileSource(std.testing.allocator, entry_path);
+    defer std.testing.allocator.free(entry_source);
+
+    var registry = packages.Registry.init(std.testing.allocator);
+    defer registry.deinit();
+    var loader = Loader{
+        .allocator = std.testing.allocator,
+        .registry = &registry,
+    };
+    loader.install(&runtime);
+
+    try evalModuleSource(&loader, &runtime, entry_source, entry_path);
+
+    try std.testing.expectEqual(@as(f64, 42), try getGlobalNumber(runtime.ctx, "__hao_file_loader_value"));
+}
+
+const fixture_native_functions = [_]native_module.Function{.{
+    .name = "nativeValue",
+    .function = fixtureNativeValue,
+    .length = 0,
+}};
+
+fn fixtureNativeLoad(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
+    return native_module.createFunctionModule(ctx, module_name, fixtureNativeInit, &fixture_native_functions);
+}
+
+fn fixtureNativeInit(ctx: ?*qjs.c.JSContext, mod: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
+    return native_module.bindFunctionExports(ctx, mod, &fixture_native_functions);
+}
+
+fn fixtureNativeValue(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
+    return qjs.c.JS_NewInt32(ctx, 42);
+}
+
+test "loader composes source modules with native package modules" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const sources = [_]packages.SourceModule{.{
+        .specifier = "demo:index",
+        .source =
+        \\import { nativeValue } from 'demo:native';
+        \\globalThis.__hao_native_package_value = nativeValue();
+        ,
+    }};
+    const native_modules = [_]packages.NativeModule{.{
+        .specifier = "demo:native",
+        .load = fixtureNativeLoad,
+    }};
+    var registry = packages.Registry.init(std.testing.allocator);
+    defer registry.deinit();
+    try registry.register(.{
+        .name = "demo",
+        .sources = &sources,
+        .native_modules = &native_modules,
+    });
+
+    var loader = Loader{
+        .allocator = std.testing.allocator,
+        .registry = &registry,
+    };
+    loader.install(&runtime);
+
+    try evalPackageModule(&loader, &runtime, "demo:index");
+
+    try std.testing.expectEqual(@as(f64, 42), try getGlobalNumber(runtime.ctx, "__hao_native_package_value"));
+}
