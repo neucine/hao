@@ -13,7 +13,8 @@ extern "C" {
  * Hao addon ABI notes:
  *
  * - An addon exports one symbol named `js_register_modules` with the
- *   JsRegisterModulesFn signature.
+ *   JsRegisterModulesFn signature. It should check registry->api->abi_version
+ *   against JS_ADDON_ABI_VERSION before registering modules.
  * - JsModule.functions must point to a stable, null-terminated array of
  *   JsFunction values. The last entry must have name == NULL.
  * - JsModule, JsFunction, function names, and specifier strings must remain
@@ -83,6 +84,8 @@ typedef struct JsContextApi {
     int (*is_function)(JsContext* ctx, JsValue value);
     int (*array_length)(JsContext* ctx, JsValue value, uint32_t* out);
     JsValue (*array_get)(JsContext* ctx, JsValue value, uint32_t index);
+    JsValue (*array_value)(JsContext* ctx);
+    int (*array_set)(JsContext* ctx, JsValue array, uint32_t index, JsValue value);
 } JsContextApi;
 
 struct JsContext {
@@ -166,6 +169,19 @@ static inline int js_array_length(JsContext* ctx, JsValue value, uint32_t* out) 
 
 static inline JsValue js_array_get(JsContext* ctx, JsValue value, uint32_t index) {
     return ctx->api->array_get(ctx, value, index);
+}
+
+static inline JsValue js_array(JsContext* ctx) {
+    return ctx->api->array_value(ctx);
+}
+
+static inline int js_array_set(
+    JsContext* ctx,
+    JsValue array,
+    uint32_t index,
+    JsValue value
+) {
+    return ctx->api->array_set(ctx, array, index, value);
 }
 
 static inline int js_to_bool(JsContext* ctx, JsValue value, int* out) {

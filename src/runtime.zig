@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const errors = @import("errors.zig");
 const fs = @import("fs.zig");
 const qjs = @import("qjs.zig");
@@ -643,4 +644,59 @@ test "runtime host runs child process through hao process module" {
     const default = try qjs.valueToStringAlloc(host.runtime.ctx, default_value, std.testing.allocator);
     defer std.testing.allocator.free(default);
     try std.testing.expectEqualStrings("default", default);
+}
+
+test "runtime host imports dynamic native addon package" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const root = ".zig-cache/hao-tests/runtime-native-addon";
+    const package_root = root ++ "/node_modules/foo";
+    try fs.makePath(std.testing.allocator, package_root);
+    try fs.writeFile(root ++ "/main.ts",
+        \\import native from "foo:native";
+        \\globalThis.__hao_addon_foo = native.foo();
+        \\globalThis.__hao_addon_sum = native.add(20, 22);
+        \\globalThis.__hao_addon_pair = native.pair("left", "right").join(":");
+    );
+    try fs.writeFile(package_root ++ "/package.json", "{\"type\":\"module\"}");
+
+    const lib_path = switch (builtin.os.tag) {
+        .macos => package_root ++ "/native.dylib",
+        else => package_root ++ "/native.so",
+    };
+    const compile_args = switch (builtin.os.tag) {
+        .macos => &[_][]const u8{ "cc", "-Iinclude", "-dynamiclib", "examples/native-addon/native.c", "-o", lib_path },
+        else => &[_][]const u8{ "cc", "-Iinclude", "-shared", "-fPIC", "examples/native-addon/native.c", "-o", lib_path },
+    };
+    const compile = try std.process.run(std.testing.allocator, std.testing.io, .{ .argv = compile_args });
+    defer {
+        std.testing.allocator.free(compile.stdout);
+        std.testing.allocator.free(compile.stderr);
+    }
+    try std.testing.expectEqual(std.process.Child.Term{ .exited = 0 }, compile.term);
+
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.runFile(root ++ "/main.ts");
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    const foo_value = qjs.getProperty(host.runtime.ctx, global, "__hao_addon_foo");
+    defer qjs.freeValue(host.runtime.ctx, foo_value);
+    const foo_text = try qjs.valueToStringAlloc(host.runtime.ctx, foo_value, std.testing.allocator);
+    defer std.testing.allocator.free(foo_text);
+    try std.testing.expectEqualStrings("hao", foo_text);
+
+    const sum_value = qjs.getProperty(host.runtime.ctx, global, "__hao_addon_sum");
+    defer qjs.freeValue(host.runtime.ctx, sum_value);
+    var sum: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &sum, sum_value));
+    try std.testing.expectEqual(@as(f64, 42), sum);
+
+    const pair_value = qjs.getProperty(host.runtime.ctx, global, "__hao_addon_pair");
+    defer qjs.freeValue(host.runtime.ctx, pair_value);
+    const pair_text = try qjs.valueToStringAlloc(host.runtime.ctx, pair_value, std.testing.allocator);
+    defer std.testing.allocator.free(pair_text);
+    try std.testing.expectEqualStrings("left:right", pair_text);
 }

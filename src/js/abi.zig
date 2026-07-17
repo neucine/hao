@@ -59,6 +59,8 @@ pub const ContextApi = extern struct {
     is_function: *const fn (*Context, Value) callconv(.c) c_int,
     array_length: *const fn (*Context, Value, *u32) callconv(.c) c_int,
     array_get: *const fn (*Context, Value, u32) callconv(.c) Value,
+    array_value: *const fn (*Context) callconv(.c) Value,
+    array_set: *const fn (*Context, Value, u32, Value) callconv(.c) c_int,
 };
 
 const CallFrame = struct {
@@ -174,6 +176,7 @@ pub const ModuleCollector = struct {
 };
 
 fn registryAddModule(registry: *Registry, module: *const Module) callconv(.c) c_int {
+    if (registry.api.abi_version != abi_version) return -1;
     const collector: *ModuleCollector = @ptrCast(@alignCast(registry.data orelse return -1));
     collector.addModule(module) catch return -1;
     return 0;
@@ -184,6 +187,7 @@ const registry_api = RegistryApi{
 };
 
 fn contextData(context: *Context) *ContextData {
+    std.debug.assert(context.api.abi_version == abi_version);
     return @ptrCast(@alignCast(context.data.?));
 }
 
@@ -293,6 +297,17 @@ fn contextArrayGet(context: *Context, value: Value, index: u32) callconv(.c) Val
     return pushJs(context, qjs.c.JS_GetPropertyUint32(data.frame.ctx, js_value, index));
 }
 
+fn contextArray(context: *Context) callconv(.c) Value {
+    return pushJs(context, qjs.c.JS_NewArray(contextData(context).frame.ctx));
+}
+
+fn contextArraySet(context: *Context, array: Value, index: u32, value: Value) callconv(.c) c_int {
+    const data = contextData(context);
+    const js_array = valueToJs(context, array) orelse return -1;
+    const js_value = valueToJs(context, value) orelse return -1;
+    return qjs.c.JS_SetPropertyUint32(data.frame.ctx, js_array, index, qjs.dupValue(data.frame.ctx, js_value));
+}
+
 fn contextToBool(context: *Context, value: Value, out: *c_int) callconv(.c) c_int {
     const js_value = valueToJs(context, value) orelse return -1;
     out.* = qjs.c.JS_ToBool(contextData(context).frame.ctx, js_value);
@@ -357,6 +372,8 @@ const context_api = ContextApi{
     .is_function = contextIsFunction,
     .array_length = contextArrayLength,
     .array_get = contextArrayGet,
+    .array_value = contextArray,
+    .array_set = contextArraySet,
 };
 
 pub fn createFunctionModule(
