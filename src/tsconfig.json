@@ -10,13 +10,20 @@
     "paths": {
       "std:ffi": ["std/ffi/index.ts"],
       "std:ffi/c": ["std/ffi/c.ts"],
+      "std:ffi/c/native": ["std/ffi/c_native.d.ts"],
+      "std:ffi/native": ["std/ffi/native.d.ts"],
       "std:fs": ["std/fs/index.ts"],
+      "std:fs/native": ["std/fs/native.d.ts"],
       "std:http": ["std/http/index.ts"],
+      "std:http/native": ["std/http/native.d.ts"],
       "std:plot": ["std/plot/index.ts"],
       "std:process": ["std/process/index.ts"],
+      "std:process/native": ["std/process/native.d.ts"],
       "std:runtime": ["std/runtime/index.ts"],
       "std:test": ["std/test/index.ts"],
-      "std:util": ["std/util/index.ts"]
+      "std:test/native": ["std/test/native.d.ts"],
+      "std:util": ["std/util/index.ts"],
+      "std:util/native": ["std/util/native.d.ts"]
     },
     "skipLibCheck": true
   },

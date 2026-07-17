@@ -307,7 +307,7 @@ test "runtime host includes std namespace modules by default" {
     try std.testing.expectEqualStrings("std:", text);
 }
 
-test "runtime host includes hao fs module by default" {
+test "runtime host includes std fs module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-fs");
@@ -342,7 +342,7 @@ test "runtime host includes hao fs module by default" {
     try std.testing.expectEqual(@as(f64, 14), size);
 }
 
-test "runtime host includes hao process module by default" {
+test "runtime host includes std process module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
@@ -370,7 +370,7 @@ test "runtime host includes hao process module by default" {
     try std.testing.expect(qjs.isNull(missing));
 }
 
-test "runtime host includes hao http module by default" {
+test "runtime host includes std http module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
@@ -400,7 +400,7 @@ test "runtime host includes hao http module by default" {
     }
 }
 
-test "runtime host includes hao util module by default" {
+test "runtime host includes std util module by default" {
     util_native.defaults = .{};
     defer util_native.defaults = .{};
 
@@ -438,7 +438,7 @@ test "runtime host includes hao util module by default" {
     try std.testing.expectEqual(@as(f64, 2), options);
 }
 
-test "runtime host includes hao plot module by default" {
+test "runtime host includes std plot module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-plot");
@@ -470,7 +470,7 @@ test "runtime host includes hao plot module by default" {
     }
 }
 
-test "runtime host includes hao ffi module by default" {
+test "runtime host includes std ffi module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
@@ -503,7 +503,7 @@ test "runtime host includes hao ffi module by default" {
     try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, unsupported_value));
 }
 
-test "runtime host includes hao ffi c declaration module by default" {
+test "runtime host includes std ffi c declaration module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
@@ -538,7 +538,7 @@ test "runtime host includes hao ffi c declaration module by default" {
     try std.testing.expectEqualStrings("i32", returns_text);
 }
 
-test "runtime host includes hao test module by default" {
+test "runtime host includes std test module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
@@ -604,7 +604,7 @@ test "std package install initializes hao test registry" {
     try std.testing.expectEqual(@as(f64, 1), tests_count);
 }
 
-test "runtime host captures console output through hao test module" {
+test "runtime host captures console output through std test module" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
@@ -646,7 +646,7 @@ test "runtime host captures console output through hao test module" {
     try std.testing.expect(std.mem.indexOf(u8, combined_text, "bad") != null);
 }
 
-test "runtime host runs child process through hao process module" {
+test "runtime host runs child process through std process module" {
     var host = try Host.initWithIo(std.testing.allocator, std.testing.io);
     defer host.deinit();
     try host.evalModuleSource(

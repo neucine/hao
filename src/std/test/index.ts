@@ -95,7 +95,6 @@ const core = {
 
   function values(value: any): any {
     if ((isComputeValueLike(value) || !!value) && typeof value?.to_array === 'function') return value.to_array()
-    if ((isComputeValueLike(value) || !!value) && typeof value?.to_array === 'function') return value.to_array()
     return value
   }
 

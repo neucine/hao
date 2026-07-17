@@ -470,7 +470,7 @@ fn trySetOwned(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst, key: [:0]const u
     };
 }
 
-test "hao http native module can be created" {
+test "std http native module can be created" {
     var runtime = try qjs.Runtime.init();
     defer runtime.deinit();
 

@@ -61,7 +61,7 @@ fn jsStatSync(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) c
     return obj;
 }
 
-test "hao fs native module can be created" {
+test "std fs native module can be created" {
     var runtime = try qjs.Runtime.init();
     defer runtime.deinit();
 

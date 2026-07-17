@@ -174,7 +174,7 @@ fn jsRunNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) 
     return makeRunResult(ctx, result);
 }
 
-test "hao process native module can be created" {
+test "std process native module can be created" {
     var runtime = try qjs.Runtime.init();
     defer runtime.deinit();
 

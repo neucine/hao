@@ -65,7 +65,6 @@ interface Series {
 
   function values(value: unknown): unknown {
     if ((isTensorLike(value) || !!value) && typeof (value as any)?.to_array === 'function') return (value as any).to_array()
-    if ((isTensorLike(value) || !!value) && typeof (value as any)?.to_array === 'function') return (value as any).to_array()
     return value
   }
 
