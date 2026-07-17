@@ -6,16 +6,30 @@ const c = @cImport({
     @cInclude("stdio.h");
 });
 
+fn stdoutFile() *c.FILE {
+    return switch (@typeInfo(@TypeOf(c.stdout))) {
+        .@"fn" => c.stdout(),
+        else => c.stdout orelse unreachable,
+    };
+}
+
+fn stderrFile() *c.FILE {
+    return switch (@typeInfo(@TypeOf(c.stderr))) {
+        .@"fn" => c.stderr(),
+        else => c.stderr orelse unreachable,
+    };
+}
+
 fn writeStderr(bytes: []const u8) void {
     if (bytes.len == 0) return;
-    const stderr = c.stderr();
+    const stderr = stderrFile();
     _ = c.fwrite(bytes.ptr, 1, bytes.len, stderr);
     _ = c.fflush(stderr);
 }
 
 fn writeStdout(bytes: []const u8) void {
     if (bytes.len == 0) return;
-    const stdout = c.stdout();
+    const stdout = stdoutFile();
     _ = c.fwrite(bytes.ptr, 1, bytes.len, stdout);
     _ = c.fflush(stdout);
 }

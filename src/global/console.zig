@@ -40,12 +40,26 @@ fn writeFile(file: *c.FILE, bytes: []const u8) void {
     _ = c.fflush(file);
 }
 
+fn stdoutFile() *c.FILE {
+    return switch (@typeInfo(@TypeOf(c.stdout))) {
+        .@"fn" => c.stdout(),
+        else => c.stdout orelse unreachable,
+    };
+}
+
+fn stderrFile() *c.FILE {
+    return switch (@typeInfo(@TypeOf(c.stderr))) {
+        .@"fn" => c.stderr(),
+        else => c.stderr orelse unreachable,
+    };
+}
+
 fn writeStdout(bytes: []const u8) void {
-    writeFile(c.stdout(), bytes);
+    writeFile(stdoutFile(), bytes);
 }
 
 fn writeStderr(bytes: []const u8) void {
-    writeFile(c.stderr(), bytes);
+    writeFile(stderrFile(), bytes);
 }
 
 fn writeCaptured(target: CaptureTarget, bytes: []const u8) void {

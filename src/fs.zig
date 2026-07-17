@@ -60,7 +60,8 @@ pub fn makeDir(path: []const u8) !void {
     @memcpy(path_buf[0..path.len], path);
     path_buf[path.len] = 0;
 
-    if (c.mkdir(&path_buf, 0o755) != 0 and c.__error().* != c.EEXIST) {
+    const result = c.mkdir(&path_buf, 0o755);
+    if (result != 0 and std.posix.errno(result) != .EXIST) {
         return error.MakeDirFailed;
     }
 }

@@ -20,7 +20,7 @@ describe('http module', () => {
     portFile = `.hao-http-port-${Date.now()}-${Math.random().toString(16).slice(2)}`
     const out = await run({
       cmd: 'sh',
-      args: ['-c', `python3 ${serverScript} > ${portFile} 2>/dev/null & echo $!`],
+      args: ['-c', `nohup python3 -u ${serverScript} > ${portFile} 2>/dev/null </dev/null & echo $!`],
     })
     pid = out.stdout.trim()
 
