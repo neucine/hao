@@ -1,4 +1,4 @@
-#include "hao.h"
+#include "addon.h"
 
 static JsValue foo(JsContext* ctx, int argc, const JsValue* argv) {
     (void)argc;

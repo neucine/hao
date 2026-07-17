@@ -1,8 +1,10 @@
 # Native Addons
 
 Native addons are dynamic libraries that export `js_register_modules`.
-They use the C ABI in `include/hao.h` and can be imported from TypeScript with
+They use the C ABI in `include/addon.h` and can be imported from TypeScript with
 package-owned specifiers such as `foo:native`.
+
+`include/hao.h` is kept as a compatibility wrapper for existing addons.
 
 ## Package Layout
 
@@ -34,7 +36,7 @@ loads the matching dynamic library.
 ## C Entry Point
 
 ```c
-#include "hao.h"
+#include "addon.h"
 
 static JsValue foo(JsContext* ctx, int argc, const JsValue* argv) {
     (void)argc;
