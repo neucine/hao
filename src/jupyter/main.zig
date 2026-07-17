@@ -526,7 +526,7 @@ fn awaitNotebookPromise(qruntime: *qjs.Runtime, loop: *async_loop.Loop, promise_
         \\  (err) => { globalThis.__hao_nb_async_state.settled = true; globalThis.__hao_nb_async_state.ok = false; globalThis.__hao_nb_async_state.error = err; },
         \\);
     ;
-    const value = qjs.eval(ctx, bootstrap, "<hao:jupyter>", qjs.EvalFlags.global);
+    const value = qjs.eval(ctx, bootstrap, "<hao-jupyter>", qjs.EvalFlags.global);
     defer qjs.freeValue(ctx, value);
     if (qjs.isException(value)) {
         return formatJsException(ctx, allocator) catch try allocator.dupe(u8, "unknown error");
@@ -868,6 +868,29 @@ fn publishDisplayData(z: *const zmq.Zmq, parent: *wire.Message, mime: []const u8
 // kernel install
 // ============================================================
 
+fn kernelspecDir(home: []const u8, buf: []u8) ![]const u8 {
+    return if (builtin.os.tag == .macos)
+        std.fmt.bufPrint(buf, "{s}/Library/Jupyter/kernels/hao", .{home})
+    else
+        std.fmt.bufPrint(buf, "{s}/.local/share/jupyter/kernels/hao", .{home});
+}
+
+fn kernelJsonPath(kernels_dir: []const u8, buf: []u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "{s}/kernel.json", .{kernels_dir});
+}
+
+fn renderKernelJson(exe_path: []const u8, buf: []u8) ![]const u8 {
+    return std.fmt.bufPrint(buf,
+        \\{{
+        \\  "argv": ["{s}", "jupyter", "--connection-file", "{{connection_file}}"],
+        \\  "display_name": "Hao (TypeScript)",
+        \\  "language": "typescript",
+        \\  "metadata": {{"debugger": false}}
+        \\}}
+        \\
+    , .{exe_path});
+}
+
 pub fn install() !void {
 
     // Get hao binary path
@@ -878,10 +901,7 @@ pub fn install() !void {
     // Determine kernels directory
     const home = if (c.getenv("HOME")) |value| std.mem.span(value) else return error.NoHome;
     var path_buf: [4096]u8 = undefined;
-    const kernels_dir = if (builtin.os.tag == .macos)
-        try std.fmt.bufPrint(&path_buf, "{s}/Library/Jupyter/kernels/hao", .{home})
-    else
-        try std.fmt.bufPrint(&path_buf, "{s}/.local/share/jupyter/kernels/hao", .{home});
+    const kernels_dir = try kernelspecDir(home, &path_buf);
 
     // Create directory
     fs.makePath(std.heap.page_allocator, kernels_dir) catch |err| {
@@ -890,24 +910,36 @@ pub fn install() !void {
 
     // Write kernel.json
     var json_path_buf: [4096]u8 = undefined;
-    const json_path = try std.fmt.bufPrint(&json_path_buf, "{s}/kernel.json", .{kernels_dir});
+    const json_path = try kernelJsonPath(kernels_dir, &json_path_buf);
 
     var write_buf: [4096]u8 = undefined;
-    const json_content = try std.fmt.bufPrint(&write_buf,
-        \\{{
-        \\  "argv": ["{s}", "jupyter", "--connection-file", "{{connection_file}}"],
-        \\  "display_name": "Hao (TypeScript)",
-        \\  "language": "typescript",
-        \\  "metadata": {{"debugger": false}}
-        \\}}
-        \\
-    , .{exe_path});
+    const json_content = try renderKernelJson(exe_path, &write_buf);
 
     try fs.writeFile(json_path, json_content);
 
     writeStdout("Installed hao kernel to ");
     writeStdout(json_path);
     writeStdout("\n");
+}
+
+test "jupyter kernelspec helpers render hao runtime command" {
+    var dir_buf: [4096]u8 = undefined;
+    const kernels_dir = try kernelspecDir("/tmp/hao-home", &dir_buf);
+    try std.testing.expect(std.mem.endsWith(u8, kernels_dir, "/kernels/hao"));
+    try std.testing.expect(std.mem.indexOf(u8, kernels_dir, "hao:") == null);
+
+    var path_buf: [4096]u8 = undefined;
+    const path = try kernelJsonPath(kernels_dir, &path_buf);
+    try std.testing.expect(std.mem.endsWith(u8, path, "/kernels/hao/kernel.json"));
+
+    var json_buf: [4096]u8 = undefined;
+    const json = try renderKernelJson("/usr/local/bin/hao", &json_buf);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"/usr/local/bin/hao\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"jupyter\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"--connection-file\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"{connection_file}\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "Hao (TypeScript)") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "hao:") == null);
 }
 
 test "callRepr extracts generic svg repr object on qjs jupyter path" {
