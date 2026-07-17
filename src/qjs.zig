@@ -1,5 +1,4 @@
 const std = @import("std");
-const js_classes = @import("js_classes.zig");
 const config = @import("config.zig");
 
 pub const c = @cImport({
@@ -8,6 +7,29 @@ pub const c = @cImport({
 
 var pending_exception_ctx: ?*c.JSContext = null;
 var pending_exception_value: ?c.JSValue = null;
+
+pub const ClassSlot = enum {
+    file,
+    trace_handle,
+};
+
+var class_ids = [_]c.JSClassID{0} ** @typeInfo(ClassSlot).@"enum".fields.len;
+var class_ready = [_]bool{false} ** @typeInfo(ClassSlot).@"enum".fields.len;
+
+fn ensureClassesRegistered(rt: ?*c.JSRuntime) void {
+    inline for (@typeInfo(ClassSlot).@"enum".fields) |field| {
+        _ = ensureClassId(rt, @enumFromInt(field.value));
+    }
+}
+
+pub fn ensureClassId(rt: ?*c.JSRuntime, slot: ClassSlot) c.JSClassID {
+    const idx = @intFromEnum(slot);
+    if (!class_ready[idx]) {
+        _ = c.JS_NewClassID(@ptrCast(rt), &class_ids[idx]);
+        class_ready[idx] = true;
+    }
+    return class_ids[idx];
+}
 
 pub const Runtime = struct {
     rt: ?*c.JSRuntime,
@@ -23,7 +45,7 @@ pub const Runtime = struct {
         c.JS_SetMaxStackSize(rt, options.quickjs_stack_size);
         c.JS_UpdateStackTop(rt);
         c.JS_SetHostPromiseRejectionTracker(rt, onHostPromiseRejection, null);
-        js_classes.ensureRegistered(rt);
+        ensureClassesRegistered(rt);
 
         const ctx = c.JS_NewContext(rt) orelse {
             c.JS_FreeRuntime(rt);
