@@ -1,7 +1,7 @@
 const std = @import("std");
 const qjs = @import("qjs.zig");
 const fs = @import("fs.zig");
-const addon_loader = @import("addon/loader.zig");
+const js_addon = @import("js/addon.zig");
 
 pub const SourceModule = struct {
     specifier: []const u8,
@@ -386,7 +386,7 @@ test "package resolver accepts addon entries" {
     const resolved = try resolveImport(root ++ "/main.ts", "demo-native", std.testing.allocator);
     defer resolved.deinit(std.testing.allocator);
 
-    try std.testing.expect(addon_loader.isAddonPath(resolved.abs_path));
+    try std.testing.expect(js_addon.isAddonPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }
 
@@ -401,6 +401,6 @@ test "package resolver accepts colon native subpaths" {
     defer resolved.deinit(std.testing.allocator);
 
     try std.testing.expectEqualStrings("foo", resolved.package_name);
-    try std.testing.expect(addon_loader.isAddonPath(resolved.abs_path));
+    try std.testing.expect(js_addon.isAddonPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }

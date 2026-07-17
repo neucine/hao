@@ -2,7 +2,7 @@ pub const qjs = @import("qjs.zig");
 pub const fs = @import("fs.zig");
 pub const package = @import("package.zig");
 pub const module = @import("module.zig");
-pub const addon = @import("addon/mod.zig");
+pub const js = @import("js/mod.zig");
 pub const runtime = @import("runtime.zig");
 pub const std = @import("std.zig");
 pub const jupyter = @import("jupyter/main.zig");
@@ -25,7 +25,7 @@ test {
     _ = fs;
     _ = package;
     _ = module;
-    _ = addon;
+    _ = js;
     _ = runtime;
     _ = std;
     _ = jupyter;

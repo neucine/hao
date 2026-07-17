@@ -1,6 +1,6 @@
 const std = @import("std");
 const errors = @import("../../errors.zig");
-const native_module = @import("../../addon/module.zig");
+const native_module = @import("../../js/module.zig");
 const qjs = @import("../../qjs.zig");
 const parser = @import("c_abi/parser.zig");
 const lower = @import("c_abi/lower.zig");

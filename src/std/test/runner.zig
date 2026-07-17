@@ -6,7 +6,7 @@ const global_console = @import("../../global/console.zig");
 const global_timer = @import("../../global/timer.zig");
 const fs = @import("../../fs.zig");
 const module_runtime = @import("../../module.zig");
-const addon_loader = @import("../../addon/loader.zig");
+const js_addon = @import("../../js/addon.zig");
 const packages = @import("../../package.zig");
 const hao_std = @import("../../std.zig");
 const http_native = @import("../http/native.zig");
@@ -602,7 +602,7 @@ pub fn run(paths: [][]const u8, grep: ?[]const u8, print_summary: bool, allocato
     var runtime = try qjs.Runtime.init();
     defer runtime.deinit();
     defer global_timer.cleanup(allocator);
-    defer addon_loader.cleanup();
+    defer js_addon.cleanup();
     defer global_console.capture_state = null;
 
     var loop = try async_loop.Loop.init(allocator);

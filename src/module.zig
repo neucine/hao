@@ -1,7 +1,7 @@
 const std = @import("std");
 const fs = @import("fs.zig");
-const addon_abi = @import("addon/abi.zig");
-const addon_loader = @import("addon/loader.zig");
+const js_abi = @import("js/abi.zig");
+const js_addon = @import("js/addon.zig");
 const qjs = @import("qjs.zig");
 const packages = @import("package.zig");
 const transpiler = @import("transpiler.zig");
@@ -271,8 +271,8 @@ fn loadModule(
         return native.load(ctx, name_z.ptr);
     }
 
-    if (addon_loader.isAddonPath(name)) {
-        return addon_loader.loadModule(loader.allocator, ctx, name, module_name);
+    if (js_addon.isAddonPath(name)) {
+        return js_addon.loadModule(loader.allocator, ctx, name, module_name);
     }
 
     const source_info = loader.registry.findSource(name);
@@ -348,7 +348,7 @@ test "loader resolves package addon entries" {
     const resolved = try resolveSpecifier(&loader, root ++ "/main.ts", "demo-native");
     defer loader.allocator.free(resolved);
 
-    try std.testing.expect(addon_loader.isAddonPath(resolved));
+    try std.testing.expect(js_addon.isAddonPath(resolved));
     try std.testing.expect(std.mem.endsWith(u8, resolved, "native.dylib"));
 }
 
@@ -428,7 +428,7 @@ test "loader resolves relative TypeScript files and node_modules packages" {
     try std.testing.expectEqual(@as(f64, 42), try getGlobalNumber(runtime.ctx, "__hao_file_loader_value"));
 }
 
-const fixture_abi_functions = [_]addon_abi.Function{
+const fixture_abi_functions = [_]js_abi.Function{
     .{
         .name = "nativeValue",
         .callback = fixtureAbiNativeValue,
@@ -440,13 +440,13 @@ const fixture_abi_functions = [_]addon_abi.Function{
         .length = 0,
     },
 };
-const fixture_abi_function_ptrs = [_]*const addon_abi.Function{&fixture_abi_functions[0]};
+const fixture_abi_function_ptrs = [_]*const js_abi.Function{&fixture_abi_functions[0]};
 
 fn fixtureNativeLoad(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return addon_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &fixture_abi_function_ptrs);
+    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &fixture_abi_function_ptrs);
 }
 
-fn fixtureAbiNativeValue(ctx: *addon_abi.Context, _: c_int, _: [*c]const addon_abi.Value) callconv(.c) addon_abi.Value {
+fn fixtureAbiNativeValue(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     return ctx.api.int32_value(ctx, 42);
 }
 
