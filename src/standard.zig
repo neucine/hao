@@ -8,7 +8,7 @@ pub const runtime_source =
 ;
 
 pub const fs_source =
-    \\import * as native from "hao:fs/native";
+    \\import * as native from "hao:std/fs/native";
     \\export const existsSync = native.existsSync;
     \\export const readFileSync = native.readFileSync;
     \\export const writeFileSync = native.writeFileSync;
@@ -22,7 +22,7 @@ pub const sources = [_]package.SourceModule{
         .source = runtime_source,
     },
     .{
-        .specifier = "hao:fs",
+        .specifier = "hao:std/fs",
         .source = fs_source,
     },
 };
