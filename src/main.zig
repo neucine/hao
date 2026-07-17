@@ -35,7 +35,7 @@ pub fn main(init: std.process.Init) !void {
         std.process.exit(2);
     }
 
-    var host = try hao.Host.init(allocator);
+    var host = try hao.Host.initWithIo(allocator, init.io);
     defer host.deinit();
     host.runFile(path) catch |err| {
         if (hao.module.lastError()) |message| {

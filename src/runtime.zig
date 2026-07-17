@@ -6,13 +6,19 @@ const global_timer = @import("global/timer.zig");
 const module = @import("module.zig");
 const packages = @import("package.zig");
 const hao_std = @import("std.zig");
+const process_native = @import("std/process/native.zig");
 
 pub const Host = struct {
     runtime: qjs.Runtime,
     loop: async_loop.Loop,
     allocator: std.mem.Allocator,
+    io: ?std.Io = null,
 
     pub fn init(allocator: std.mem.Allocator) !Host {
+        return initWithIo(allocator, null);
+    }
+
+    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !Host {
         var runtime = try qjs.Runtime.init();
         errdefer runtime.deinit();
 
@@ -23,11 +29,13 @@ pub const Host = struct {
             .runtime = runtime,
             .loop = loop,
             .allocator = allocator,
+            .io = io,
         };
     }
 
     pub fn deinit(self: *Host) void {
         async_loop.detachCurrent();
+        process_native.detachIo();
         global_timer.cleanup(self.allocator);
         self.loop.deinit();
         self.runtime.deinit();
@@ -36,6 +44,7 @@ pub const Host = struct {
 
     pub fn installGlobals(self: *Host) !void {
         async_loop.attachCurrent(&self.loop);
+        if (self.io) |io| process_native.attachIo(io);
         try global_timer.register(self.runtime.ctx);
     }
 
@@ -51,6 +60,7 @@ pub const Host = struct {
         };
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
+        if (self.io) |io| process_native.attachIo(io);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
     }
 
@@ -78,7 +88,9 @@ pub const Host = struct {
 
     pub fn runUntilIdle(self: *Host) !void {
         async_loop.attachCurrent(&self.loop);
+        if (self.io) |io| process_native.attachIo(io);
         defer async_loop.detachCurrent();
+        defer process_native.detachIo();
 
         while (true) {
             const ran_jobs = try qjs.executePendingJobs(self.runtime.rt);
@@ -222,4 +234,36 @@ test "runtime host includes hao process module by default" {
     const missing = qjs.getProperty(host.runtime.ctx, global, "__hao_process_missing");
     defer qjs.freeValue(host.runtime.ctx, missing);
     try std.testing.expect(qjs.isNull(missing));
+}
+
+test "runtime host runs child process through hao process module" {
+    var host = try Host.initWithIo(std.testing.allocator, std.testing.io);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import process, { run } from "hao:process";
+        \\run({ cmd: "printf", args: ["42"] }).text().then((text) => {
+        \\  globalThis.__hao_process_run_named = text;
+        \\});
+        \\process.run("printf default").text().then((text) => {
+        \\  globalThis.__hao_process_run_default = text;
+        \\});
+        ,
+        "<hao-process-run-test>",
+    );
+    try host.runUntilIdle();
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    const named_value = qjs.getProperty(host.runtime.ctx, global, "__hao_process_run_named");
+    defer qjs.freeValue(host.runtime.ctx, named_value);
+    const named = try qjs.valueToStringAlloc(host.runtime.ctx, named_value, std.testing.allocator);
+    defer std.testing.allocator.free(named);
+    try std.testing.expectEqualStrings("42", named);
+
+    const default_value = qjs.getProperty(host.runtime.ctx, global, "__hao_process_run_default");
+    defer qjs.freeValue(host.runtime.ctx, default_value);
+    const default = try qjs.valueToStringAlloc(host.runtime.ctx, default_value, std.testing.allocator);
+    defer std.testing.allocator.free(default);
+    try std.testing.expectEqualStrings("default", default);
 }

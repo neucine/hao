@@ -19,7 +19,7 @@ Current first-party modules:
 
 - `hao:runtime`
 - `hao:fs`
-- `hao:process`
+- `hao:process` (`getEnv`, `run`)
 
 Run a script:
 
