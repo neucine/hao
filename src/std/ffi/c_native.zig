@@ -14,11 +14,18 @@ pub const specifier: [:0]const u8 = "hao:ffi/c/native";
 
 const alloc = std.heap.page_allocator;
 
-const module_functions = [_]js_abi.LegacyFunction{
-    .{ .name = "openNative", .function = js_openNative, .length = 3 },
-    .{ .name = "callNative", .function = js_callNative, .length = 3 },
-    .{ .name = "closeNative", .function = js_closeNative, .length = 1 },
-    .{ .name = "prepareNative", .function = js_prepareNative, .length = 2 },
+const module_functions = [_]js_abi.Function{
+    .{ .name = "openNative", .callback = js_openNative, .length = 3 },
+    .{ .name = "callNative", .callback = js_callNative, .length = 3 },
+    .{ .name = "closeNative", .callback = js_closeNative, .length = 1 },
+    .{ .name = "prepareNative", .callback = js_prepareNative, .length = 2 },
+    .{ .name = null, .callback = js_prepareNative },
+};
+const module_function_ptrs = [_]*const js_abi.Function{
+    &module_functions[0],
+    &module_functions[1],
+    &module_functions[2],
+    &module_functions[3],
 };
 
 const Binding = struct {
@@ -51,14 +58,47 @@ var libraries: std.AutoHashMapUnmanaged(u32, *OpenCLibrary) = .empty;
 var next_library_id: u32 = 1;
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createLegacyFunctionModule(ctx, module_name, init, &module_functions);
+    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &module_function_ptrs);
 }
 
-fn init(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return js_abi.bindLegacyFunctionExports(ctx, module, &module_functions);
+fn borrowedArgs(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, comptime max_args: usize) ?[max_args]qjs.c.JSValueConst {
+    if (argc > max_args) return null;
+    var out: [max_args]qjs.c.JSValueConst = undefined;
+    for (0..@as(usize, @intCast(@max(argc, 0)))) |index| {
+        out[index] = js_abi.borrowValue(ctx, argv[index]) orelse return null;
+    }
+    return out;
 }
 
-fn js_prepareNative(
+fn pushResult(ctx: *js_abi.Context, result: qjs.c.JSValue) js_abi.Value {
+    return js_abi.adoptValue(ctx, result);
+}
+
+fn js_prepareNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    var args = borrowedArgs(ctx, argc, argv, 3) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    return pushResult(ctx, qjs_prepareNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+}
+
+fn js_openNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    var args = borrowedArgs(ctx, argc, argv, 3) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    return pushResult(ctx, qjs_openNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+}
+
+fn js_callNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    var args = borrowedArgs(ctx, argc, argv, 3) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    return pushResult(ctx, qjs_callNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+}
+
+fn js_closeNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    var args = borrowedArgs(ctx, argc, argv, 1) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    return pushResult(ctx, qjs_closeNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+}
+
+fn qjs_prepareNative(
     ctx: ?*qjs.c.JSContext,
     _: qjs.c.JSValueConst,
     argc: c_int,
@@ -105,7 +145,7 @@ fn js_prepareNative(
     };
 }
 
-fn js_openNative(
+fn qjs_openNative(
     ctx: ?*qjs.c.JSContext,
     _: qjs.c.JSValueConst,
     argc: c_int,
@@ -181,7 +221,7 @@ fn js_openNative(
     };
 }
 
-fn js_callNative(
+fn qjs_callNative(
     ctx: ?*qjs.c.JSContext,
     _: qjs.c.JSValueConst,
     argc: c_int,
@@ -274,7 +314,7 @@ fn js_callNative(
     };
 }
 
-fn js_closeNative(
+fn qjs_closeNative(
     ctx: ?*qjs.c.JSContext,
     _: qjs.c.JSValueConst,
     argc: c_int,
