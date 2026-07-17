@@ -385,6 +385,41 @@ test "runtime host includes hao ffi module by default" {
     try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, unsupported_value));
 }
 
+test "runtime host includes hao ffi c declaration module by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import cmod, { decl } from "hao:ffi/c";
+        \\import { prepareNative } from "hao:ffi/c/native";
+        \\const prepared = prepareNative("x", "int32_t add(int32_t a, int32_t b);");
+        \\globalThis.__hao_ffi_c_decl = typeof decl;
+        \\globalThis.__hao_ffi_c_default = typeof cmod.decl;
+        \\globalThis.__hao_ffi_c_returns = prepared.descriptor.add.returns;
+    ,
+        "<hao-ffi-c-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    inline for ([_][:0]const u8{
+        "__hao_ffi_c_decl",
+        "__hao_ffi_c_default",
+    }) |key| {
+        const value = qjs.getProperty(host.runtime.ctx, global, key);
+        defer qjs.freeValue(host.runtime.ctx, value);
+        const text = try qjs.valueToStringAlloc(host.runtime.ctx, value, std.testing.allocator);
+        defer std.testing.allocator.free(text);
+        try std.testing.expectEqualStrings("function", text);
+    }
+
+    const returns_value = qjs.getProperty(host.runtime.ctx, global, "__hao_ffi_c_returns");
+    defer qjs.freeValue(host.runtime.ctx, returns_value);
+    const returns_text = try qjs.valueToStringAlloc(host.runtime.ctx, returns_value, std.testing.allocator);
+    defer std.testing.allocator.free(returns_text);
+    try std.testing.expectEqualStrings("i32", returns_text);
+}
+
 test "runtime host includes hao test module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();

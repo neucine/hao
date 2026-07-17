@@ -3,10 +3,7 @@ declare module "hao:ffi" {
 
   export function dlopen(name: string, descriptor: FFIDescriptor): Record<string, any>
 
-  export const c: {
-    cdecl(name: string, declarations: string, opts?: unknown): never
-    decl(name: string, declarations: string, opts?: unknown): never
-  }
+  export { default as c } from "hao:ffi/c"
 
   export default {
     dlopen,

@@ -1,4 +1,5 @@
 import { openNative, callNative, closeNative } from "hao:ffi/native";
+import cModule from "hao:ffi/c";
 
 type FFIDescriptor = Record<string, { args: string[]; returns: string }>;
 
@@ -26,14 +27,6 @@ function dlopen(name: string, descriptor: FFIDescriptor) {
   return lib;
 }
 
-function unsupportedCDecl(): never {
-  throw new Error("hao:ffi c declarations are not extracted yet");
-}
-
-const c = {
-  cdecl: unsupportedCDecl,
-  decl: unsupportedCDecl,
-};
-
-export { dlopen, c };
-export default { dlopen, c };
+export { dlopen };
+export { cModule as c };
+export default { dlopen, c: cModule };
