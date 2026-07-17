@@ -8,7 +8,7 @@ interface Console {
 
 declare var console: Console
 
-type HaoErrorCode =
+type RuntimeErrorCode =
   | "invalid_arg"
   | "missing_arg"
   | "shape_mismatch"
@@ -25,12 +25,12 @@ type HaoErrorCode =
   | "internal"
   | "thread_pool_unavailable"
 
-declare class HaoError extends Error {
-  readonly name: "HaoError"
-  readonly code: HaoErrorCode
+declare class RuntimeError extends Error {
+  readonly name: "RuntimeError"
+  readonly code: RuntimeErrorCode
   readonly nativeStack?: string
 
-  constructor(code: HaoErrorCode, message: string)
+  constructor(code: RuntimeErrorCode, message: string)
 }
 
 /** Schedule a callback to run after `delay` milliseconds. Returns a timer handle id. */

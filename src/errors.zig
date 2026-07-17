@@ -82,13 +82,13 @@ pub fn nativeErrorWithCurrent(err: anyerror, comptime fmt: []const u8, args: any
     return nativeError(err, current_diagnostic_ptr, fmt, args);
 }
 
-pub fn registerHaoError(ctx: ?*qjs.c.JSContext, allocator: std.mem.Allocator) !void {
+pub fn registerRuntimeError(ctx: ?*qjs.c.JSContext, allocator: std.mem.Allocator) !void {
     const source =
-        \\if (typeof globalThis.HaoError !== 'function') {
-        \\  globalThis.HaoError = class HaoError extends Error {
+        \\if (typeof globalThis.RuntimeError !== 'function') {
+        \\  globalThis.RuntimeError = class RuntimeError extends Error {
         \\    constructor(code, message) {
         \\      super(message);
-        \\      this.name = 'HaoError';
+        \\      this.name = 'RuntimeError';
         \\      this.code = code;
         \\    }
         \\  };
@@ -141,9 +141,9 @@ pub fn jsError(
     const global = qjs.c.JS_GetGlobalObject(ctx);
     defer qjs.freeValue(ctx, global);
 
-    const ctor = qjs.getProperty(ctx, global, "HaoError");
+    const ctor = qjs.getProperty(ctx, global, "RuntimeError");
     defer qjs.freeValue(ctx, ctor);
-    if (!qjs.isFunction(ctx, ctor)) return qjs.c.JS_ThrowInternalError(ctx, "HaoError unavailable");
+    if (!qjs.isFunction(ctx, ctor)) return qjs.c.JS_ThrowInternalError(ctx, "RuntimeError unavailable");
 
     var args = [_]qjs.c.JSValue{
         qjs.createString(ctx, @tagName(err_code)),

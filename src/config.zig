@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const fs = @import("fs.zig");
 
 const c = @cImport({
     @cInclude("stdlib.h");
@@ -80,6 +81,94 @@ fn setProcessEnv(key: [:0]const u8, value: []const u8) !void {
     if (c.setenv(key.ptr, value_z.ptr, 1) != 0) return error.SetEnvFailed;
 }
 
+fn setProcessEnvIfMissing(key: []const u8, value: []const u8) !void {
+    if (key.len == 0) return;
+    if (std.mem.indexOfScalar(u8, key, 0) != null) return;
+    if (std.mem.indexOfScalar(u8, value, 0) != null) return;
+
+    const key_z = try std.heap.page_allocator.dupeZ(u8, key);
+    defer std.heap.page_allocator.free(key_z);
+    if (getenv(key_z) != null) return;
+    try setProcessEnv(key_z, value);
+}
+
+fn stripInlineComment(value: []const u8) []const u8 {
+    var quote: ?u8 = null;
+    var escaped = false;
+    for (value, 0..) |ch, i| {
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (quote != null and ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (quote) |q| {
+            if (ch == q) quote = null;
+            continue;
+        }
+        if (ch == '"' or ch == '\'') {
+            quote = ch;
+            continue;
+        }
+        if (ch == '#') {
+            if (i == 0 or std.ascii.isWhitespace(value[i - 1])) {
+                return std.mem.trim(u8, value[0..i], " \t\r");
+            }
+        }
+    }
+    return std.mem.trim(u8, value, " \t\r");
+}
+
+fn unquoteValue(value: []const u8) []const u8 {
+    const trimmed = std.mem.trim(u8, value, " \t\r");
+    if (trimmed.len >= 2) {
+        const first = trimmed[0];
+        const last = trimmed[trimmed.len - 1];
+        if ((first == '"' and last == '"') or (first == '\'' and last == '\'')) {
+            return trimmed[1 .. trimmed.len - 1];
+        }
+    }
+    return trimmed;
+}
+
+fn parseDotenvLine(line: []const u8) ?struct { key: []const u8, value: []const u8 } {
+    var trimmed = std.mem.trim(u8, line, " \t\r");
+    if (trimmed.len == 0 or trimmed[0] == '#') return null;
+    if (std.mem.startsWith(u8, trimmed, "export ")) {
+        trimmed = std.mem.trim(u8, trimmed["export ".len..], " \t\r");
+    }
+    const eq = std.mem.indexOfScalar(u8, trimmed, '=') orelse return null;
+    const key = std.mem.trim(u8, trimmed[0..eq], " \t\r");
+    if (key.len == 0) return null;
+    const value = unquoteValue(stripInlineComment(trimmed[eq + 1 ..]));
+    return .{ .key = key, .value = value };
+}
+
+fn loadDotenvFile(path: []const u8, required: bool) !void {
+    const data = fs.readFileAlloc(std.heap.page_allocator, path, 1024 * 1024) catch |err| {
+        if (!required and err == error.FileNotFound) return;
+        return err;
+    };
+    defer std.heap.page_allocator.free(data);
+
+    var lines = std.mem.splitScalar(u8, data, '\n');
+    while (lines.next()) |line| {
+        const entry = parseDotenvLine(line) orelse continue;
+        try setProcessEnvIfMissing(entry.key, entry.value);
+    }
+}
+
+pub fn loadDotenv() !void {
+    if (getenv("DOTENV")) |path| {
+        if (path.len == 0) return;
+        try loadDotenvFile(path, true);
+        return;
+    }
+    try loadDotenvFile(".env", false);
+}
+
 pub fn syncLibuvThreadPoolEnv() !void {
     const size = config.libuv.thread_pool_size orelse return;
     var buf: [32]u8 = undefined;
@@ -88,6 +177,7 @@ pub fn syncLibuvThreadPoolEnv() !void {
 }
 
 pub fn loadFromEnv() !void {
+    try loadDotenv();
     loadUsize("HAO_QJS_STACK_SIZE", &config.quickjs.stack_size);
     loadOptionalUsize("HAO_LIBUV_THREADPOOL_SIZE", &config.libuv.thread_pool_size);
     loadBool("HAO_NATIVE_STACK_TRACE", &config.debug.native_stack_trace);
@@ -155,4 +245,38 @@ test "syncLibuvThreadPoolEnv mirrors config into UV_THREADPOOL_SIZE" {
     config.libuv.thread_pool_size = 7;
     try syncLibuvThreadPoolEnv();
     try std.testing.expectEqualStrings("7", getenv("UV_THREADPOOL_SIZE").?);
+}
+
+test "parseDotenvLine handles comments quotes and export" {
+    const plain = parseDotenvLine("HAO_QJS_STACK_SIZE=123 # comment").?;
+    try std.testing.expectEqualStrings("HAO_QJS_STACK_SIZE", plain.key);
+    try std.testing.expectEqualStrings("123", plain.value);
+
+    const quoted = parseDotenvLine("export HAO_NATIVE_STACK_TRACE=\"true # kept\"").?;
+    try std.testing.expectEqualStrings("HAO_NATIVE_STACK_TRACE", quoted.key);
+    try std.testing.expectEqualStrings("true # kept", quoted.value);
+
+    try std.testing.expect(parseDotenvLine("# ignored") == null);
+}
+
+test "loadDotenvFile loads missing keys without overriding environment" {
+    const path = ".zig-cache/hao-tests/dotenv/config.env";
+    try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/dotenv");
+    try fs.writeFile(
+        path,
+        \\HAO_DOTENV_TEST_KEEP=from-file
+        \\HAO_DOTENV_TEST_EXISTING=from-file
+        \\
+    );
+
+    _ = c.unsetenv("HAO_DOTENV_TEST_KEEP");
+    try setProcessEnv("HAO_DOTENV_TEST_EXISTING", "from-env");
+    defer {
+        _ = c.unsetenv("HAO_DOTENV_TEST_KEEP");
+        _ = c.unsetenv("HAO_DOTENV_TEST_EXISTING");
+    }
+
+    try loadDotenvFile(path, true);
+    try std.testing.expectEqualStrings("from-file", getenv("HAO_DOTENV_TEST_KEEP").?);
+    try std.testing.expectEqualStrings("from-env", getenv("HAO_DOTENV_TEST_EXISTING").?);
 }

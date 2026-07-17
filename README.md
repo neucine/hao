@@ -34,5 +34,10 @@ Check TypeScript declarations:
 bun x tsc -p test/types/tsconfig.json --noEmit
 ```
 
+Runtime configuration is read from process environment variables after loading
+dotenv values. Hao loads `.env` from the current working directory when present,
+or the file pointed to by `DOTENV=/path/to/env`. Existing environment variables
+win over dotenv values.
+
 Affon remains unchanged during extraction. Once Hao has a stable embedded
 runtime API, Affon can switch to consuming Hao as a sibling dependency.

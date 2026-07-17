@@ -621,7 +621,7 @@ pub fn run(paths: [][]const u8, grep: ?[]const u8, print_summary: bool, allocato
     defer allocator.free(exe_path);
     bindings.setCurrentExecutablePath(exe_path);
 
-    try errors.registerHaoError(runtime.ctx, allocator);
+    try errors.registerRuntimeError(runtime.ctx, allocator);
     try global_console.register(runtime.ctx);
     try global_timer.register(runtime.ctx);
 

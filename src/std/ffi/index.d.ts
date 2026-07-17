@@ -95,11 +95,11 @@ declare module "hao:ffi" {
      */
     value?: number;
     /**
-     * `HaoError.code` used when the native call fails.
+     * `RuntimeError.code` used when the native call fails.
      */
     code?: string;
     /**
-     * Static message or helper-function source for the thrown `HaoError`.
+     * Static message or helper-function source for the thrown `RuntimeError`.
      */
     message?: string | CMessageFunctionSource;
   }
