@@ -1,7 +1,7 @@
 const std = @import("std");
 const qjs = @import("qjs.zig");
 const fs = @import("fs.zig");
-const native_extension = @import("native_extension.zig");
+const addon_loader = @import("addon/loader.zig");
 
 pub const SourceModule = struct {
     specifier: []const u8,
@@ -376,7 +376,7 @@ test "hao namespace is reserved for the hao package" {
     });
 }
 
-test "package resolver accepts native extension entries" {
+test "package resolver accepts addon entries" {
     const root = ".zig-cache/hao-tests/package-native";
     try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo-native");
     try fs.writeFile(root ++ "/main.ts", "import 'demo-native';");
@@ -386,7 +386,7 @@ test "package resolver accepts native extension entries" {
     const resolved = try resolveImport(root ++ "/main.ts", "demo-native", std.testing.allocator);
     defer resolved.deinit(std.testing.allocator);
 
-    try std.testing.expect(native_extension.isNativeExtensionPath(resolved.abs_path));
+    try std.testing.expect(addon_loader.isAddonPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }
 
@@ -401,6 +401,6 @@ test "package resolver accepts colon native subpaths" {
     defer resolved.deinit(std.testing.allocator);
 
     try std.testing.expectEqualStrings("foo", resolved.package_name);
-    try std.testing.expect(native_extension.isNativeExtensionPath(resolved.abs_path));
+    try std.testing.expect(addon_loader.isAddonPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }

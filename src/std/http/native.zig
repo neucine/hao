@@ -1,6 +1,6 @@
 const std = @import("std");
 const async_loop = @import("../../async/loop.zig");
-const native_module = @import("../../native_module.zig");
+const native_module = @import("../../addon/module.zig");
 const qjs = @import("../../qjs.zig");
 const uv = @import("../../async/uv.zig").c;
 

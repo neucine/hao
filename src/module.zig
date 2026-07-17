@@ -1,8 +1,8 @@
 const std = @import("std");
 const fs = @import("fs.zig");
-const native_abi = @import("native_abi.zig");
+const addon_abi = @import("addon/abi.zig");
+const addon_loader = @import("addon/loader.zig");
 const qjs = @import("qjs.zig");
-const native_extension = @import("native_extension.zig");
 const packages = @import("package.zig");
 const transpiler = @import("transpiler.zig");
 
@@ -271,8 +271,8 @@ fn loadModule(
         return native.load(ctx, name_z.ptr);
     }
 
-    if (native_extension.isNativeExtensionPath(name)) {
-        return native_extension.loadModule(loader.allocator, ctx, name, module_name);
+    if (addon_loader.isAddonPath(name)) {
+        return addon_loader.loadModule(loader.allocator, ctx, name, module_name);
     }
 
     const source_info = loader.registry.findSource(name);
@@ -327,7 +327,7 @@ fn resolveSpecifier(loader: *const Loader, current_file: []const u8, specifier: 
     return trackedModuleResolutionCopy(loader.allocator, resolved.abs_path);
 }
 
-test "loader resolves package native extension entries" {
+test "loader resolves package addon entries" {
     var runtime = try qjs.Runtime.init();
     defer runtime.deinit();
 
@@ -348,7 +348,7 @@ test "loader resolves package native extension entries" {
     const resolved = try resolveSpecifier(&loader, root ++ "/main.ts", "demo-native");
     defer loader.allocator.free(resolved);
 
-    try std.testing.expect(native_extension.isNativeExtensionPath(resolved));
+    try std.testing.expect(addon_loader.isAddonPath(resolved));
     try std.testing.expect(std.mem.endsWith(u8, resolved, "native.dylib"));
 }
 
@@ -428,7 +428,7 @@ test "loader resolves relative TypeScript files and node_modules packages" {
     try std.testing.expectEqual(@as(f64, 42), try getGlobalNumber(runtime.ctx, "__hao_file_loader_value"));
 }
 
-const fixture_abi_functions = [_]native_abi.Function{
+const fixture_abi_functions = [_]addon_abi.Function{
     .{
         .name = "nativeValue",
         .callback = fixtureAbiNativeValue,
@@ -440,13 +440,13 @@ const fixture_abi_functions = [_]native_abi.Function{
         .length = 0,
     },
 };
-const fixture_abi_function_ptrs = [_]*const native_abi.Function{&fixture_abi_functions[0]};
+const fixture_abi_function_ptrs = [_]*const addon_abi.Function{&fixture_abi_functions[0]};
 
 fn fixtureNativeLoad(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return native_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &fixture_abi_function_ptrs);
+    return addon_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &fixture_abi_function_ptrs);
 }
 
-fn fixtureAbiNativeValue(ctx: *native_abi.Context, _: c_int, _: [*c]const native_abi.Value) callconv(.c) native_abi.Value {
+fn fixtureAbiNativeValue(ctx: *addon_abi.Context, _: c_int, _: [*c]const addon_abi.Value) callconv(.c) addon_abi.Value {
     return ctx.api.int32_value(ctx, 42);
 }
 

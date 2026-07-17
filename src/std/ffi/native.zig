@@ -1,5 +1,5 @@
 const std = @import("std");
-const native_module = @import("../../native_module.zig");
+const native_module = @import("../../addon/module.zig");
 const qjs = @import("../../qjs.zig");
 const runtime = @import("runtime.zig");
 

@@ -1,8 +1,8 @@
 const std = @import("std");
-const qjs = @import("qjs.zig");
+const qjs = @import("../qjs.zig");
 
 pub const abi_version: u32 = 1;
-pub const register_symbol_name = "hao_register_modules";
+pub const register_symbol_name = "js_register_modules";
 pub const Value = usize;
 
 pub const Context = extern struct {

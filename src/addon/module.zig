@@ -1,5 +1,5 @@
 const std = @import("std");
-const qjs = @import("qjs.zig");
+const qjs = @import("../qjs.zig");
 
 pub const Function = struct {
     name: [:0]const u8,
