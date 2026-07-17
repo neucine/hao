@@ -1,7 +1,14 @@
-#ifndef JS_ADDON_H
-#define JS_ADDON_H
+#ifndef HAO_H
+#define HAO_H
 
+#include <stddef.h>
 #include <stdint.h>
+
+#if defined(__cplusplus)
+#define HAO_STATIC_ASSERT(condition, message) static_assert(condition, message)
+#else
+#define HAO_STATIC_ASSERT(condition, message) _Static_assert(condition, message)
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -94,6 +101,28 @@ struct JsContext {
 };
 
 typedef int (*JsRegisterModulesFn)(JsRegistry* registry);
+
+HAO_STATIC_ASSERT(sizeof(JsValue) == sizeof(uintptr_t), "JsValue must fit uintptr_t");
+HAO_STATIC_ASSERT(offsetof(JsContext, api) == 0, "JsContext.api offset changed");
+HAO_STATIC_ASSERT(offsetof(JsContext, data) == sizeof(void*), "JsContext.data offset changed");
+HAO_STATIC_ASSERT(sizeof(JsContext) == sizeof(void*) * 2, "JsContext size changed");
+HAO_STATIC_ASSERT(offsetof(JsRegistry, api) == 0, "JsRegistry.api offset changed");
+HAO_STATIC_ASSERT(offsetof(JsRegistry, data) == sizeof(void*), "JsRegistry.data offset changed");
+HAO_STATIC_ASSERT(sizeof(JsRegistry) == sizeof(void*) * 2, "JsRegistry size changed");
+HAO_STATIC_ASSERT(offsetof(JsFunction, name) == 0, "JsFunction.name offset changed");
+HAO_STATIC_ASSERT(offsetof(JsFunction, callback) == sizeof(void*), "JsFunction.callback offset changed");
+HAO_STATIC_ASSERT(offsetof(JsFunction, length) == sizeof(void*) * 2, "JsFunction.length offset changed");
+HAO_STATIC_ASSERT(offsetof(JsModule, specifier) == 0, "JsModule.specifier offset changed");
+HAO_STATIC_ASSERT(offsetof(JsModule, functions) == sizeof(void*), "JsModule.functions offset changed");
+HAO_STATIC_ASSERT(sizeof(JsModule) == sizeof(void*) * 2, "JsModule size changed");
+HAO_STATIC_ASSERT(offsetof(JsRegistryApi, abi_version) == 0, "JsRegistryApi.abi_version offset changed");
+HAO_STATIC_ASSERT(offsetof(JsRegistryApi, add_module) == sizeof(void*), "JsRegistryApi.add_module offset changed");
+HAO_STATIC_ASSERT(sizeof(JsRegistryApi) == sizeof(void*) * 2, "JsRegistryApi size changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, abi_version) == 0, "JsContextApi.abi_version offset changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, undefined) == sizeof(void*), "JsContextApi.undefined offset changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, null_value) == sizeof(void*) * 2, "JsContextApi.null_value offset changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, array_set) == sizeof(void*) * 24, "JsContextApi.array_set offset changed");
+HAO_STATIC_ASSERT(sizeof(JsContextApi) == sizeof(void*) * 25, "JsContextApi size changed");
 
 static inline int js_add_module(
     JsRegistry* registry,
@@ -207,6 +236,8 @@ static inline JsValue js_throw_type_error(JsContext* ctx, const char* message) {
 static inline JsValue js_throw_error(JsContext* ctx, const char* message) {
     return ctx->api->throw_error(ctx, message);
 }
+
+#undef HAO_STATIC_ASSERT
 
 #ifdef __cplusplus
 }

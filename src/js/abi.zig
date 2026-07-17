@@ -63,6 +63,43 @@ pub const ContextApi = extern struct {
     array_set: *const fn (*Context, Value, u32, Value) callconv(.c) c_int,
 };
 
+fn alignedSize(size: usize, alignment: usize) usize {
+    return std.mem.alignForward(usize, size, alignment);
+}
+
+test "native abi structs keep C layout" {
+    const ptr_size = @sizeOf(usize);
+
+    try std.testing.expectEqual(@as(usize, ptr_size), @sizeOf(Value));
+
+    try std.testing.expectEqual(@as(usize, 0), @offsetOf(Context, "api"));
+    try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(Context, "data"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @sizeOf(Context));
+
+    try std.testing.expectEqual(@as(usize, 0), @offsetOf(Registry, "api"));
+    try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(Registry, "data"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @sizeOf(Registry));
+
+    try std.testing.expectEqual(@as(usize, 0), @offsetOf(Function, "name"));
+    try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(Function, "callback"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @offsetOf(Function, "length"));
+    try std.testing.expectEqual(alignedSize(ptr_size * 2 + @sizeOf(c_int), @alignOf(Function)), @sizeOf(Function));
+
+    try std.testing.expectEqual(@as(usize, 0), @offsetOf(Module, "specifier"));
+    try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(Module, "functions"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @sizeOf(Module));
+
+    try std.testing.expectEqual(@as(usize, 0), @offsetOf(RegistryApi, "abi_version"));
+    try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(RegistryApi, "add_module"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @sizeOf(RegistryApi));
+
+    try std.testing.expectEqual(@as(usize, 0), @offsetOf(ContextApi, "abi_version"));
+    try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(ContextApi, "undefined"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @offsetOf(ContextApi, "null_value"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 24), @offsetOf(ContextApi, "array_set"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 25), @sizeOf(ContextApi));
+}
+
 const CallFrame = struct {
     ctx: ?*qjs.c.JSContext,
     argv: [*c]qjs.c.JSValueConst,
