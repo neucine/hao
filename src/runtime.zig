@@ -311,6 +311,38 @@ test "runtime host includes hao util module by default" {
     try std.testing.expectEqual(@as(f64, 2), options);
 }
 
+test "runtime host includes hao plot module by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-plot");
+    try host.evalModuleSource(
+        \\import { figure, plot, render, savefig } from "hao:plot";
+        \\import { existsSync, readFileSync } from "hao:fs";
+        \\figure({ width: 320, height: 240, title: "Hao" });
+        \\plot([1, 4, 2], { label: "data", color: "#ff0000" });
+        \\const svg = render();
+        \\globalThis.__hao_plot_has_svg = svg.includes("<svg") && svg.includes("Hao");
+        \\savefig(".zig-cache/hao-tests/hao-plot/out.svg");
+        \\globalThis.__hao_plot_saved = existsSync(".zig-cache/hao-tests/hao-plot/out.svg");
+        \\globalThis.__hao_plot_file_has_svg = readFileSync(".zig-cache/hao-tests/hao-plot/out.svg").includes("<svg");
+    ,
+        "<hao-plot-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    inline for ([_][:0]const u8{
+        "__hao_plot_has_svg",
+        "__hao_plot_saved",
+        "__hao_plot_file_has_svg",
+    }) |key| {
+        const value = qjs.getProperty(host.runtime.ctx, global, key);
+        defer qjs.freeValue(host.runtime.ctx, value);
+        try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, value));
+    }
+}
+
 test "runtime host runs child process through hao process module" {
     var host = try Host.initWithIo(std.testing.allocator, std.testing.io);
     defer host.deinit();

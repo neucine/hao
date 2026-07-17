@@ -25,6 +25,10 @@ pub const sources = [_]package.SourceModule{
         .specifier = "hao:util",
         .source = @embedFile("std/util/index.ts"),
     },
+    .{
+        .specifier = "hao:plot",
+        .source = @embedFile("std/plot/index.ts"),
+    },
 };
 
 pub const native_modules = [_]package.NativeModule{
