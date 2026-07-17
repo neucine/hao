@@ -83,8 +83,12 @@ const HttpRequestOp = struct {
     }
 };
 
-const functions = [_]js_abi.LegacyFunction{
-    .{ .name = "requestNative", .function = jsRequest, .length = 1 },
+const functions = [_]js_abi.Function{
+    .{ .name = "requestNative", .callback = jsRequest, .length = 1 },
+    .{ .name = null, .callback = jsRequest },
+};
+const function_ptrs = [_]*const js_abi.Function{
+    &functions[0],
 };
 
 pub fn attachIo(io: std.Io) void {
@@ -96,11 +100,7 @@ pub fn detachIo() void {
 }
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createLegacyFunctionModule(ctx, module_name, init, &functions);
-}
-
-fn init(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return js_abi.bindLegacyFunctionExports(ctx, module, &functions);
+    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
 }
 
 fn throwType(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {
@@ -117,27 +117,29 @@ fn throwError(ctx: ?*qjs.c.JSContext, message: []const u8) qjs.c.JSValue {
     return qjs.c.JS_ThrowInternalError(ctx, message_z.ptr);
 }
 
-fn jsRequest(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    const io = current_io orelse return throwInternal(ctx, "http.request requires attached IO");
-    if (argc < 1 or !qjs.isObject(argv[0])) {
-        return throwType(ctx, "http.request requires an options object");
+fn jsRequest(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    const io = current_io orelse return ctx.api.throw_error(ctx, "http.request requires attached IO");
+    if (argc < 1 or ctx.api.is_object(ctx, argv[0]) == 0) {
+        return ctx.api.throw_type_error(ctx, "http.request requires an options object");
     }
+    const options = js_abi.borrowValue(ctx, argv[0]) orelse return ctx.api.throw_error(ctx, "http.request invalid options");
 
     if (async_loop.current()) |_| {
-        return jsRequestAsync(ctx, argv[0], io);
+        return js_abi.adoptValue(ctx, jsRequestAsync(qjs_ctx, options, io));
     }
 
-    var request = parseRequestOptions(ctx, argv[0]) catch {
-        return throwType(ctx, "http.request options are invalid");
+    var request = parseRequestOptions(qjs_ctx, options) catch {
+        return ctx.api.throw_type_error(ctx, "http.request options are invalid");
     };
     defer request.deinit();
 
     var response = performRequest(io, &request) catch {
-        return throwInternal(ctx, "http.request error");
+        return ctx.api.throw_error(ctx, "http.request error");
     };
     defer response.deinit();
 
-    return makeResponseObject(ctx, &response);
+    return js_abi.adoptValue(ctx, makeResponseObject(qjs_ctx, &response));
 }
 
 fn jsRequestAsync(ctx: ?*qjs.c.JSContext, options: qjs.c.JSValueConst, io: std.Io) qjs.c.JSValue {
