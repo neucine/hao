@@ -1,13 +1,13 @@
 const std = @import("std");
 const fs = @import("../../fs.zig");
-const native_module = @import("../../js/module.zig");
+const native_module = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 
 pub const specifier: [:0]const u8 = "hao:fs/native";
 
 const alloc = std.heap.page_allocator;
 
-const functions = [_]native_module.Function{
+const functions = [_]native_module.LegacyFunction{
     .{ .name = "existsSync", .function = jsExistsSync, .length = 1 },
     .{ .name = "readFileSync", .function = jsReadFileSync, .length = 1 },
     .{ .name = "writeFileSync", .function = jsWriteFileSync, .length = 2 },
@@ -15,11 +15,11 @@ const functions = [_]native_module.Function{
 };
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return native_module.createFunctionModule(ctx, module_name, init, &functions);
+    return native_module.createLegacyFunctionModule(ctx, module_name, init, &functions);
 }
 
 fn init(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return native_module.bindFunctionExports(ctx, module, &functions);
+    return native_module.bindLegacyFunctionExports(ctx, module, &functions);
 }
 
 fn stringArg(ctx: ?*qjs.c.JSContext, argc: c_int, argv: [*c]qjs.c.JSValueConst, index: usize) ?[]u8 {

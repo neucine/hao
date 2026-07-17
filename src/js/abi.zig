@@ -28,6 +28,12 @@ pub const Module = extern struct {
     functions: [*c]const Function,
 };
 
+pub const LegacyFunction = struct {
+    name: [:0]const u8,
+    function: *const fn (?*qjs.c.JSContext, qjs.c.JSValueConst, c_int, [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue,
+    length: c_int = 0,
+};
+
 pub const RegisterModulesFn = *const fn (*Registry) callconv(.c) c_int;
 
 pub const RegistryApi = extern struct {
@@ -283,6 +289,32 @@ pub fn createFunctionModule(
     return module;
 }
 
+pub fn addLegacyFunctionExports(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef, functions: []const LegacyFunction) void {
+    for (functions) |exported| {
+        _ = qjs.c.JS_AddModuleExport(ctx, module, exported.name.ptr);
+    }
+}
+
+pub fn bindLegacyFunctionExports(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef, functions: []const LegacyFunction) c_int {
+    for (functions) |exported| {
+        const value = qjs.c.JS_NewCFunction(ctx, exported.function, exported.name.ptr, exported.length);
+        if (qjs.isException(value)) return -1;
+        if (qjs.c.JS_SetModuleExport(ctx, module, exported.name.ptr, value) < 0) return -1;
+    }
+    return 0;
+}
+
+pub fn createLegacyFunctionModule(
+    ctx: ?*qjs.c.JSContext,
+    module_name: [*c]const u8,
+    init: *const fn (?*qjs.c.JSContext, ?*qjs.c.JSModuleDef) callconv(.c) c_int,
+    functions: []const LegacyFunction,
+) ?*qjs.c.JSModuleDef {
+    const module = qjs.c.JS_NewCModule(ctx, module_name, init) orelse return null;
+    addLegacyFunctionExports(ctx, module, functions);
+    return module;
+}
+
 fn initFunctionModule(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
     const private = qjs.c.JS_GetModulePrivateValue(ctx, module);
     var stored_ptr: i64 = 0;
@@ -356,5 +388,25 @@ test "native abi creates a callable function module" {
     defer collector.deinit();
     try collector.addModule(&module_descriptor);
     const module = createFunctionModule(std.testing.allocator, runtime.ctx, "demo:native", collector.modules.items[0].functions);
+    try std.testing.expect(module != null);
+}
+
+test "legacy function export helper creates a module" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const funcs = [_]LegacyFunction{.{
+        .name = "noop",
+        .function = struct {
+            fn call(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
+                return qjs.undefinedValue(ctx);
+            }
+        }.call,
+    }};
+    const module = createLegacyFunctionModule(runtime.ctx, "hao:test/native", struct {
+        fn init(ctx: ?*qjs.c.JSContext, mod: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
+            return bindLegacyFunctionExports(ctx, mod, &funcs);
+        }
+    }.init, &funcs);
     try std.testing.expect(module != null);
 }
