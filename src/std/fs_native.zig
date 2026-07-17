@@ -3,7 +3,7 @@ const fs = @import("../fs.zig");
 const native_module = @import("../native_module.zig");
 const qjs = @import("../qjs.zig");
 
-pub const specifier: [:0]const u8 = "hao:std/fs/native";
+pub const specifier: [:0]const u8 = "hao:fs/native";
 
 const alloc = std.heap.page_allocator;
 

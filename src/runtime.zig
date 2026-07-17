@@ -166,7 +166,7 @@ test "runtime host includes hao fs module by default" {
     defer host.deinit();
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-fs");
     try host.evalModuleSource(
-        \\import { existsSync, readFileSync, statSync, writeFileSync } from "hao:std/fs";
+        \\import { existsSync, readFileSync, statSync, writeFileSync } from "hao:fs";
         \\const path = ".zig-cache/hao-tests/hao-fs/default.txt";
         \\writeFileSync(path, "hello from hao");
         \\globalThis.__hao_fs_exists = existsSync(path);

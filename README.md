@@ -12,14 +12,13 @@ Host applications register native packages through `hao.Package`, combining
 embedded source modules with QuickJS C modules.
 
 The `hao:` namespace is reserved for Hao-owned first-party runtime modules.
-Standard library modules live under `hao:std/*`.
 Host applications should use their own prefixes, such as `affon:` or `myapp:`,
 for product/domain modules.
 
 Current first-party modules:
 
 - `hao:runtime`
-- `hao:std/fs`
+- `hao:fs`
 
 Run a script:
 
