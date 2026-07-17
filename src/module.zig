@@ -324,10 +324,15 @@ fn resolveSpecifier(loader: *const Loader, current_file: []const u8, specifier: 
         return err;
     };
     defer resolved.deinit(loader.allocator);
+    if (js_addon.isAddonPath(resolved.abs_path)) {
+        return js_addon.rememberResolvedImport(loader.allocator, resolved.abs_path, specifier);
+    }
     return trackedModuleResolutionCopy(loader.allocator, resolved.abs_path);
 }
 
 test "loader resolves package addon entries" {
+    defer js_addon.cleanup();
+
     var runtime = try qjs.Runtime.init();
     defer runtime.deinit();
 
@@ -348,8 +353,9 @@ test "loader resolves package addon entries" {
     const resolved = try resolveSpecifier(&loader, root ++ "/main.ts", "demo-native");
     defer loader.allocator.free(resolved);
 
-    try std.testing.expect(js_addon.isAddonPath(resolved));
-    try std.testing.expect(std.mem.endsWith(u8, resolved, "native.dylib"));
+    const resolved_addon = js_addon.findResolvedImport(resolved).?;
+    try std.testing.expect(std.mem.endsWith(u8, resolved_addon.path, "native.dylib"));
+    try std.testing.expectEqualStrings("demo-native", resolved_addon.specifier);
 }
 
 fn getGlobalNumber(ctx: ?*qjs.c.JSContext, name: [:0]const u8) !f64 {

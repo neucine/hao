@@ -686,16 +686,22 @@ test "runtime host imports dynamic native addon package" {
     try fs.makePath(std.testing.allocator, package_root);
     try fs.writeFile(root ++ "/main.ts",
         \\import native from "foo:native";
+        \\import extra from "foo:extra";
         \\globalThis.__hao_addon_foo = native.foo();
         \\globalThis.__hao_addon_sum = native.add(20, 22);
         \\globalThis.__hao_addon_pair = native.pair("left", "right").join(":");
+        \\globalThis.__hao_addon_extra = extra.label();
     );
-    try fs.writeFile(package_root ++ "/package.json", "{\"type\":\"module\"}");
 
     const lib_path = switch (builtin.os.tag) {
         .macos => package_root ++ "/native.dylib",
         else => package_root ++ "/native.so",
     };
+    const package_json = switch (builtin.os.tag) {
+        .macos => "{\"type\":\"module\",\"exports\":{\"./native\":\"./native.dylib\",\"./extra\":\"./native.dylib\"}}",
+        else => "{\"type\":\"module\",\"exports\":{\"./native\":\"./native.so\",\"./extra\":\"./native.so\"}}",
+    };
+    try fs.writeFile(package_root ++ "/package.json", package_json);
     const compile_args = switch (builtin.os.tag) {
         .macos => &[_][]const u8{ "cc", "-Iinclude", "-dynamiclib", "examples/native-addon/native.c", "-o", lib_path },
         else => &[_][]const u8{ "cc", "-Iinclude", "-shared", "-fPIC", "examples/native-addon/native.c", "-o", lib_path },
@@ -731,4 +737,10 @@ test "runtime host imports dynamic native addon package" {
     const pair_text = try qjs.valueToStringAlloc(host.runtime.ctx, pair_value, std.testing.allocator);
     defer std.testing.allocator.free(pair_text);
     try std.testing.expectEqualStrings("left:right", pair_text);
+
+    const extra_value = qjs.getProperty(host.runtime.ctx, global, "__hao_addon_extra");
+    defer qjs.freeValue(host.runtime.ctx, extra_value);
+    const extra_text = try qjs.valueToStringAlloc(host.runtime.ctx, extra_value, std.testing.allocator);
+    defer std.testing.allocator.free(extra_text);
+    try std.testing.expectEqualStrings("extra", extra_text);
 }

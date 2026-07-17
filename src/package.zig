@@ -221,11 +221,10 @@ fn resolvePackageSubpath(
     subpath: []const u8,
     allocator: std.mem.Allocator,
 ) ![]u8 {
-    if (subpath.len != 0) {
-        return resolvePathWithExtensions(package_root, subpath, allocator);
-    }
-
-    const json = package_json orelse return resolvePathWithExtensions(package_root, "index", allocator);
+    const json = package_json orelse {
+        const entry = if (subpath.len == 0) "index" else subpath;
+        return resolvePathWithExtensions(package_root, entry, allocator);
+    };
 
     const parsed = std.json.parseFromSlice(std.json.Value, allocator, json, .{}) catch return error.InvalidPackageJson;
     defer parsed.deinit();
@@ -233,6 +232,18 @@ fn resolvePackageSubpath(
 
     if (jsonStringAt(root, &.{"type"})) |pkg_type| {
         if (std.mem.eql(u8, pkg_type, "commonjs")) return error.UnsupportedCommonJS;
+    }
+
+    if (subpath.len != 0) {
+        const export_key = try std.fmt.allocPrint(allocator, "./{s}", .{subpath});
+        defer allocator.free(export_key);
+        if (jsonStringAt(root, &.{ "exports", export_key, "import" })) |entry| {
+            return resolvePathWithExtensions(package_root, entry, allocator);
+        }
+        if (jsonStringAt(root, &.{ "exports", export_key })) |entry| {
+            return resolvePathWithExtensions(package_root, entry, allocator);
+        }
+        return resolvePathWithExtensions(package_root, subpath, allocator);
     }
 
     if (jsonStringAt(root, &.{ "exports", ".", "import" })) |entry| {
@@ -390,6 +401,26 @@ test "package resolver accepts colon native subpaths" {
     try std.testing.expectEqualStrings("foo", resolved.package_name);
     try std.testing.expect(js_addon.isAddonPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
+}
+
+test "package resolver maps exported colon subpaths" {
+    const root = ".zig-cache/hao-tests/package-colon-exports";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/foo");
+    try fs.writeFile(root ++ "/main.ts", "import 'foo:native';");
+    try fs.writeFile(root ++ "/node_modules/foo/package.json",
+        \\{"type":"module","exports":{"./native":"./addon.dylib","./extra":{"import":"./addon.dylib"}}}
+    );
+    try fs.writeFile(root ++ "/node_modules/foo/addon.dylib", "");
+
+    const native = try resolveImport(root ++ "/main.ts", "foo:native", std.testing.allocator);
+    defer native.deinit(std.testing.allocator);
+    const extra = try resolveImport(root ++ "/main.ts", "foo:extra", std.testing.allocator);
+    defer extra.deinit(std.testing.allocator);
+
+    try std.testing.expect(js_addon.isAddonPath(native.abs_path));
+    try std.testing.expect(js_addon.isAddonPath(extra.abs_path));
+    try std.testing.expect(std.mem.endsWith(u8, native.abs_path, "addon.dylib"));
+    try std.testing.expect(std.mem.endsWith(u8, extra.abs_path, "addon.dylib"));
 }
 
 test "package resolver reads escaped package json strings" {

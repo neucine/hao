@@ -18,7 +18,11 @@ node_modules/foo/
 
 ```json
 {
-  "type": "module"
+  "type": "module",
+  "exports": {
+    "./native": "./native.dylib",
+    "./extra": "./native.dylib"
+  }
 }
 ```
 
@@ -26,12 +30,15 @@ With that layout, a script can import:
 
 ```ts
 import native from "foo:native"
+import extra from "foo:extra"
 
 native.foo()
+extra.label()
 ```
 
 The resolver treats `foo:native` as package `foo` with subpath `native`, then
-loads the matching dynamic library.
+loads the matching dynamic library. Multiple specifiers can point at the same
+library when the addon registers multiple modules.
 
 ## C Entry Point
 

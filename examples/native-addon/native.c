@@ -32,6 +32,12 @@ static JsValue pair(JsContext* ctx, int argc, const JsValue* argv) {
     return out;
 }
 
+static JsValue label(JsContext* ctx, int argc, const JsValue* argv) {
+    (void)argc;
+    (void)argv;
+    return js_string(ctx, "extra");
+}
+
 static const JsFunction functions[] = {
     { "foo", foo, 0 },
     { "add", add, 2 },
@@ -39,14 +45,27 @@ static const JsFunction functions[] = {
     { 0, 0, 0 },
 };
 
-static const JsModule module = {
+static const JsFunction extra_functions[] = {
+    { "label", label, 0 },
+    { 0, 0, 0 },
+};
+
+static const JsModule native_module = {
     "foo:native",
     functions,
+};
+
+static const JsModule extra_module = {
+    "foo:extra",
+    extra_functions,
 };
 
 int js_register_modules(JsRegistry* registry) {
     if (registry->api->abi_version != JS_ADDON_ABI_VERSION) {
         return -1;
     }
-    return js_add_module(registry, &module);
+    if (js_add_module(registry, &native_module) != 0) {
+        return -1;
+    }
+    return js_add_module(registry, &extra_module);
 }
