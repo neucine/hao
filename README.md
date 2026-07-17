@@ -1,6 +1,6 @@
 # Hao JS
 
-Hao JS is a small embeddable JavaScript and TypeScript runtime for native
+Hao JS is an embeddable JavaScript and TypeScript runtime for native
 projects.
 
 It is meant for projects that want to run JS/TS inside a native host, expose a
