@@ -52,18 +52,3 @@ Build the local CLI from source:
 zig build
 ./zig-out/bin/hao path/to/main.ts
 ```
-
-## Configuration
-
-Hao reads configuration from the environment. It also loads dotenv values before
-reading config:
-
-- `.env` in the current working directory is loaded when present.
-- `DOTENV=/path/to/file` loads a specific dotenv file.
-- Existing environment variables override dotenv values.
-
-Current runtime config:
-
-- `HAO_QJS_STACK_SIZE`
-- `HAO_LIBUV_THREADPOOL_SIZE`
-- `HAO_NATIVE_STACK_TRACE`
