@@ -2,6 +2,7 @@ const std = @import("std");
 const fs = @import("fs.zig");
 const qjs = @import("qjs.zig");
 const native_module = @import("native_module.zig");
+const native_extension = @import("native_extension.zig");
 const packages = @import("package.zig");
 const transpiler = @import("transpiler.zig");
 
@@ -270,6 +271,10 @@ fn loadModule(
         return native.load(ctx, name_z.ptr);
     }
 
+    if (native_extension.isNativeExtensionPath(name)) {
+        return native_extension.loadModule(ctx, name, module_name);
+    }
+
     const source_info = loader.registry.findSource(name);
     const source = if (source_info) |entry|
         entry.source
@@ -320,6 +325,31 @@ fn resolveSpecifier(loader: *const Loader, current_file: []const u8, specifier: 
     };
     defer resolved.deinit(loader.allocator);
     return trackedModuleResolutionCopy(loader.allocator, resolved.abs_path);
+}
+
+test "loader resolves package native extension entries" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const root = ".zig-cache/hao-tests/module-native-extension";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo-native");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo-native';");
+    try fs.writeFile(root ++ "/node_modules/demo-native/package.json", "{\"type\":\"module\",\"exports\":\"./native.dylib\"}");
+    try fs.writeFile(root ++ "/node_modules/demo-native/native.dylib", "");
+
+    var registry = packages.Registry.init(std.testing.allocator);
+    defer registry.deinit();
+    var loader = Loader{
+        .allocator = std.testing.allocator,
+        .registry = &registry,
+    };
+    loader.install(&runtime);
+
+    const resolved = try resolveSpecifier(&loader, root ++ "/main.ts", "demo-native");
+    defer loader.allocator.free(resolved);
+
+    try std.testing.expect(native_extension.isNativeExtensionPath(resolved));
+    try std.testing.expect(std.mem.endsWith(u8, resolved, "native.dylib"));
 }
 
 fn getGlobalNumber(ctx: ?*qjs.c.JSContext, name: [:0]const u8) !f64 {

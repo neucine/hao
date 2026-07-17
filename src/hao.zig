@@ -3,6 +3,7 @@ pub const fs = @import("fs.zig");
 pub const package = @import("package.zig");
 pub const module = @import("module.zig");
 pub const native_module = @import("native_module.zig");
+pub const native_extension = @import("native_extension.zig");
 pub const runtime = @import("runtime.zig");
 pub const std = @import("std.zig");
 pub const jupyter = @import("jupyter/main.zig");
@@ -26,6 +27,7 @@ test {
     _ = package;
     _ = module;
     _ = native_module;
+    _ = native_extension;
     _ = runtime;
     _ = std;
     _ = jupyter;

@@ -1,6 +1,7 @@
 const std = @import("std");
 const qjs = @import("qjs.zig");
 const fs = @import("fs.zig");
+const native_extension = @import("native_extension.zig");
 
 pub const SourceModule = struct {
     specifier: []const u8,
@@ -224,7 +225,7 @@ fn resolvePackageSubpath(
 
 fn resolvePathWithExtensions(package_root: []const u8, entry: []const u8, allocator: std.mem.Allocator) ![]u8 {
     const cleaned = if (std.mem.startsWith(u8, entry, "./")) entry[2..] else entry;
-    const candidates = [_][]const u8{ "", ".ts", ".js", ".mts", ".mjs" };
+    const candidates = [_][]const u8{ "", ".ts", ".js", ".mts", ".mjs", ".dylib", ".so", ".dll", ".node" };
 
     for (candidates) |ext| {
         const rel = if (ext.len == 0) try copy(allocator, cleaned) else try allocPrint(allocator, "{s}{s}", .{ cleaned, ext });
@@ -369,4 +370,18 @@ test "hao namespace is reserved for the hao package" {
         .name = "hao",
         .sources = &good_sources,
     });
+}
+
+test "package resolver accepts native extension entries" {
+    const root = ".zig-cache/hao-tests/package-native";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo-native");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo-native';");
+    try fs.writeFile(root ++ "/node_modules/demo-native/package.json", "{\"type\":\"module\",\"exports\":\"./native.dylib\"}");
+    try fs.writeFile(root ++ "/node_modules/demo-native/native.dylib", "");
+
+    const resolved = try resolveImport(root ++ "/main.ts", "demo-native", std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expect(native_extension.isNativeExtensionPath(resolved.abs_path));
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }

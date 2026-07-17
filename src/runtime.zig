@@ -6,6 +6,7 @@ const async_loop = @import("async/loop.zig");
 const global_console = @import("global/console.zig");
 const global_timer = @import("global/timer.zig");
 const module = @import("module.zig");
+const native_extension = @import("native_extension.zig");
 const packages = @import("package.zig");
 const hao_std = @import("std.zig");
 const http_native = @import("std/http/native.zig");
@@ -47,6 +48,7 @@ pub const Host = struct {
         process_native.detachIo();
         global_console.capture_state = null;
         global_timer.cleanup(self.allocator);
+        native_extension.cleanup();
         test_registry.deinit(self.runtime.ctx);
         self.loop.deinit();
         self.runtime.deinit();
