@@ -221,7 +221,7 @@ pub const StdHost = struct {
     }
 };
 
-test "core host runs without std package wiring" {
+test "core host runs without standard module wiring" {
     var host = try RuntimeHost.init(std.testing.allocator);
     defer host.deinit();
     try host.installGlobals();
@@ -290,7 +290,7 @@ test "runtime host runs a TypeScript entry file" {
     try std.testing.expectEqual(@as(f64, 42), out);
 }
 
-test "runtime host includes std namespace modules by default" {
+test "runtime host includes std module namespace by default" {
     var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
@@ -573,7 +573,7 @@ test "runtime host includes std test module by default" {
     try std.testing.expectEqual(@as(f64, 1), hooks_count);
 }
 
-test "std package install initializes hao test registry" {
+test "standard module install initializes hao test registry" {
     var host = try RuntimeHost.init(std.testing.allocator);
     defer host.deinit();
 

@@ -3,7 +3,7 @@
 Hao exposes two host layers from Zig:
 
 - `hao.RuntimeHost`: runtime, async loop, globals, module loader, and package registry support.
-- `hao.StdHost`: `RuntimeHost` plus the built-in `std:` standard package and test/runtime conveniences used by the CLI.
+- `hao.StdHost`: `RuntimeHost` plus the built-in `std:` standard modules and test/runtime conveniences used by the CLI.
 
 Use `RuntimeHost` when an application wants to own its module surface. Use `StdHost`
 when the application wants the same batteries-included behavior as the `hao`
@@ -46,7 +46,7 @@ pub fn runScript(source: []const u8) !void {
 ```
 
 `RuntimeHost.installGlobals()` installs `RuntimeError`, `console`, and timers.
-It does not register the built-in `std:` package, and it does not initialize
+It does not register the built-in `std:` standard modules, and it does not initialize
 the `std:test` registry.
 
 When using `RuntimeHost`, the caller owns package lifecycle. If a package installs
@@ -75,7 +75,9 @@ std.debug.print("Hao {s}\n", .{hao.version});
 
 ## Packages
 
-A package owns a specifier prefix. The `std:` prefix is reserved for Hao.
+A package owns a specifier prefix. The `std:` prefix is reserved for Hao
+standard modules. Internally, those modules use the same package lifecycle as
+host packages.
 
 ```zig
 const sources = [_]hao.SourceModule{.{

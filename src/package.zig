@@ -327,7 +327,7 @@ test "registry rejects package-owned modules outside package prefix" {
     }));
 }
 
-test "std namespace is reserved for the std package" {
+test "std module namespace is reserved" {
     var registry = Registry.init(std.testing.allocator);
     defer registry.deinit();
 
