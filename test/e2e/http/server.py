@@ -1,4 +1,5 @@
 import json
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
@@ -38,5 +39,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 server = HTTPServer(("127.0.0.1", 0), Handler)
-print(server.server_address[1], flush=True)
-server.serve_forever()
+child_pid = os.fork()
+if child_pid == 0:
+    os.setsid()
+    server.serve_forever()
+else:
+    print(server.server_address[1], child_pid, flush=True)

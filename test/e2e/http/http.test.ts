@@ -14,6 +14,7 @@ async function sleep(ms: number) {
 
 describe('http module', () => {
   let pid: string | null = null
+  let serverPid: string | null = null
   let portFile = ''
   let errorFile = ''
   let serverUrl = ''
@@ -32,8 +33,9 @@ describe('http module', () => {
 
     for (let attempt = 0; attempt < 200; attempt += 1) {
       try {
-        const port = readFileSync(portFile).trim()
+        const [port, childPid] = readFileSync(portFile).trim().split(/\s+/)
         if (port) {
+          serverPid = childPid || null
           serverUrl = `http://127.0.0.1:${port}`
           return
         }
@@ -53,11 +55,12 @@ describe('http module', () => {
     if (pid) {
       await run({
         cmd: 'sh',
-        args: ['-c', `kill ${pid} >/dev/null 2>&1 || true; rm -f ${portFile} ${errorFile}`],
+        args: ['-c', `kill ${serverPid || pid} >/dev/null 2>&1 || true; kill ${pid} >/dev/null 2>&1 || true; rm -f ${portFile} ${errorFile}`],
         check: false,
       })
     }
     pid = null
+    serverPid = null
     serverUrl = ''
     errorFile = ''
   })
