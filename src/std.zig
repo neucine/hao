@@ -1,45 +1,19 @@
-const fs_native = @import("std/fs_native.zig");
+const fs_native = @import("std/fs/native.zig");
 const package = @import("package.zig");
-const process_native = @import("std/process_native.zig");
-
-pub const runtime_source =
-    \\export const name = "hao";
-    \\export const namespace = "hao:";
-    \\export default { name, namespace };
-;
-
-pub const fs_source =
-    \\import * as native from "hao:fs/native";
-    \\export const existsSync = native.existsSync;
-    \\export const readFileSync = native.readFileSync;
-    \\export const writeFileSync = native.writeFileSync;
-    \\export const statSync = native.statSync;
-    \\export default { existsSync, readFileSync, writeFileSync, statSync };
-;
-
-pub const process_source =
-    \\import { getEnvNative } from "hao:process/native";
-    \\export function getEnv(name) {
-    \\  if (typeof name !== "string" || name.length === 0) {
-    \\    throw new Error("process.getEnv requires a non-empty variable name");
-    \\  }
-    \\  return getEnvNative(name);
-    \\}
-    \\export default { getEnv };
-;
+const process_native = @import("std/process/native.zig");
 
 pub const sources = [_]package.SourceModule{
     .{
         .specifier = "hao:runtime",
-        .source = runtime_source,
+        .source = @embedFile("std/runtime/index.ts"),
     },
     .{
         .specifier = "hao:fs",
-        .source = fs_source,
+        .source = @embedFile("std/fs/index.ts"),
     },
     .{
         .specifier = "hao:process",
-        .source = process_source,
+        .source = @embedFile("std/process/index.ts"),
     },
 };
 

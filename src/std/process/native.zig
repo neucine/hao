@@ -1,6 +1,6 @@
 const std = @import("std");
-const native_module = @import("../native_module.zig");
-const qjs = @import("../qjs.zig");
+const native_module = @import("../../native_module.zig");
+const qjs = @import("../../qjs.zig");
 
 const c = @cImport({
     @cInclude("stdlib.h");
