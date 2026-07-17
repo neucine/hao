@@ -31,14 +31,99 @@ pub const CoreHost = struct {
         var loop = try async_loop.Loop.init(allocator);
         errdefer loop.deinit();
 
-        try test_registry.init(allocator);
-        errdefer test_registry.deinit(runtime.ctx);
-
         return .{
             .runtime = runtime,
             .loop = loop,
             .allocator = allocator,
             .io = io,
+        };
+    }
+
+    pub fn deinit(self: *CoreHost) void {
+        async_loop.detachCurrent();
+        global_console.capture_state = null;
+        global_timer.cleanup(self.allocator);
+        js_addon.cleanup();
+        self.loop.deinit();
+        self.runtime.deinit();
+        self.* = undefined;
+    }
+
+    pub fn installGlobals(self: *CoreHost) !void {
+        async_loop.attachCurrent(&self.loop);
+        try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
+        try global_console.register(self.runtime.ctx);
+        try global_timer.register(self.runtime.ctx);
+    }
+
+    pub fn evalModuleSourceWithRegistry(
+        self: *CoreHost,
+        source: []const u8,
+        source_name: []const u8,
+        registry: *const packages.Registry,
+    ) !void {
+        var loader = module.Loader{
+            .allocator = self.allocator,
+            .registry = registry,
+        };
+        loader.install(&self.runtime);
+        async_loop.attachCurrent(&self.loop);
+        try registry.installPackages(&self.runtime);
+        try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
+        try global_console.register(self.runtime.ctx);
+        try module.evalModuleSource(&loader, &self.runtime, source, source_name);
+    }
+
+    pub fn runFileWithRegistry(self: *CoreHost, path: []const u8, registry: *const packages.Registry) !void {
+        try self.installGlobals();
+        const source = try fs.readFileAlloc(self.allocator, path, 10 * 1024 * 1024);
+        defer self.allocator.free(source);
+        try self.evalModuleSourceWithRegistry(source, path, registry);
+        try self.runUntilIdle();
+    }
+
+    pub fn runUntilIdle(self: *CoreHost) !void {
+        async_loop.attachCurrent(&self.loop);
+        defer async_loop.detachCurrent();
+
+        while (true) {
+            const ran_jobs = try qjs.executePendingJobs(self.runtime.rt);
+            if (qjs.takeUnhandledException()) |pending| {
+                defer qjs.freeValue(pending.ctx, pending.value);
+                return error.JavaScriptError;
+            }
+            const ran_uv = try self.loop.runUntilIdle();
+            if (qjs.takeUnhandledException()) |pending| {
+                defer qjs.freeValue(pending.ctx, pending.value);
+                return error.JavaScriptError;
+            }
+            if (!ran_jobs and !ran_uv) break;
+        }
+    }
+};
+
+pub const Host = struct {
+    runtime: qjs.Runtime,
+    loop: async_loop.Loop,
+    allocator: std.mem.Allocator,
+    io: ?std.Io = null,
+
+    pub fn init(allocator: std.mem.Allocator) !Host {
+        return initWithIo(allocator, null);
+    }
+
+    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !Host {
+        var core = try CoreHost.initWithIo(allocator, io);
+        errdefer core.deinit();
+
+        try test_registry.init(allocator);
+        errdefer test_registry.deinit(core.runtime.ctx);
+
+        return .{
+            .runtime = core.runtime,
+            .loop = core.loop,
+            .allocator = core.allocator,
+            .io = core.io,
         };
     }
 
@@ -55,10 +140,16 @@ pub const CoreHost = struct {
         self.* = undefined;
     }
 
+    fn attachStdIo(self: *Host) void {
+        if (self.io) |io| {
+            http_native.attachIo(io);
+            process_native.attachIo(io);
+        }
+    }
+
     pub fn installGlobals(self: *Host) !void {
         async_loop.attachCurrent(&self.loop);
-        if (self.io) |io| http_native.attachIo(io);
-        if (self.io) |io| process_native.attachIo(io);
+        self.attachStdIo();
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try global_timer.register(self.runtime.ctx);
@@ -76,8 +167,7 @@ pub const CoreHost = struct {
         };
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
-        if (self.io) |io| http_native.attachIo(io);
-        if (self.io) |io| process_native.attachIo(io);
+        self.attachStdIo();
         try registry.installPackages(&self.runtime);
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
@@ -108,8 +198,7 @@ pub const CoreHost = struct {
 
     pub fn runUntilIdle(self: *Host) !void {
         async_loop.attachCurrent(&self.loop);
-        if (self.io) |io| http_native.attachIo(io);
-        if (self.io) |io| process_native.attachIo(io);
+        self.attachStdIo();
         defer async_loop.detachCurrent();
         defer http_native.detachIo();
         defer process_native.detachIo();
@@ -130,7 +219,26 @@ pub const CoreHost = struct {
     }
 };
 
-pub const Host = CoreHost;
+test "core host runs without std package wiring" {
+    var host = try CoreHost.init(std.testing.allocator);
+    defer host.deinit();
+    try host.installGlobals();
+
+    const value = qjs.eval(
+        host.runtime.ctx,
+        "globalThis.__hao_core_value = typeof console.log === 'function' && typeof setTimeout === 'function';",
+        "<core-host-test>",
+        qjs.EvalFlags.global,
+    );
+    defer qjs.freeValue(host.runtime.ctx, value);
+    try std.testing.expect(!qjs.isException(value));
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+    const result = qjs.getProperty(host.runtime.ctx, global, "__hao_core_value");
+    defer qjs.freeValue(host.runtime.ctx, result);
+    try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, result));
+}
 
 test "runtime host runs timer callbacks until idle" {
     var host = try Host.init(std.testing.allocator);
