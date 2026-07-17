@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Build and test Zig
+        run: zig build test
+
+      - name: Build CLI
+        run: zig build
+
+      - name: Check root TypeScript
+        run: npm exec --yes --package typescript@5.5.4 -- tsc -p tsconfig.json --pretty false
+
+      - name: Check std TypeScript
+        run: npm exec --yes --package typescript@5.5.4 -- tsc -p src/tsconfig.json --pretty false
+
+      - name: Check type tests
+        run: bun x tsc -p test/types/tsconfig.json --noEmit --pretty false
+
+      - name: Compile C addon header example
+        run: cc -Iinclude -c examples/native-addon/native.c -o .zig-cache/js-addon-example.o
+
+      - name: Run e2e suite
+        run: ./zig-out/bin/hao test test/e2e/runtime test/e2e/test test/e2e/fs test/e2e/process test/e2e/http test/e2e/ffi test/e2e/util
