@@ -13,7 +13,7 @@ pub const NativeModule = struct {
     load: *const fn (ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef,
 };
 
-pub const InstallContext = struct {
+pub const PackageContext = struct {
     runtime: *qjs.Runtime,
     allocator: std.mem.Allocator,
 };
@@ -22,8 +22,8 @@ pub const Package = struct {
     name: []const u8,
     sources: []const SourceModule = &.{},
     native_modules: []const NativeModule = &.{},
-    install: ?*const fn (*InstallContext) anyerror!void = null,
-    deinit: ?*const fn (*InstallContext) void = null,
+    install: ?*const fn (*PackageContext) anyerror!void = null,
+    deinit: ?*const fn (*PackageContext) void = null,
 };
 
 pub fn isStdSpecifier(specifier: []const u8) bool {
@@ -94,13 +94,13 @@ pub const Registry = struct {
         return null;
     }
 
-    pub fn installPackages(self: *const Registry, context: *InstallContext) !void {
+    pub fn installPackages(self: *const Registry, context: *PackageContext) !void {
         for (self.packages.items) |package| {
             if (package.install) |install| try install(context);
         }
     }
 
-    pub fn deinitPackages(self: *const Registry, context: *InstallContext) void {
+    pub fn deinitPackages(self: *const Registry, context: *PackageContext) void {
         var index = self.packages.items.len;
         while (index > 0) {
             index -= 1;
@@ -360,7 +360,7 @@ test "registry runs package installers" {
     const Installer = struct {
         var called = false;
 
-        fn install(_: *InstallContext) !void {
+        fn install(_: *PackageContext) !void {
             called = true;
         }
     };
@@ -369,7 +369,7 @@ test "registry runs package installers" {
         .name = "demo",
         .install = Installer.install,
     });
-    var context = InstallContext{ .runtime = &runtime, .allocator = std.testing.allocator };
+    var context = PackageContext{ .runtime = &runtime, .allocator = std.testing.allocator };
     try registry.installPackages(&context);
     try std.testing.expect(Installer.called);
 }

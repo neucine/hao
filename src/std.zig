@@ -90,10 +90,10 @@ pub fn register(registry: *package.Registry) !void {
     try registry.register(package_descriptor);
 }
 
-fn install(context: *package.InstallContext) !void {
+fn install(context: *package.PackageContext) !void {
     try test_registry.ensureInit(context.allocator);
 }
 
-fn deinit(context: *package.InstallContext) void {
+fn deinit(context: *package.PackageContext) void {
     test_registry.deinit(context.runtime.ctx);
 }

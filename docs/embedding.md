@@ -30,11 +30,11 @@ pub fn runScript(source: []const u8) !void {
         .name = "app",
         .sources = &sources,
     });
-    var install_context = hao.package.InstallContext{
+    var package_context = hao.package.PackageContext{
         .runtime = &host.runtime,
         .allocator = std.heap.page_allocator,
     };
-    defer registry.deinitPackages(&install_context);
+    defer registry.deinitPackages(&package_context);
 
     try host.evalModuleSourceWithRegistry(
         "import 'app:main';",

@@ -68,8 +68,8 @@ pub const CoreHost = struct {
         };
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
-        var install_context = packages.InstallContext{ .runtime = &self.runtime, .allocator = self.allocator };
-        try registry.installPackages(&install_context);
+        var package_context = packages.PackageContext{ .runtime = &self.runtime, .allocator = self.allocator };
+        try registry.installPackages(&package_context);
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
@@ -133,8 +133,8 @@ pub const Host = struct {
         global_timer.cleanup(self.allocator);
         js_addon.cleanup();
         if (hao_std.package_descriptor.deinit) |deinit_package| {
-            var install_context = packages.InstallContext{ .runtime = &self.runtime, .allocator = self.allocator };
-            deinit_package(&install_context);
+            var package_context = packages.PackageContext{ .runtime = &self.runtime, .allocator = self.allocator };
+            deinit_package(&package_context);
         }
         self.loop.deinit();
         self.runtime.deinit();
@@ -169,8 +169,8 @@ pub const Host = struct {
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
         self.attachStdIo();
-        var install_context = packages.InstallContext{ .runtime = &self.runtime, .allocator = self.allocator };
-        try registry.installPackages(&install_context);
+        var package_context = packages.PackageContext{ .runtime = &self.runtime, .allocator = self.allocator };
+        try registry.installPackages(&package_context);
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
@@ -580,8 +580,8 @@ test "std package install initializes hao test registry" {
     var registry = packages.Registry.init(std.testing.allocator);
     defer registry.deinit();
     try hao_std.register(&registry);
-    var install_context = packages.InstallContext{ .runtime = &host.runtime, .allocator = host.allocator };
-    defer registry.deinitPackages(&install_context);
+    var package_context = packages.PackageContext{ .runtime = &host.runtime, .allocator = host.allocator };
+    defer registry.deinitPackages(&package_context);
 
     try host.evalModuleSourceWithRegistry(
         \\import { test } from "std:test";
