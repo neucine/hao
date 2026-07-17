@@ -1,10 +1,14 @@
 const std = @import("std");
 const qjs = @import("../../qjs.zig");
+const console = @import("../../global/console.zig");
 const registry = @import("registry.zig");
 
 pub const specifier: [:0]const u8 = "hao:test/native";
 var current_test_file_path: []const u8 = "";
 var current_executable_path: []const u8 = "";
+var capture_stdout = std.ArrayList(u8).empty;
+var capture_stderr = std.ArrayList(u8).empty;
+var capture_active = false;
 
 pub fn setCurrentTestFilePath(path: []const u8) void {
     current_test_file_path = path;
@@ -115,13 +119,40 @@ fn js_getCurrentExecutablePath(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _:
 }
 
 fn js_beginCapture(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    _ = argc;
-    _ = argv;
-    return throwInternal(ctx, "captureOutput requires console capture support");
+    if (capture_active) return throwInternal(ctx, "captureOutput does not support nested captures");
+    const target_text = if (argc >= 1)
+        allocString(ctx, argv[0], std.heap.page_allocator) catch return throwInternal(ctx, "failed to read capture target")
+    else
+        std.heap.page_allocator.dupe(u8, "stdout") catch return qjs.c.JS_ThrowOutOfMemory(ctx);
+    defer std.heap.page_allocator.free(target_text);
+    const target = std.meta.stringToEnum(console.CaptureTarget, target_text) orelse {
+        return throwType(ctx, "captureOutput target must be 'stdout', 'stderr', or 'both'");
+    };
+    capture_stdout.clearRetainingCapacity();
+    capture_stderr.clearRetainingCapacity();
+    console.capture_state = .{
+        .target = target,
+        .stdout = if (target == .stdout or target == .both) &capture_stdout else null,
+        .stderr = if (target == .stderr or target == .both) &capture_stderr else null,
+    };
+    capture_active = true;
+    return qjs.undefinedValue(ctx);
 }
 
 fn js_endCapture(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    return throwInternal(ctx, "captureOutput requires console capture support");
+    if (!capture_active) return throwInternal(ctx, "captureOutput end called without an active capture");
+    capture_active = false;
+    console.capture_state = null;
+    const obj = qjs.newObject(ctx);
+    if (qjs.isException(obj)) return obj;
+    qjs.setProperty(ctx, obj, "stdout", qjs.createString(ctx, capture_stdout.items)) catch return qjs.exceptionValue();
+    qjs.setProperty(ctx, obj, "stderr", qjs.createString(ctx, capture_stderr.items)) catch return qjs.exceptionValue();
+    var combined = std.ArrayList(u8).empty;
+    defer combined.deinit(std.heap.page_allocator);
+    combined.appendSlice(std.heap.page_allocator, capture_stdout.items) catch {};
+    combined.appendSlice(std.heap.page_allocator, capture_stderr.items) catch {};
+    qjs.setProperty(ctx, obj, "combined", qjs.createString(ctx, combined.items)) catch return qjs.exceptionValue();
+    return obj;
 }
 
 fn js_getRegisteredCounts(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {

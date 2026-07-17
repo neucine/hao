@@ -2,6 +2,7 @@ const std = @import("std");
 const fs = @import("fs.zig");
 const qjs = @import("qjs.zig");
 const async_loop = @import("async/loop.zig");
+const global_console = @import("global/console.zig");
 const global_timer = @import("global/timer.zig");
 const module = @import("module.zig");
 const packages = @import("package.zig");
@@ -43,6 +44,7 @@ pub const Host = struct {
         async_loop.detachCurrent();
         http_native.detachIo();
         process_native.detachIo();
+        global_console.capture_state = null;
         global_timer.cleanup(self.allocator);
         test_registry.deinit(self.runtime.ctx);
         self.loop.deinit();
@@ -54,6 +56,7 @@ pub const Host = struct {
         async_loop.attachCurrent(&self.loop);
         if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
+        try global_console.register(self.runtime.ctx);
         try global_timer.register(self.runtime.ctx);
     }
 
@@ -71,6 +74,7 @@ pub const Host = struct {
         async_loop.attachCurrent(&self.loop);
         if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
+        try global_console.register(self.runtime.ctx);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
     }
 
@@ -381,6 +385,48 @@ test "runtime host includes hao test module by default" {
     var hooks_count: f64 = 0;
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &hooks_count, registered_hooks));
     try std.testing.expectEqual(@as(f64, 1), hooks_count);
+}
+
+test "runtime host captures console output through hao test module" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import { captureOutput, expect } from "hao:test";
+        \\captureOutput(() => {
+        \\  console.log("hello", { value: 42 });
+        \\  console.error("bad");
+        \\}, { target: "both" }).then((captured) => {
+        \\  expect(captured.exitCode).toBe(0);
+        \\  globalThis.__hao_capture_stdout = captured.stdout;
+        \\  globalThis.__hao_capture_stderr = captured.stderr;
+        \\  globalThis.__hao_capture_combined = captured.combined;
+        \\});
+    ,
+        "<hao-test-capture-test>",
+    );
+    try host.runUntilIdle();
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    const stdout_value = qjs.getProperty(host.runtime.ctx, global, "__hao_capture_stdout");
+    defer qjs.freeValue(host.runtime.ctx, stdout_value);
+    const stdout_text = try qjs.valueToStringAlloc(host.runtime.ctx, stdout_value, std.testing.allocator);
+    defer std.testing.allocator.free(stdout_text);
+    try std.testing.expect(std.mem.indexOf(u8, stdout_text, "hello { value: 42 }") != null);
+
+    const stderr_value = qjs.getProperty(host.runtime.ctx, global, "__hao_capture_stderr");
+    defer qjs.freeValue(host.runtime.ctx, stderr_value);
+    const stderr_text = try qjs.valueToStringAlloc(host.runtime.ctx, stderr_value, std.testing.allocator);
+    defer std.testing.allocator.free(stderr_text);
+    try std.testing.expect(std.mem.indexOf(u8, stderr_text, "bad") != null);
+
+    const combined_value = qjs.getProperty(host.runtime.ctx, global, "__hao_capture_combined");
+    defer qjs.freeValue(host.runtime.ctx, combined_value);
+    const combined_text = try qjs.valueToStringAlloc(host.runtime.ctx, combined_value, std.testing.allocator);
+    defer std.testing.allocator.free(combined_text);
+    try std.testing.expect(std.mem.indexOf(u8, combined_text, "hello") != null);
+    try std.testing.expect(std.mem.indexOf(u8, combined_text, "bad") != null);
 }
 
 test "runtime host runs child process through hao process module" {
