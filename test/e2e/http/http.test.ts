@@ -1,68 +1,47 @@
 import { describe, test, expect, beforeEach, afterEach } from 'std:test'
-import { readFileSync } from 'std:fs'
 import { run } from 'std:process'
 import { getEnv } from 'std:process'
 import { get, post } from 'std:http'
 
 const serverScript = 'test/e2e/http/server.py'
 
-async function sleep(ms: number) {
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
 describe('http module', () => {
   let pid: string | null = null
   let serverPid: string | null = null
   let portFile = ''
-  let errorFile = ''
   let serverUrl = ''
 
   beforeEach(async () => {
     portFile = `.hao-http-port-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    errorFile = `${portFile}.err`
     const python = getEnv('pythonLocation')
       ? `${getEnv('pythonLocation')}/bin/python3`
       : 'python3'
     const out = await run({
-      cmd: 'sh',
-      args: ['-c', `nohup ${python} -u ${serverScript} > ${portFile} 2> ${errorFile} </dev/null & echo $!`],
+      cmd: python,
+      args: ['-u', serverScript],
     })
-    pid = out.stdout.trim()
-
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      try {
-        const [port, childPid] = readFileSync(portFile).trim().split(/\s+/)
-        if (port) {
-          serverPid = childPid || null
-          serverUrl = `http://127.0.0.1:${port}`
-          return
-        }
-      } catch {}
-      await sleep(50)
+    const [port, childPid] = out.stdout.trim().split(/\s+/)
+    if (out.exitCode === 0 && port && childPid) {
+      serverPid = childPid
+      pid = childPid
+      serverUrl = `http://127.0.0.1:${port}`
+      return
     }
 
-    let details = ''
-    try {
-      details = readFileSync(errorFile).trim()
-    } catch {}
-    const processDetails = `launcher exit=${out.exitCode} stdout=${JSON.stringify(out.stdout)} stderr=${JSON.stringify(out.stderr)}`
-    throw new Error(`timed out waiting for local HTTP server to start${details ? `: ${details}` : ''} (${processDetails})`)
+    throw new Error(`failed to start local HTTP server (exit=${out.exitCode} stdout=${JSON.stringify(out.stdout)} stderr=${JSON.stringify(out.stderr)})`)
   })
 
   afterEach(async () => {
     if (pid) {
       await run({
         cmd: 'sh',
-        args: ['-c', `kill ${serverPid || pid} >/dev/null 2>&1 || true; kill ${pid} >/dev/null 2>&1 || true; rm -f ${portFile} ${errorFile}`],
+        args: ['-c', `kill ${serverPid || pid} >/dev/null 2>&1 || true; rm -f ${portFile}`],
         check: false,
       })
     }
     pid = null
     serverPid = null
     serverUrl = ''
-    errorFile = ''
   })
 
   test('performs a GET request with query params and JSON decoding', async () => {
