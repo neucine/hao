@@ -1,6 +1,6 @@
-declare module "hao:runtime" {
+declare module "std:runtime" {
   export const name: "hao"
-  export const namespace: "hao:"
+  export const namespace: "std:"
 
   const runtimeModule: {
     name: typeof name

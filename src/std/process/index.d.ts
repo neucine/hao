@@ -22,7 +22,7 @@ interface ProcessRunPromise extends Promise<ProcessResult> {
   text(): Promise<string>
 }
 
-declare module "hao:process" {
+declare module "std:process" {
   export function run(options: ProcessRunOptions | string): ProcessRunPromise
   export function getEnv(name: string): string | null
 

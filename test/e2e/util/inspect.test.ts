@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'hao:test'
-import { inspect } from 'hao:util'
+import { describe, test, expect } from 'std:test'
+import { inspect } from 'std:util'
 
 describe('util inspect', () => {
   test('prefers generic repr data over toString', () => {

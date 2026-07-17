@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'hao:test'
-import { run } from 'hao:process'
+import { describe, test, expect } from 'std:test'
+import { run } from 'std:process'
 
 describe('process module', () => {
   test('captures stdout stderr and exit status', async () => {

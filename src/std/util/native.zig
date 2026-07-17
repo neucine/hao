@@ -2,7 +2,7 @@ const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 
-pub const specifier: [:0]const u8 = "hao:util/native";
+pub const specifier: [:0]const u8 = "std:util/native";
 
 const alloc = std.heap.page_allocator;
 
@@ -179,7 +179,7 @@ fn seenContains(seen: *std.ArrayList(usize), raw: usize) bool {
 }
 
 fn isArray(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) bool {
-    const array_ctor = qjs.eval(ctx, "Array.isArray", "<hao:util>", qjs.EvalFlags.global);
+    const array_ctor = qjs.eval(ctx, "Array.isArray", "<std:util>", qjs.EvalFlags.global);
     defer qjs.freeValue(ctx, array_ctor);
     if (qjs.isException(array_ctor) or !qjs.isFunction(ctx, array_ctor)) return false;
     const args = [_]qjs.c.JSValueConst{value};
@@ -221,7 +221,7 @@ fn formatArray(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSV
 
 fn formatObject(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst, opts: InspectOptions, depth: usize, seen: *std.ArrayList(usize)) void {
     appendSlice(buf, "{ ");
-    const keys_fn = qjs.eval(ctx, "Object.keys", "<hao:util>", qjs.EvalFlags.global);
+    const keys_fn = qjs.eval(ctx, "Object.keys", "<std:util>", qjs.EvalFlags.global);
     defer qjs.freeValue(ctx, keys_fn);
     if (qjs.isException(keys_fn) or !qjs.isFunction(ctx, keys_fn)) {
         appendSlice(buf, "}");

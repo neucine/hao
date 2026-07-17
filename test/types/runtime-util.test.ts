@@ -1,13 +1,13 @@
-import runtime, { name, namespace } from 'hao:runtime'
-import util, { getInspectOptions, inspect, setInspectOptions } from 'hao:util'
+import runtime, { name, namespace } from 'std:runtime'
+import util, { getInspectOptions, inspect, setInspectOptions } from 'std:util'
 
 type IsExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 function assertType<T extends true>() {}
 
 assertType<IsExact<typeof name, 'hao'>>()
-assertType<IsExact<typeof namespace, 'hao:'>>()
+assertType<IsExact<typeof namespace, 'std:'>>()
 assertType<IsExact<typeof runtime.name, 'hao'>>()
-assertType<IsExact<typeof runtime.namespace, 'hao:'>>()
+assertType<IsExact<typeof runtime.namespace, 'std:'>>()
 
 const text = inspect({ value: 42 }, { maxDepth: 2, maxArrayLength: 10, maxStringLength: 100 })
 assertType<IsExact<typeof text, string>>()

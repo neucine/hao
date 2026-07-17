@@ -10,39 +10,39 @@ const util_native = @import("std/util/native.zig");
 
 pub const sources = [_]package.SourceModule{
     .{
-        .specifier = "hao:runtime",
+        .specifier = "std:runtime",
         .source = @embedFile("std/runtime/index.ts"),
     },
     .{
-        .specifier = "hao:fs",
+        .specifier = "std:fs",
         .source = @embedFile("std/fs/index.ts"),
     },
     .{
-        .specifier = "hao:process",
+        .specifier = "std:process",
         .source = @embedFile("std/process/index.ts"),
     },
     .{
-        .specifier = "hao:http",
+        .specifier = "std:http",
         .source = @embedFile("std/http/index.ts"),
     },
     .{
-        .specifier = "hao:util",
+        .specifier = "std:util",
         .source = @embedFile("std/util/index.ts"),
     },
     .{
-        .specifier = "hao:plot",
+        .specifier = "std:plot",
         .source = @embedFile("std/plot/index.ts"),
     },
     .{
-        .specifier = "hao:test",
+        .specifier = "std:test",
         .source = @embedFile("std/test/index.ts"),
     },
     .{
-        .specifier = "hao:ffi",
+        .specifier = "std:ffi",
         .source = @embedFile("std/ffi/index.ts"),
     },
     .{
-        .specifier = "hao:ffi/c",
+        .specifier = "std:ffi/c",
         .source = @embedFile("std/ffi/c.ts"),
     },
 };
@@ -79,7 +79,7 @@ pub const native_modules = [_]package.NativeModule{
 };
 
 pub const package_descriptor = package.Package{
-    .name = "hao",
+    .name = "std",
     .sources = &sources,
     .native_modules = &native_modules,
     .install = install,

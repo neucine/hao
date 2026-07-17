@@ -26,17 +26,17 @@ pub const Package = struct {
     deinit: ?*const fn (*InstallContext) void = null,
 };
 
-pub fn isHaoSpecifier(specifier: []const u8) bool {
-    return std.mem.startsWith(u8, specifier, "hao:");
+pub fn isStdSpecifier(specifier: []const u8) bool {
+    return std.mem.startsWith(u8, specifier, "std:");
 }
 
-pub fn isHaoPackageName(name: []const u8) bool {
-    return std.mem.eql(u8, name, "hao");
+pub fn isStdPackageName(name: []const u8) bool {
+    return std.mem.eql(u8, name, "std");
 }
 
 fn ownsSpecifier(package_name: []const u8, specifier: []const u8) bool {
-    if (isHaoPackageName(package_name)) return isHaoSpecifier(specifier);
-    if (isHaoSpecifier(specifier)) return false;
+    if (isStdPackageName(package_name)) return isStdSpecifier(specifier);
+    if (isStdSpecifier(specifier)) return false;
     if (!std.mem.startsWith(u8, specifier, package_name)) return false;
     return specifier.len == package_name.len or specifier[package_name.len] == ':';
 }
@@ -316,12 +316,12 @@ test "registry rejects package-owned modules outside package prefix" {
     }));
 }
 
-test "hao namespace is reserved for the hao package" {
+test "std namespace is reserved for the std package" {
     var registry = Registry.init(std.testing.allocator);
     defer registry.deinit();
 
     const bad_sources = [_]SourceModule{.{
-        .specifier = "hao:runtime",
+        .specifier = "std:runtime",
         .source = "",
     }};
     try std.testing.expectError(error.PackageSpecifierMismatch, registry.register(.{
@@ -330,11 +330,11 @@ test "hao namespace is reserved for the hao package" {
     }));
 
     const good_sources = [_]SourceModule{.{
-        .specifier = "hao:runtime",
+        .specifier = "std:runtime",
         .source = "",
     }};
     try registry.register(.{
-        .name = "hao",
+        .name = "std",
         .sources = &good_sources,
     });
 }

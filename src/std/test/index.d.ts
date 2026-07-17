@@ -1,4 +1,4 @@
-// Runtime API exposed by the public test module (hao:test).
+// Runtime API exposed by the public test module (std:test).
 // This is the internal source of truth for what test/index.ts returns to JS.
 // User-facing types can be published by language bindings.
 
@@ -140,7 +140,7 @@ interface TestModule {
   captureOutput(path: string): Promise<TestCapturedOutput>
 }
 
-declare module "hao:test" {
+declare module "std:test" {
   export const describe: TestDescribeRegistrar
   export const test: TestRegistrar
   export const it: TestRegistrar

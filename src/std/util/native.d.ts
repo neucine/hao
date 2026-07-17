@@ -1,4 +1,4 @@
-declare module "hao:util/native" {
+declare module "std:util/native" {
   const native: any
   export default native
 }

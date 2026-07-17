@@ -1,4 +1,4 @@
-import { dlopen, Pointer } from 'hao:ffi'
+import { dlopen, Pointer } from 'std:ffi'
 
 type IsExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 function assertType<T extends true>() {}

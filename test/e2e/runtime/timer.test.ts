@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'hao:test'
+import { describe, test, expect } from 'std:test'
 
 describe('runtime timer', () => {
   test('runs timers in expected order and cancels cleared ones', async () => {

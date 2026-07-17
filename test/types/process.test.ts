@@ -1,4 +1,4 @@
-import processModule, { getEnv, run } from 'hao:process'
+import processModule, { getEnv, run } from 'std:process'
 
 type IsExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 function assertType<T extends true>() {}

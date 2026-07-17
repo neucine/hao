@@ -1,4 +1,4 @@
-declare module "hao:test/native" {
+declare module "std:test/native" {
   export function pushSuite(name: string): void
   export function popSuite(): void
   export function registerTest(name: string, fn: Function, mode: string): void

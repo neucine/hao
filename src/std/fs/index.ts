@@ -1,4 +1,4 @@
-import * as native from "hao:fs/native";
+import * as native from "std:fs/native";
 
 export const existsSync = native.existsSync;
 export const readFileSync = native.readFileSync;

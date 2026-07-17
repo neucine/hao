@@ -290,11 +290,11 @@ test "runtime host runs a TypeScript entry file" {
     try std.testing.expectEqual(@as(f64, 42), out);
 }
 
-test "runtime host includes hao namespace modules by default" {
+test "runtime host includes std namespace modules by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        "import { namespace } from 'hao:runtime'; globalThis.__hao_namespace_value = namespace;",
+        "import { namespace } from 'std:runtime'; globalThis.__hao_namespace_value = namespace;",
         "<hao-runtime-test>",
     );
 
@@ -304,7 +304,7 @@ test "runtime host includes hao namespace modules by default" {
     defer qjs.freeValue(host.runtime.ctx, result);
     const text = try qjs.valueToStringAlloc(host.runtime.ctx, result, std.testing.allocator);
     defer std.testing.allocator.free(text);
-    try std.testing.expectEqualStrings("hao:", text);
+    try std.testing.expectEqualStrings("std:", text);
 }
 
 test "runtime host includes hao fs module by default" {
@@ -312,7 +312,7 @@ test "runtime host includes hao fs module by default" {
     defer host.deinit();
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-fs");
     try host.evalModuleSource(
-        \\import { existsSync, readFileSync, statSync, writeFileSync } from "hao:fs";
+        \\import { existsSync, readFileSync, statSync, writeFileSync } from "std:fs";
         \\const path = ".zig-cache/hao-tests/hao-fs/default.txt";
         \\writeFileSync(path, "hello from hao");
         \\globalThis.__hao_fs_exists = existsSync(path);
@@ -346,7 +346,7 @@ test "runtime host includes hao process module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import process, { getEnv } from "hao:process";
+        \\import process, { getEnv } from "std:process";
         \\globalThis.__hao_process_path_named = getEnv("PATH") !== null;
         \\globalThis.__hao_process_path_default = process.getEnv("PATH") !== null;
         \\globalThis.__hao_process_missing = getEnv("__HAO_ENV_MISSING_TEST_KEY__");
@@ -374,7 +374,7 @@ test "runtime host includes hao http module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import http, { get, post, request } from "hao:http";
+        \\import http, { get, post, request } from "std:http";
         \\globalThis.__hao_http_get = typeof get;
         \\globalThis.__hao_http_post = typeof post;
         \\globalThis.__hao_http_request = typeof request;
@@ -407,7 +407,7 @@ test "runtime host includes hao util module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import util, { inspect, getInspectOptions, setInspectOptions } from "hao:util";
+        \\import util, { inspect, getInspectOptions, setInspectOptions } from "std:util";
         \\setInspectOptions({ maxArrayLength: 2 });
         \\globalThis.__hao_util_text = inspect([1, 2, 3]);
         \\globalThis.__hao_util_default = typeof util.inspect;
@@ -443,8 +443,8 @@ test "runtime host includes hao plot module by default" {
     defer host.deinit();
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-plot");
     try host.evalModuleSource(
-        \\import { figure, plot, render, savefig } from "hao:plot";
-        \\import { existsSync, readFileSync } from "hao:fs";
+        \\import { figure, plot, render, savefig } from "std:plot";
+        \\import { existsSync, readFileSync } from "std:fs";
         \\figure({ width: 320, height: 240, title: "Hao" });
         \\plot([1, 4, 2], { label: "data", color: "#ff0000" });
         \\const svg = render();
@@ -474,7 +474,7 @@ test "runtime host includes hao ffi module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import ffi, { dlopen, c } from "hao:ffi";
+        \\import ffi, { dlopen, c } from "std:ffi";
         \\globalThis.__hao_ffi_dlopen = typeof dlopen;
         \\globalThis.__hao_ffi_default = typeof ffi.dlopen;
         \\let unsupported = false;
@@ -507,8 +507,8 @@ test "runtime host includes hao ffi c declaration module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import cmod, { decl } from "hao:ffi/c";
-        \\import { prepareNative } from "hao:ffi/c/native";
+        \\import cmod, { decl } from "std:ffi/c";
+        \\import { prepareNative } from "std:ffi/c/native";
         \\const prepared = prepareNative("x", "int32_t add(int32_t a, int32_t b);");
         \\globalThis.__hao_ffi_c_decl = typeof decl;
         \\globalThis.__hao_ffi_c_default = typeof cmod.decl;
@@ -542,8 +542,8 @@ test "runtime host includes hao test module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import { describe, test, expect, mock } from "hao:test";
-        \\import { getRegisteredCounts } from "hao:test/native";
+        \\import { describe, test, expect, mock } from "std:test";
+        \\import { getRegisteredCounts } from "std:test/native";
         \\describe("math", () => {
         \\  test("adds", () => expect(1 + 1).toBe(2));
         \\});
@@ -584,8 +584,8 @@ test "std package install initializes hao test registry" {
     defer registry.deinitPackages(&install_context);
 
     try host.evalModuleSourceWithRegistry(
-        \\import { test } from "hao:test";
-        \\import { getRegisteredCounts } from "hao:test/native";
+        \\import { test } from "std:test";
+        \\import { getRegisteredCounts } from "std:test/native";
         \\test("registered by package install", () => {});
         \\globalThis.__hao_test_install_counts = getRegisteredCounts();
     ,
@@ -608,7 +608,7 @@ test "runtime host captures console output through hao test module" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import { captureOutput, expect } from "hao:test";
+        \\import { captureOutput, expect } from "std:test";
         \\captureOutput(() => {
         \\  console.log("hello", { value: 42 });
         \\  console.error("bad");
@@ -650,7 +650,7 @@ test "runtime host runs child process through hao process module" {
     var host = try Host.initWithIo(std.testing.allocator, std.testing.io);
     defer host.deinit();
     try host.evalModuleSource(
-        \\import process, { run } from "hao:process";
+        \\import process, { run } from "std:process";
         \\run({ cmd: "printf", args: ["42"] }).text().then((text) => {
         \\  globalThis.__hao_process_run_named = text;
         \\});

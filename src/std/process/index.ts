@@ -1,4 +1,4 @@
-import { getEnvNative, runNative } from "hao:process/native";
+import { getEnvNative, runNative } from "std:process/native";
 
 function normalize(options: any) {
   if (typeof options === "string") {

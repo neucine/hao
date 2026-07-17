@@ -1,5 +1,5 @@
-declare module "hao:ffi/c" {
-  import type { CBoundLibrary, CDeclOptions } from "hao:ffi"
+declare module "std:ffi/c" {
+  import type { CBoundLibrary, CDeclOptions } from "std:ffi"
 
   export function cdecl<
     const Decls extends string,

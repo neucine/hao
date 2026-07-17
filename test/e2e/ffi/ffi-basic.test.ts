@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'hao:test'
-import { dlopen } from 'hao:ffi'
+import { describe, test, expect } from 'std:test'
+import { dlopen } from 'std:ffi'
 
 describe('ffi basic', () => {
   test('calls libm functions through dlopen bindings', () => {

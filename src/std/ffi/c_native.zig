@@ -10,7 +10,7 @@ const ffi_types = @import("types.zig");
 const trampoline = @import("trampoline.zig");
 const Library = @import("Library.zig").Library;
 
-pub const specifier: [:0]const u8 = "hao:ffi/c/native";
+pub const specifier: [:0]const u8 = "std:ffi/c/native";
 
 const alloc = std.heap.page_allocator;
 
@@ -885,7 +885,7 @@ fn parseSearchOptions(
 }
 
 fn ownKeys(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ![][]u8 {
-    const keys_fn = qjs.eval(ctx, "Object.keys", "<hao:ffi/c>", qjs.EvalFlags.global);
+    const keys_fn = qjs.eval(ctx, "Object.keys", "<std:ffi/c>", qjs.EvalFlags.global);
     defer qjs.freeValue(ctx, keys_fn);
     if (qjs.isException(keys_fn) or !qjs.isFunction(ctx, keys_fn)) return error.InvalidArgument;
 

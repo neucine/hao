@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from 'hao:test'
+import { describe, test, expect, beforeEach, afterEach } from 'std:test'
 
 let counter = 0
 

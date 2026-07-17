@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'hao:test'
+import { describe, test, expect } from 'std:test'
 
 describe('conditional skip', () => {
   test.skip(() => true)('skips when predicate is true', () => {

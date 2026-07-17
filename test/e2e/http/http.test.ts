@@ -1,7 +1,7 @@
-import { describe, test, expect, beforeEach, afterEach } from 'hao:test'
-import { readFileSync } from 'hao:fs'
-import { run } from 'hao:process'
-import { get, post } from 'hao:http'
+import { describe, test, expect, beforeEach, afterEach } from 'std:test'
+import { readFileSync } from 'std:fs'
+import { run } from 'std:process'
+import { get, post } from 'std:http'
 
 const serverScript = 'test/e2e/http/server.py'
 

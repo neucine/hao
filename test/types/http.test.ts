@@ -1,4 +1,4 @@
-import http, { get, post, request } from 'hao:http'
+import http, { get, post, request } from 'std:http'
 
 type IsExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 function assertType<T extends true>() {}

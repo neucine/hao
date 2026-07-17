@@ -21,7 +21,7 @@ interface HttpResponse {
   bytes(): Uint8Array
 }
 
-declare module "hao:http" {
+declare module "std:http" {
   export function request(url: string, opts?: HttpRequestOptions): Promise<HttpResponse>
   export function get(url: string, opts?: Omit<HttpRequestOptions, "method">): Promise<HttpResponse>
   export function post(url: string, opts?: Omit<HttpRequestOptions, "method">): Promise<HttpResponse>

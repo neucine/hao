@@ -1,4 +1,4 @@
-import fs from 'hao:fs'
+import fs from 'std:fs'
 
 interface TensorLike {
   readonly shape: number[]

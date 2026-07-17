@@ -95,7 +95,7 @@ pub fn registerRuntimeError(ctx: ?*qjs.c.JSContext, allocator: std.mem.Allocator
         \\}
     ;
 
-    const value = qjs.eval(ctx, source, "<hao:global>", qjs.EvalFlags.global);
+    const value = qjs.eval(ctx, source, "<std:global>", qjs.EvalFlags.global);
     defer qjs.freeValue(ctx, value);
     if (qjs.isException(value)) {
         const message = qjs.getExceptionAlloc(ctx, allocator) catch return error.JavaScriptError;

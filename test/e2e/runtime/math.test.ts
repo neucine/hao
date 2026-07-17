@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'hao:test'
+import { describe, test, expect } from 'std:test'
 
 function fibonacci(n: number): number {
   if (n <= 1) return n

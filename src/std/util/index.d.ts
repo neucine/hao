@@ -1,4 +1,4 @@
-declare module "hao:util" {
+declare module "std:util" {
   interface InspectOptions {
     maxDepth?: number
     maxArrayLength?: number

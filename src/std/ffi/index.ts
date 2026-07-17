@@ -1,5 +1,5 @@
-import { openNative, callNative, closeNative } from "hao:ffi/native";
-import cModule from "hao:ffi/c";
+import { openNative, callNative, closeNative } from "std:ffi/native";
+import cModule from "std:ffi/c";
 
 type FFIDescriptor = Record<string, { args: string[]; returns: string }>;
 

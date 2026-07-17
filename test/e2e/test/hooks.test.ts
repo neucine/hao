@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, beforeEach, afterEach, afterAll } from 'hao:test'
+import { describe, test, expect, beforeAll, beforeEach, afterEach, afterAll } from 'std:test'
 
 const events: string[] = []
 

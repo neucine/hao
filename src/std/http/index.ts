@@ -1,4 +1,4 @@
-import { requestNative } from "hao:http/native";
+import { requestNative } from "std:http/native";
 
 type HeaderValue = string | string[];
 type HeadersRecord = Record<string, HeaderValue>;

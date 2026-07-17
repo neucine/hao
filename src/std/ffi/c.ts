@@ -1,4 +1,4 @@
-import { openNative, callNative, closeNative } from 'hao:ffi/c/native'
+import { openNative, callNative, closeNative } from 'std:ffi/c/native'
 
 type HandlePolicy = {
   close?: string

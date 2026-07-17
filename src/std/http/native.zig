@@ -7,7 +7,7 @@ const uv = @import("../../async/uv.zig").c;
 const http = std.http;
 const alloc = std.heap.page_allocator;
 
-pub const specifier: [:0]const u8 = "hao:http/native";
+pub const specifier: [:0]const u8 = "std:http/native";
 
 var current_io: ?std.Io = null;
 

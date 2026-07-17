@@ -926,7 +926,7 @@ test "jupyter kernelspec helpers render hao runtime command" {
     var dir_buf: [4096]u8 = undefined;
     const kernels_dir = try kernelspecDir("/tmp/hao-home", &dir_buf);
     try std.testing.expect(std.mem.endsWith(u8, kernels_dir, "/kernels/hao"));
-    try std.testing.expect(std.mem.indexOf(u8, kernels_dir, "hao:") == null);
+    try std.testing.expect(std.mem.indexOf(u8, kernels_dir, "std:") == null);
 
     var path_buf: [4096]u8 = undefined;
     const path = try kernelJsonPath(kernels_dir, &path_buf);
@@ -939,7 +939,7 @@ test "jupyter kernelspec helpers render hao runtime command" {
     try std.testing.expect(std.mem.indexOf(u8, json, "\"--connection-file\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, json, "\"{connection_file}\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, json, "Hao (TypeScript)") != null);
-    try std.testing.expect(std.mem.indexOf(u8, json, "hao:") == null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "std:") == null);
 }
 
 test "callRepr extracts generic svg repr object on qjs jupyter path" {
@@ -986,7 +986,7 @@ test "callRepr preserves plot show svg through prepared notebook cell" {
     var prepared = try module_runtime.prepareNotebookCell(
         &test_loader,
         &test_runtime,
-        \\import { figure, plot, show } from 'hao:plot';
+        \\import { figure, plot, show } from 'std:plot';
         \\figure({ width: 120, height: 80 });
         \\plot([0, 1], [0, 1]);
         \\show();

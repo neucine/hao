@@ -1,6 +1,6 @@
-import { describe, test, expect } from 'hao:test'
+import { describe, test, expect } from 'std:test'
 
-describe('hao:test matchers', () => {
+describe('std:test matchers', () => {
   test('supports richer core matchers', () => {
     expect('abc').toHaveLength(3)
     expect([1, 2, 3]).toHaveLength(3)

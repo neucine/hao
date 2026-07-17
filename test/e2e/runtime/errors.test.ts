@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'hao:test'
-import { c } from 'hao:ffi'
+import { describe, test, expect } from 'std:test'
+import { c } from 'std:ffi'
 
 function captureError(fn: () => void): any {
   try {

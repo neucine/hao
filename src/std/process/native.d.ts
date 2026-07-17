@@ -1,4 +1,4 @@
-declare module "hao:process/native" {
+declare module "std:process/native" {
   export function getEnvNative(name: string): string | null;
   export function runNative(options: {
     cmd: string;

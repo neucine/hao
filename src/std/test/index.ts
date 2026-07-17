@@ -1,5 +1,5 @@
-import fs from 'hao:fs'
-import processModule from 'hao:process'
+import fs from 'std:fs'
+import processModule from 'std:process'
 import {
   pushSuite,
   popSuite,
@@ -9,7 +9,7 @@ import {
   getCurrentExecutablePath,
   beginCapture,
   endCapture,
-} from 'hao:test/native'
+} from 'std:test/native'
 const core = {
   pushSuite,
   popSuite,

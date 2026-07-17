@@ -6,7 +6,7 @@ const c = @cImport({
     @cInclude("stdlib.h");
 });
 
-pub const specifier: [:0]const u8 = "hao:process/native";
+pub const specifier: [:0]const u8 = "std:process/native";
 
 const alloc = std.heap.page_allocator;
 var current_io: ?std.Io = null;

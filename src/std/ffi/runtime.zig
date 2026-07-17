@@ -176,7 +176,7 @@ fn parseDescriptor(ctx: ?*qjs.c.JSContext, lib: *OpenLibrary, descriptor: qjs.c.
 }
 
 fn ownKeys(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ![][]u8 {
-    const keys_fn = qjs.eval(ctx, "Object.keys", "<hao:ffi>", qjs.EvalFlags.global);
+    const keys_fn = qjs.eval(ctx, "Object.keys", "<std:ffi>", qjs.EvalFlags.global);
     defer qjs.freeValue(ctx, keys_fn);
     if (qjs.isException(keys_fn) or !qjs.isFunction(ctx, keys_fn)) return error.JavaScriptError;
 

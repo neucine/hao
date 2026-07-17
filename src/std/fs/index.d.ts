@@ -2,7 +2,7 @@ interface FSStat {
   size: number
 }
 
-declare module "hao:fs" {
+declare module "std:fs" {
   export function existsSync(path: string): boolean
   export function readFileSync(path: string): string
   export function writeFileSync(path: string, data: string): void

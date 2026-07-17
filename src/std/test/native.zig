@@ -4,7 +4,7 @@ const qjs = @import("../../qjs.zig");
 const console = @import("../../global/console.zig");
 const registry = @import("registry.zig");
 
-pub const specifier: [:0]const u8 = "hao:test/native";
+pub const specifier: [:0]const u8 = "std:test/native";
 var current_test_file_path: []const u8 = "";
 var current_executable_path: []const u8 = "";
 var capture_stdout = std.ArrayList(u8).empty;

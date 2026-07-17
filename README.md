@@ -6,22 +6,22 @@ projects.
 It is meant for projects that want to run JS/TS inside a native host, expose a
 few first-party modules, and keep the host language close to the script world.
 Hao owns the runtime layer: loading modules, running async work, registering
-native bindings, and giving scripts a stable `hao:` module namespace.
+native bindings, and giving scripts a stable `std:` module namespace.
 
 ## Modules
 
-Hao reserves `hao:` for runtime modules.
+Hao reserves `std:` for runtime modules.
 
 Current modules include:
 
-- `hao:runtime`
-- `hao:fs`
-- `hao:process`
-- `hao:http`
-- `hao:ffi`
-- `hao:util`
-- `hao:test`
-- `hao:plot`
+- `std:runtime`
+- `std:fs`
+- `std:process`
+- `std:http`
+- `std:ffi`
+- `std:util`
+- `std:test`
+- `std:plot`
 
 Host projects should use their own prefixes, such as `affon:` or `myapp:`, for
 their product modules.

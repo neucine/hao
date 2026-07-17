@@ -1,6 +1,6 @@
-import { describe, test, expect, mock, spy, spyOn, replaceProperty } from 'hao:test'
+import { describe, test, expect, mock, spy, spyOn, replaceProperty } from 'std:test'
 
-describe('hao:test mocks', () => {
+describe('std:test mocks', () => {
   test('mock is callable', () => {
     const doubled = mock((x: number) => x * 2)
     doubled.mockReturnValueOnce(10)

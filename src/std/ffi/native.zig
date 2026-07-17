@@ -3,7 +3,7 @@ const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 const runtime = @import("runtime.zig");
 
-pub const specifier: [:0]const u8 = "hao:ffi/native";
+pub const specifier: [:0]const u8 = "std:ffi/native";
 
 const functions = [_]js_abi.Function{
     .{ .name = "openNative", .callback = js_openNative, .length = 2 },

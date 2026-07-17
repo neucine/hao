@@ -1,4 +1,4 @@
-import { describe, test, expect, afterAll } from 'hao:test'
+import { describe, test, expect, afterAll } from 'std:test'
 
 describe('describe modifiers and each helpers', () => {
   const seen: string[] = []

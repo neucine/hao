@@ -1,4 +1,4 @@
-declare module "hao:ffi" {
+declare module "std:ffi" {
   type FFIType = 'void' | 'bool'
     | 'i8' | 'i16' | 'i32' | 'i64'
     | 'u8' | 'u16' | 'u32' | 'u64'
@@ -440,7 +440,7 @@ declare module "hao:ffi" {
   /**
    * Bind a constrained C ABI surface from C-like declarations.
    *
-   * This higher-level layer sits on top of raw `hao:ffi` calls and is intended for
+   * This higher-level layer sits on top of raw `std:ffi` calls and is intended for
    * wrapper authors. The supported declaration grammar is intentionally narrow.
    */
   function cdecl<

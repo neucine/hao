@@ -12,7 +12,7 @@ import testModule, {
   spy,
   spyOn,
   test,
-} from 'hao:test'
+} from 'std:test'
 
 type IsExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 function assertType<T extends true>() {}

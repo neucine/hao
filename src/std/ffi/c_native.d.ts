@@ -1,4 +1,4 @@
-declare module "hao:ffi/c/native" {
+declare module "std:ffi/c/native" {
   export function openNative(name: string, declarations: string, opts?: unknown): {
     handle: number
     symbols: string[]

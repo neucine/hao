@@ -3,7 +3,7 @@
 Hao exposes two host layers from Zig:
 
 - `hao.CoreHost`: runtime, async loop, globals, module loader, and package registry support.
-- `hao.Host`: `CoreHost` plus the built-in `hao:` standard package and test/runtime conveniences used by the CLI.
+- `hao.Host`: `CoreHost` plus the built-in `std:` standard package and test/runtime conveniences used by the CLI.
 
 Use `CoreHost` when an application wants to own its module surface. Use `Host`
 when the application wants the same batteries-included behavior as the `hao`
@@ -46,8 +46,8 @@ pub fn runScript(source: []const u8) !void {
 ```
 
 `CoreHost.installGlobals()` installs `RuntimeError`, `console`, and timers.
-It does not register the built-in `hao:` package, and it does not initialize
-the `hao:test` registry.
+It does not register the built-in `std:` package, and it does not initialize
+the `std:test` registry.
 
 When using `CoreHost`, the caller owns package lifecycle. If a package installs
 native state or stores JavaScript values, call `registry.deinitPackages()` before
@@ -62,12 +62,12 @@ defer host.deinit();
 try host.runFile("main.ts");
 ```
 
-`Host` registers the built-in `hao:` modules and wires IO-backed native modules
-such as `hao:process` and `hao:http`.
+`Host` registers the built-in `std:` modules and wires IO-backed native modules
+such as `std:process` and `std:http`.
 
 ## Packages
 
-A package owns a specifier prefix. The `hao:` prefix is reserved for Hao.
+A package owns a specifier prefix. The `std:` prefix is reserved for Hao.
 
 ```zig
 const sources = [_]hao.SourceModule{.{

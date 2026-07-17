@@ -1,10 +1,10 @@
-import { describe, test, expect } from 'hao:test'
-import { c } from 'hao:ffi'
+import { describe, test, expect } from 'std:test'
+import { c } from 'std:ffi'
 
 const { decl: cdecl } = c
 
 describe('c basic', () => {
-  test('binds direct libm calls through hao:ffi.c', () => {
+  test('binds direct libm calls through std:ffi.c', () => {
     const libm = cdecl('m', `
       double sqrt(double x);
       double pow(double x, double y);
@@ -16,7 +16,7 @@ describe('c basic', () => {
     libm.close()
   })
 
-  test('maps const char* and size_t through hao:ffi.c', () => {
+  test('maps const char* and size_t through std:ffi.c', () => {
     const libc = cdecl('c', `
       size_t strlen(const char* s);
     `)

@@ -108,7 +108,7 @@ fn runTestFile(loader: *module_runtime.Loader, runtime: *qjs.Runtime, path: []co
         return error.JavaScriptError;
     }
 
-    const probe = qjs.eval(runtime.ctx, "void 0", "<hao:test-qjs-load-probe>", qjs.EvalFlags.global);
+    const probe = qjs.eval(runtime.ctx, "void 0", "<std:test-qjs-load-probe>", qjs.EvalFlags.global);
     defer qjs.freeValue(runtime.ctx, probe);
     if (qjs.isException(probe)) return error.JavaScriptError;
 }
@@ -234,7 +234,7 @@ fn awaitPromise(runtime: *qjs.Runtime, loop: *async_loop.Loop, promise_value: qj
         \\  (err) => { globalThis.__hao_test_async_state.settled = true; globalThis.__hao_test_async_state.ok = false; globalThis.__hao_test_async_state.error = err; },
         \\);
     ;
-    const value = qjs.eval(ctx, bootstrap, "<hao:test>", qjs.EvalFlags.global);
+    const value = qjs.eval(ctx, bootstrap, "<std:test>", qjs.EvalFlags.global);
     defer qjs.freeValue(ctx, value);
     if (qjs.isException(value)) return try makeFailure(ctx, allocator, phase, value);
 
@@ -290,7 +290,7 @@ fn callFunction(runtime: *qjs.Runtime, loop: *async_loop.Loop, callback: qjs.c.J
     // QJS context even when the JS callback completed successfully. Probe with
     // a no-op eval so the runner does not leak one test's caught exception into
     // the next test case.
-    const probe = qjs.eval(runtime.ctx, "void 0", "<hao:test-probe>", qjs.EvalFlags.global);
+    const probe = qjs.eval(runtime.ctx, "void 0", "<std:test-probe>", qjs.EvalFlags.global);
     defer qjs.freeValue(runtime.ctx, probe);
     if (qjs.isException(probe)) {
         const stray = qjs.c.JS_GetException(runtime.ctx);

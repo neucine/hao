@@ -1,5 +1,5 @@
-import { c } from 'hao:ffi'
-import type { CHandle } from 'hao:ffi'
+import { c } from 'std:ffi'
+import type { CHandle } from 'std:ffi'
 
 const { decl: cdecl } = c
 

@@ -1,4 +1,4 @@
-declare module "hao:plot" {
+declare module "std:plot" {
   interface TensorLike {
     readonly shape: number[]
     to_array?(): unknown
