@@ -14,18 +14,20 @@ pub const InspectOptions = struct {
 
 pub var defaults = InspectOptions{};
 
-const functions = [_]js_abi.LegacyFunction{
-    .{ .name = "inspect", .function = js_inspect, .length = 2 },
-    .{ .name = "setInspectOptions", .function = js_setInspectOptions, .length = 1 },
-    .{ .name = "getInspectOptions", .function = js_getInspectOptions, .length = 0 },
+const functions = [_]js_abi.Function{
+    .{ .name = "inspect", .callback = js_inspect, .length = 2 },
+    .{ .name = "setInspectOptions", .callback = js_setInspectOptions, .length = 1 },
+    .{ .name = "getInspectOptions", .callback = js_getInspectOptions, .length = 0 },
+    .{ .name = null, .callback = js_getInspectOptions },
+};
+const function_ptrs = [_]*const js_abi.Function{
+    &functions[0],
+    &functions[1],
+    &functions[2],
 };
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createLegacyDefaultObjectModule(ctx, module_name, initModule, &functions);
-}
-
-fn initModule(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return js_abi.bindLegacyDefaultObjectExports(ctx, module, &functions);
+    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
 }
 
 fn isInfinity(n: f64) bool {
@@ -66,6 +68,17 @@ fn makeDefaultsObject(ctx: ?*qjs.c.JSContext) qjs.c.JSValue {
     qjs.setProperty(ctx, obj, "maxDepth", qjs.c.JS_NewFloat64(ctx, max_depth)) catch return qjs.exceptionValue();
     qjs.setProperty(ctx, obj, "maxArrayLength", qjs.c.JS_NewFloat64(ctx, max_array)) catch return qjs.exceptionValue();
     qjs.setProperty(ctx, obj, "maxStringLength", qjs.c.JS_NewFloat64(ctx, max_string)) catch return qjs.exceptionValue();
+    return obj;
+}
+
+fn makeDefaultsObjectAbi(ctx: *js_abi.Context) js_abi.Value {
+    const obj = ctx.api.object_value(ctx);
+    const max_depth = if (defaults.max_depth == std.math.maxInt(usize)) std.math.inf(f64) else @as(f64, @floatFromInt(defaults.max_depth));
+    const max_array = if (defaults.max_array_length == std.math.maxInt(usize)) std.math.inf(f64) else @as(f64, @floatFromInt(defaults.max_array_length));
+    const max_string = if (defaults.max_string_length == std.math.maxInt(usize)) std.math.inf(f64) else @as(f64, @floatFromInt(defaults.max_string_length));
+    if (ctx.api.set_property(ctx, obj, "maxDepth", ctx.api.float64_value(ctx, max_depth)) < 0) return ctx.api.throw_error(ctx, "failed to create inspect options");
+    if (ctx.api.set_property(ctx, obj, "maxArrayLength", ctx.api.float64_value(ctx, max_array)) < 0) return ctx.api.throw_error(ctx, "failed to create inspect options");
+    if (ctx.api.set_property(ctx, obj, "maxStringLength", ctx.api.float64_value(ctx, max_string)) < 0) return ctx.api.throw_error(ctx, "failed to create inspect options");
     return obj;
 }
 
@@ -321,20 +334,28 @@ pub fn inspectAlloc(
     return allocator.dupe(u8, buf.items);
 }
 
-fn js_inspect(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    if (argc == 0) return qjs.undefinedValue(ctx);
-    const text = inspectAlloc(ctx, argv[0], if (argc > 1) argv[1] else null, alloc) catch return qjs.c.JS_ThrowOutOfMemory(ctx);
+fn js_inspect(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    if (argc == 0) return ctx.api.undefined(ctx);
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    const value = js_abi.borrowValue(ctx, argv[0]) orelse return ctx.api.throw_error(ctx, "failed to inspect value");
+    const opts = if (argc > 1) js_abi.borrowValue(ctx, argv[1]) else null;
+    const text = inspectAlloc(qjs_ctx, value, opts, alloc) catch return ctx.api.throw_error(ctx, "failed to inspect value");
     defer alloc.free(text);
-    return qjs.createString(ctx, text);
+    const text_z = alloc.dupeZ(u8, text) catch return ctx.api.throw_error(ctx, "out of memory");
+    defer alloc.free(text_z);
+    return ctx.api.string_value(ctx, text_z.ptr);
 }
 
-fn js_setInspectOptions(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    if (argc > 0) defaults = mergeOptions(ctx, argv[0]);
-    return qjs.undefinedValue(ctx);
+fn js_setInspectOptions(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    if (argc > 0) {
+        const qjs_ctx = js_abi.borrowContext(ctx);
+        if (js_abi.borrowValue(ctx, argv[0])) |opts| defaults = mergeOptions(qjs_ctx, opts);
+    }
+    return ctx.api.undefined(ctx);
 }
 
-fn js_getInspectOptions(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    return makeDefaultsObject(ctx);
+fn js_getInspectOptions(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    return makeDefaultsObjectAbi(ctx);
 }
 
 test "util qjs module exports can be created" {
