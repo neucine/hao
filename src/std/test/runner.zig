@@ -1,6 +1,7 @@
 const std = @import("std");
 const qjs = @import("../../qjs.zig");
 const async_loop = @import("../../async/loop.zig");
+const errors = @import("../../errors.zig");
 const global_console = @import("../../global/console.zig");
 const global_timer = @import("../../global/timer.zig");
 const fs = @import("../../fs.zig");
@@ -620,6 +621,7 @@ pub fn run(paths: [][]const u8, grep: ?[]const u8, print_summary: bool, allocato
     defer allocator.free(exe_path);
     bindings.setCurrentExecutablePath(exe_path);
 
+    try errors.registerHaoError(runtime.ctx, allocator);
     try global_console.register(runtime.ctx);
     try global_timer.register(runtime.ctx);
 

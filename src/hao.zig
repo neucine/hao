@@ -8,9 +8,11 @@ pub const std = @import("std.zig");
 pub const jupyter = @import("jupyter/main.zig");
 pub const test_runner = @import("std/test/runner.zig");
 pub const transpiler = @import("transpiler.zig");
+pub const config = @import("config.zig");
+pub const errors = @import("errors.zig");
 
 pub const Runtime = qjs.Runtime;
-pub const RuntimeOptions = @import("config.zig").RuntimeOptions;
+pub const RuntimeOptions = config.RuntimeOptions;
 pub const Package = package.Package;
 pub const SourceModule = package.SourceModule;
 pub const NativeModule = package.NativeModule;
@@ -29,4 +31,6 @@ test {
     _ = jupyter;
     _ = test_runner;
     _ = transpiler;
+    _ = config;
+    _ = errors;
 }

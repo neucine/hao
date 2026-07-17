@@ -36,7 +36,7 @@ pub const Runtime = struct {
     ctx: ?*c.JSContext,
 
     pub fn init() !Runtime {
-        return initWithOptions(.{});
+        return initWithOptions(config.runtimeOptions());
     }
 
     pub fn initWithOptions(options: config.RuntimeOptions) !Runtime {

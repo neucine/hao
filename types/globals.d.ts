@@ -8,6 +8,31 @@ interface Console {
 
 declare var console: Console
 
+type HaoErrorCode =
+  | "invalid_arg"
+  | "missing_arg"
+  | "shape_mismatch"
+  | "invalid_shape"
+  | "invalid_dtype"
+  | "out_of_memory"
+  | "device_mismatch"
+  | "device_error"
+  | "grad_error"
+  | "io_error"
+  | "cancelled"
+  | "invalid_state"
+  | "unsupported_lowering"
+  | "internal"
+  | "thread_pool_unavailable"
+
+declare class HaoError extends Error {
+  readonly name: "HaoError"
+  readonly code: HaoErrorCode
+  readonly nativeStack?: string
+
+  constructor(code: HaoErrorCode, message: string)
+}
+
 /** Schedule a callback to run after `delay` milliseconds. Returns a timer handle id. */
 declare function setTimeout(callback: () => void, delay?: number): number
 

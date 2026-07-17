@@ -1,5 +1,6 @@
 const std = @import("std");
 const hao = @import("hao.zig");
+const config = @import("config.zig");
 
 const c = @cImport({
     @cInclude("stdio.h");
@@ -30,6 +31,7 @@ pub fn main(init: std.process.Init) !void {
 
     var args = std.process.Args.Iterator.init(init.minimal.args);
     _ = args.next();
+    try config.loadFromEnv();
     const path = args.next() orelse {
         usage();
         std.process.exit(2);

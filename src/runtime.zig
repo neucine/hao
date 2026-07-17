@@ -1,4 +1,5 @@
 const std = @import("std");
+const errors = @import("errors.zig");
 const fs = @import("fs.zig");
 const qjs = @import("qjs.zig");
 const async_loop = @import("async/loop.zig");
@@ -56,6 +57,7 @@ pub const Host = struct {
         async_loop.attachCurrent(&self.loop);
         if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
+        try errors.registerHaoError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try global_timer.register(self.runtime.ctx);
     }
@@ -74,6 +76,7 @@ pub const Host = struct {
         async_loop.attachCurrent(&self.loop);
         if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
+        try errors.registerHaoError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
     }

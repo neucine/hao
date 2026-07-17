@@ -1,5 +1,5 @@
 const std = @import("std");
-const errors = @import("../errors.zig");
+const errors = @import("../../../errors.zig");
 const qjs = @import("../../../qjs.zig");
 const metadata = @import("metadata.zig");
 
