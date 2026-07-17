@@ -2,21 +2,21 @@
 
 Hao exposes two host layers from Zig:
 
-- `hao.CoreHost`: runtime, async loop, globals, module loader, and package registry support.
-- `hao.Host`: `CoreHost` plus the built-in `std:` standard package and test/runtime conveniences used by the CLI.
+- `hao.RuntimeHost`: runtime, async loop, globals, module loader, and package registry support.
+- `hao.StdHost`: `RuntimeHost` plus the built-in `std:` standard package and test/runtime conveniences used by the CLI.
 
-Use `CoreHost` when an application wants to own its module surface. Use `Host`
+Use `RuntimeHost` when an application wants to own its module surface. Use `StdHost`
 when the application wants the same batteries-included behavior as the `hao`
 CLI.
 
-## Core Host
+## Runtime Host
 
 ```zig
 const std = @import("std");
 const hao = @import("hao");
 
 pub fn runScript(source: []const u8) !void {
-    var host = try hao.CoreHost.init(std.heap.page_allocator);
+    var host = try hao.RuntimeHost.init(std.heap.page_allocator);
     defer host.deinit();
 
     var registry = hao.Registry.init(std.heap.page_allocator);
@@ -45,24 +45,24 @@ pub fn runScript(source: []const u8) !void {
 }
 ```
 
-`CoreHost.installGlobals()` installs `RuntimeError`, `console`, and timers.
+`RuntimeHost.installGlobals()` installs `RuntimeError`, `console`, and timers.
 It does not register the built-in `std:` package, and it does not initialize
 the `std:test` registry.
 
-When using `CoreHost`, the caller owns package lifecycle. If a package installs
+When using `RuntimeHost`, the caller owns package lifecycle. If a package installs
 native state or stores JavaScript values, call `registry.deinitPackages()` before
 deinitializing the host runtime.
 
-## Standard Host
+## Std Host
 
 ```zig
-var host = try hao.Host.initWithIo(allocator, io);
+var host = try hao.StdHost.initWithIo(allocator, io);
 defer host.deinit();
 
 try host.runFile("main.ts");
 ```
 
-`Host` registers the built-in `std:` modules and wires IO-backed native modules
+`StdHost` registers the built-in `std:` modules and wires IO-backed native modules
 such as `std:process` and `std:http`.
 
 ## Packages

@@ -14,17 +14,17 @@ const http_native = @import("std/http/native.zig");
 const process_native = @import("std/process/native.zig");
 const util_native = @import("std/util/native.zig");
 
-pub const CoreHost = struct {
+pub const RuntimeHost = struct {
     runtime: qjs.Runtime,
     loop: async_loop.Loop,
     allocator: std.mem.Allocator,
     io: ?std.Io = null,
 
-    pub fn init(allocator: std.mem.Allocator) !CoreHost {
+    pub fn init(allocator: std.mem.Allocator) !RuntimeHost {
         return initWithIo(allocator, null);
     }
 
-    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !CoreHost {
+    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !RuntimeHost {
         var runtime = try qjs.Runtime.init();
         errdefer runtime.deinit();
 
@@ -39,7 +39,7 @@ pub const CoreHost = struct {
         };
     }
 
-    pub fn deinit(self: *CoreHost) void {
+    pub fn deinit(self: *RuntimeHost) void {
         async_loop.detachCurrent();
         global_console.capture_state = null;
         global_timer.cleanup(self.allocator);
@@ -49,7 +49,7 @@ pub const CoreHost = struct {
         self.* = undefined;
     }
 
-    pub fn installGlobals(self: *CoreHost) !void {
+    pub fn installGlobals(self: *RuntimeHost) !void {
         async_loop.attachCurrent(&self.loop);
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
@@ -57,7 +57,7 @@ pub const CoreHost = struct {
     }
 
     pub fn evalModuleSourceWithRegistry(
-        self: *CoreHost,
+        self: *RuntimeHost,
         source: []const u8,
         source_name: []const u8,
         registry: *const packages.Registry,
@@ -75,7 +75,7 @@ pub const CoreHost = struct {
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
     }
 
-    pub fn runFileWithRegistry(self: *CoreHost, path: []const u8, registry: *const packages.Registry) !void {
+    pub fn runFileWithRegistry(self: *RuntimeHost, path: []const u8, registry: *const packages.Registry) !void {
         try self.installGlobals();
         const source = try fs.readFileAlloc(self.allocator, path, 10 * 1024 * 1024);
         defer self.allocator.free(source);
@@ -83,7 +83,7 @@ pub const CoreHost = struct {
         try self.runUntilIdle();
     }
 
-    pub fn runUntilIdle(self: *CoreHost) !void {
+    pub fn runUntilIdle(self: *RuntimeHost) !void {
         async_loop.attachCurrent(&self.loop);
         defer async_loop.detachCurrent();
 
@@ -103,18 +103,18 @@ pub const CoreHost = struct {
     }
 };
 
-pub const Host = struct {
+pub const StdHost = struct {
     runtime: qjs.Runtime,
     loop: async_loop.Loop,
     allocator: std.mem.Allocator,
     io: ?std.Io = null,
 
-    pub fn init(allocator: std.mem.Allocator) !Host {
+    pub fn init(allocator: std.mem.Allocator) !StdHost {
         return initWithIo(allocator, null);
     }
 
-    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !Host {
-        var core = try CoreHost.initWithIo(allocator, io);
+    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !StdHost {
+        var core = try RuntimeHost.initWithIo(allocator, io);
         errdefer core.deinit();
 
         return .{
@@ -125,7 +125,7 @@ pub const Host = struct {
         };
     }
 
-    pub fn deinit(self: *Host) void {
+    pub fn deinit(self: *StdHost) void {
         async_loop.detachCurrent();
         http_native.detachIo();
         process_native.detachIo();
@@ -141,14 +141,14 @@ pub const Host = struct {
         self.* = undefined;
     }
 
-    fn attachStdIo(self: *Host) void {
+    fn attachStdIo(self: *StdHost) void {
         if (self.io) |io| {
             http_native.attachIo(io);
             process_native.attachIo(io);
         }
     }
 
-    pub fn installGlobals(self: *Host) !void {
+    pub fn installGlobals(self: *StdHost) !void {
         async_loop.attachCurrent(&self.loop);
         self.attachStdIo();
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
@@ -157,7 +157,7 @@ pub const Host = struct {
     }
 
     pub fn evalModuleSourceWithRegistry(
-        self: *Host,
+        self: *StdHost,
         source: []const u8,
         source_name: []const u8,
         registry: *const packages.Registry,
@@ -176,14 +176,14 @@ pub const Host = struct {
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
     }
 
-    pub fn evalModuleSource(self: *Host, source: []const u8, source_name: []const u8) !void {
+    pub fn evalModuleSource(self: *StdHost, source: []const u8, source_name: []const u8) !void {
         var registry = packages.Registry.init(self.allocator);
         defer registry.deinit();
         try hao_std.register(&registry);
         try self.evalModuleSourceWithRegistry(source, source_name, &registry);
     }
 
-    pub fn runFileWithRegistry(self: *Host, path: []const u8, registry: *const packages.Registry) !void {
+    pub fn runFileWithRegistry(self: *StdHost, path: []const u8, registry: *const packages.Registry) !void {
         try self.installGlobals();
         const source = try fs.readFileAlloc(self.allocator, path, 10 * 1024 * 1024);
         defer self.allocator.free(source);
@@ -191,14 +191,14 @@ pub const Host = struct {
         try self.runUntilIdle();
     }
 
-    pub fn runFile(self: *Host, path: []const u8) !void {
+    pub fn runFile(self: *StdHost, path: []const u8) !void {
         var registry = packages.Registry.init(self.allocator);
         defer registry.deinit();
         try hao_std.register(&registry);
         try self.runFileWithRegistry(path, &registry);
     }
 
-    pub fn runUntilIdle(self: *Host) !void {
+    pub fn runUntilIdle(self: *StdHost) !void {
         async_loop.attachCurrent(&self.loop);
         self.attachStdIo();
         defer async_loop.detachCurrent();
@@ -222,7 +222,7 @@ pub const Host = struct {
 };
 
 test "core host runs without std package wiring" {
-    var host = try CoreHost.init(std.testing.allocator);
+    var host = try RuntimeHost.init(std.testing.allocator);
     defer host.deinit();
     try host.installGlobals();
 
@@ -243,7 +243,7 @@ test "core host runs without std package wiring" {
 }
 
 test "runtime host runs timer callbacks until idle" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.installGlobals();
 
@@ -277,7 +277,7 @@ test "runtime host runs a TypeScript entry file" {
         ,
     );
 
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.runFile(root ++ "/main.ts");
 
@@ -291,7 +291,7 @@ test "runtime host runs a TypeScript entry file" {
 }
 
 test "runtime host includes std namespace modules by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         "import { namespace } from 'std:runtime'; globalThis.__hao_namespace_value = namespace;",
@@ -308,7 +308,7 @@ test "runtime host includes std namespace modules by default" {
 }
 
 test "runtime host includes std fs module by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-fs");
     try host.evalModuleSource(
@@ -343,7 +343,7 @@ test "runtime host includes std fs module by default" {
 }
 
 test "runtime host includes std process module by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         \\import process, { getEnv } from "std:process";
@@ -371,7 +371,7 @@ test "runtime host includes std process module by default" {
 }
 
 test "runtime host includes std http module by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         \\import http, { get, post, request } from "std:http";
@@ -404,7 +404,7 @@ test "runtime host includes std util module by default" {
     util_native.defaults = .{};
     defer util_native.defaults = .{};
 
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         \\import util, { inspect, getInspectOptions, setInspectOptions } from "std:util";
@@ -439,7 +439,7 @@ test "runtime host includes std util module by default" {
 }
 
 test "runtime host includes std plot module by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-plot");
     try host.evalModuleSource(
@@ -471,7 +471,7 @@ test "runtime host includes std plot module by default" {
 }
 
 test "runtime host includes std ffi module by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         \\import ffi, { dlopen, c } from "std:ffi";
@@ -504,7 +504,7 @@ test "runtime host includes std ffi module by default" {
 }
 
 test "runtime host includes std ffi c declaration module by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         \\import cmod, { decl } from "std:ffi/c";
@@ -539,7 +539,7 @@ test "runtime host includes std ffi c declaration module by default" {
 }
 
 test "runtime host includes std test module by default" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         \\import { describe, test, expect, mock } from "std:test";
@@ -574,7 +574,7 @@ test "runtime host includes std test module by default" {
 }
 
 test "std package install initializes hao test registry" {
-    var host = try CoreHost.init(std.testing.allocator);
+    var host = try RuntimeHost.init(std.testing.allocator);
     defer host.deinit();
 
     var registry = packages.Registry.init(std.testing.allocator);
@@ -605,7 +605,7 @@ test "std package install initializes hao test registry" {
 }
 
 test "runtime host captures console output through std test module" {
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.evalModuleSource(
         \\import { captureOutput, expect } from "std:test";
@@ -647,7 +647,7 @@ test "runtime host captures console output through std test module" {
 }
 
 test "runtime host runs child process through std process module" {
-    var host = try Host.initWithIo(std.testing.allocator, std.testing.io);
+    var host = try StdHost.initWithIo(std.testing.allocator, std.testing.io);
     defer host.deinit();
     try host.evalModuleSource(
         \\import process, { run } from "std:process";
@@ -713,7 +713,7 @@ test "runtime host imports dynamic native addon package" {
     }
     try std.testing.expectEqual(std.process.Child.Term{ .exited = 0 }, compile.term);
 
-    var host = try Host.init(std.testing.allocator);
+    var host = try StdHost.init(std.testing.allocator);
     defer host.deinit();
     try host.runFile(root ++ "/main.ts");
 

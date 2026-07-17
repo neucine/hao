@@ -18,8 +18,8 @@ pub const SourceModule = package.SourceModule;
 pub const NativeModule = package.NativeModule;
 pub const Registry = package.Registry;
 pub const Loader = module.Loader;
-pub const CoreHost = runtime.CoreHost;
-pub const Host = runtime.Host;
+pub const RuntimeHost = runtime.RuntimeHost;
+pub const StdHost = runtime.StdHost;
 
 test {
     _ = qjs;
