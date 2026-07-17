@@ -6,6 +6,7 @@ const global_timer = @import("global/timer.zig");
 const module = @import("module.zig");
 const packages = @import("package.zig");
 const hao_std = @import("std.zig");
+const http_native = @import("std/http/native.zig");
 const process_native = @import("std/process/native.zig");
 
 pub const Host = struct {
@@ -35,6 +36,7 @@ pub const Host = struct {
 
     pub fn deinit(self: *Host) void {
         async_loop.detachCurrent();
+        http_native.detachIo();
         process_native.detachIo();
         global_timer.cleanup(self.allocator);
         self.loop.deinit();
@@ -44,6 +46,7 @@ pub const Host = struct {
 
     pub fn installGlobals(self: *Host) !void {
         async_loop.attachCurrent(&self.loop);
+        if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
         try global_timer.register(self.runtime.ctx);
     }
@@ -60,6 +63,7 @@ pub const Host = struct {
         };
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
+        if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
     }
@@ -88,8 +92,10 @@ pub const Host = struct {
 
     pub fn runUntilIdle(self: *Host) !void {
         async_loop.attachCurrent(&self.loop);
+        if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
         defer async_loop.detachCurrent();
+        defer http_native.detachIo();
         defer process_native.detachIo();
 
         while (true) {
@@ -184,7 +190,7 @@ test "runtime host includes hao fs module by default" {
         \\globalThis.__hao_fs_exists = existsSync(path);
         \\globalThis.__hao_fs_text = readFileSync(path);
         \\globalThis.__hao_fs_size = statSync(path).size;
-        ,
+    ,
         "<hao-fs-test>",
     );
 
@@ -216,7 +222,7 @@ test "runtime host includes hao process module by default" {
         \\globalThis.__hao_process_path_named = getEnv("PATH") !== null;
         \\globalThis.__hao_process_path_default = process.getEnv("PATH") !== null;
         \\globalThis.__hao_process_missing = getEnv("__HAO_ENV_MISSING_TEST_KEY__");
-        ,
+    ,
         "<hao-process-test>",
     );
 
@@ -236,6 +242,36 @@ test "runtime host includes hao process module by default" {
     try std.testing.expect(qjs.isNull(missing));
 }
 
+test "runtime host includes hao http module by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import http, { get, post, request } from "hao:http";
+        \\globalThis.__hao_http_get = typeof get;
+        \\globalThis.__hao_http_post = typeof post;
+        \\globalThis.__hao_http_request = typeof request;
+        \\globalThis.__hao_http_default = typeof http.request;
+    ,
+        "<hao-http-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    inline for ([_][:0]const u8{
+        "__hao_http_get",
+        "__hao_http_post",
+        "__hao_http_request",
+        "__hao_http_default",
+    }) |key| {
+        const value = qjs.getProperty(host.runtime.ctx, global, key);
+        defer qjs.freeValue(host.runtime.ctx, value);
+        const text = try qjs.valueToStringAlloc(host.runtime.ctx, value, std.testing.allocator);
+        defer std.testing.allocator.free(text);
+        try std.testing.expectEqualStrings("function", text);
+    }
+}
+
 test "runtime host runs child process through hao process module" {
     var host = try Host.initWithIo(std.testing.allocator, std.testing.io);
     defer host.deinit();
@@ -247,7 +283,7 @@ test "runtime host runs child process through hao process module" {
         \\process.run("printf default").text().then((text) => {
         \\  globalThis.__hao_process_run_default = text;
         \\});
-        ,
+    ,
         "<hao-process-run-test>",
     );
     try host.runUntilIdle();
