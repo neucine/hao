@@ -352,6 +352,39 @@ test "runtime host includes hao plot module by default" {
     }
 }
 
+test "runtime host includes hao ffi module by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import ffi, { dlopen, c } from "hao:ffi";
+        \\globalThis.__hao_ffi_dlopen = typeof dlopen;
+        \\globalThis.__hao_ffi_default = typeof ffi.dlopen;
+        \\let unsupported = false;
+        \\try { c.decl("x", "int x(void);"); } catch { unsupported = true; }
+        \\globalThis.__hao_ffi_c_unsupported = unsupported;
+    ,
+        "<hao-ffi-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    inline for ([_][:0]const u8{
+        "__hao_ffi_dlopen",
+        "__hao_ffi_default",
+    }) |key| {
+        const value = qjs.getProperty(host.runtime.ctx, global, key);
+        defer qjs.freeValue(host.runtime.ctx, value);
+        const text = try qjs.valueToStringAlloc(host.runtime.ctx, value, std.testing.allocator);
+        defer std.testing.allocator.free(text);
+        try std.testing.expectEqualStrings("function", text);
+    }
+
+    const unsupported_value = qjs.getProperty(host.runtime.ctx, global, "__hao_ffi_c_unsupported");
+    defer qjs.freeValue(host.runtime.ctx, unsupported_value);
+    try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, unsupported_value));
+}
+
 test "runtime host includes hao test module by default" {
     var host = try Host.init(std.testing.allocator);
     defer host.deinit();

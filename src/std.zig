@@ -1,3 +1,4 @@
+const ffi_native = @import("std/ffi/native.zig");
 const fs_native = @import("std/fs/native.zig");
 const http_native = @import("std/http/native.zig");
 const package = @import("package.zig");
@@ -34,9 +35,17 @@ pub const sources = [_]package.SourceModule{
         .specifier = "hao:test",
         .source = @embedFile("std/test/index.ts"),
     },
+    .{
+        .specifier = "hao:ffi",
+        .source = @embedFile("std/ffi/index.ts"),
+    },
 };
 
 pub const native_modules = [_]package.NativeModule{
+    .{
+        .specifier = ffi_native.specifier,
+        .load = ffi_native.load,
+    },
     .{
         .specifier = fs_native.specifier,
         .load = fs_native.load,
