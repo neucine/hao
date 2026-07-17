@@ -16,7 +16,11 @@
     .paths = .{
         "build.zig",
         "build.zig.zon",
+        "include",
         "src",
+        "types",
+        "test",
+        "examples",
         "libs/transpiler",
         "README.md",
     },

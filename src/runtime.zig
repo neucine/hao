@@ -14,17 +14,17 @@ const process_native = @import("std/process/native.zig");
 const test_registry = @import("std/test/registry.zig");
 const util_native = @import("std/util/native.zig");
 
-pub const Host = struct {
+pub const CoreHost = struct {
     runtime: qjs.Runtime,
     loop: async_loop.Loop,
     allocator: std.mem.Allocator,
     io: ?std.Io = null,
 
-    pub fn init(allocator: std.mem.Allocator) !Host {
+    pub fn init(allocator: std.mem.Allocator) !CoreHost {
         return initWithIo(allocator, null);
     }
 
-    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !Host {
+    pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !CoreHost {
         var runtime = try qjs.Runtime.init();
         errdefer runtime.deinit();
 
@@ -78,6 +78,7 @@ pub const Host = struct {
         async_loop.attachCurrent(&self.loop);
         if (self.io) |io| http_native.attachIo(io);
         if (self.io) |io| process_native.attachIo(io);
+        try registry.installPackages(&self.runtime);
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
@@ -128,6 +129,8 @@ pub const Host = struct {
         }
     }
 };
+
+pub const Host = CoreHost;
 
 test "runtime host runs timer callbacks until idle" {
     var host = try Host.init(std.testing.allocator);

@@ -365,10 +365,9 @@ pub fn createFunctionModule(
     module_name: [*c]const u8,
     functions: []const *const Function,
 ) ?*qjs.c.JSModuleDef {
+    if (functions.len == 0) return null;
     const module = qjs.c.JS_NewCModule(ctx, module_name, initFunctionModule) orelse return null;
-    const stored = std.heap.page_allocator.create([]const *const Function) catch return null;
-    stored.* = functions;
-    _ = qjs.c.JS_SetModulePrivateValue(ctx, module, qjs.c.JS_NewInt64(ctx, @intCast(@intFromPtr(stored))));
+    _ = qjs.c.JS_SetModulePrivateValue(ctx, module, qjs.c.JS_NewInt64(ctx, @intCast(@intFromPtr(functions[0]))));
     _ = qjs.c.JS_AddModuleExport(ctx, module, "default");
     for (functions) |function| {
         _ = qjs.c.JS_AddModuleExport(ctx, module, function.name.?);
@@ -380,13 +379,14 @@ fn initFunctionModule(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callc
     const private = qjs.c.JS_GetModulePrivateValue(ctx, module);
     var stored_ptr: i64 = 0;
     if (qjs.c.JS_ToInt64(ctx, &stored_ptr, private) < 0) return -1;
-    const stored: *const []const *const Function = @ptrFromInt(@as(usize, @intCast(stored_ptr)));
-    const functions = stored.*;
+    const functions: [*]const Function = @ptrFromInt(@as(usize, @intCast(stored_ptr)));
     const exports = qjs.newObject(ctx);
     if (qjs.isException(exports)) return -1;
     defer qjs.freeValue(ctx, exports);
 
-    for (functions) |function| {
+    var i: usize = 0;
+    while (functions[i].name != null) : (i += 1) {
+        const function = &functions[i];
         var data = [_]qjs.c.JSValue{qjs.c.JS_NewInt64(ctx, @intCast(@intFromPtr(function)))};
         const value = qjs.c.JS_NewCFunctionData(ctx, callNativeFunction, function.length, 0, 1, &data);
         if (qjs.isException(value)) return -1;

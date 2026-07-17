@@ -87,6 +87,12 @@ pub const Registry = struct {
         }
         return null;
     }
+
+    pub fn installPackages(self: *const Registry, runtime: *qjs.Runtime) !void {
+        for (self.packages.items) |package| {
+            if (package.install) |install| try install(runtime);
+        }
+    }
 };
 
 pub const Resolution = struct {
@@ -207,20 +213,24 @@ fn resolvePackageSubpath(
 
     const json = package_json orelse return resolvePathWithExtensions(package_root, "index", allocator);
 
-    if (extractTopLevelString(json, "\"type\"")) |pkg_type| {
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, json, .{}) catch return error.InvalidPackageJson;
+    defer parsed.deinit();
+    const root = parsed.value;
+
+    if (jsonStringAt(root, &.{"type"})) |pkg_type| {
         if (std.mem.eql(u8, pkg_type, "commonjs")) return error.UnsupportedCommonJS;
     }
 
-    if (extractJsonStringByPath(json, "\"exports\"", &.{ "\".\"", "\"import\"" })) |entry| {
+    if (jsonStringAt(root, &.{ "exports", ".", "import" })) |entry| {
         return resolvePathWithExtensions(package_root, entry, allocator);
     }
-    if (extractJsonStringByPath(json, "\"exports\"", &.{"\".\""})) |entry| {
+    if (jsonStringAt(root, &.{ "exports", "." })) |entry| {
         return resolvePathWithExtensions(package_root, entry, allocator);
     }
-    if (extractTopLevelString(json, "\"exports\"")) |entry| {
+    if (jsonStringAt(root, &.{"exports"})) |entry| {
         return resolvePathWithExtensions(package_root, entry, allocator);
     }
-    if (extractTopLevelString(json, "\"main\"")) |entry| {
+    if (jsonStringAt(root, &.{"main"})) |entry| {
         return resolvePathWithExtensions(package_root, entry, allocator);
     }
 
@@ -246,79 +256,18 @@ fn resolvePathWithExtensions(package_root: []const u8, entry: []const u8, alloca
     return error.PackageEntryNotFound;
 }
 
-fn extractTopLevelString(json: []const u8, key: []const u8) ?[]const u8 {
-    var depth: usize = 0;
-    var i: usize = 0;
-    while (i < json.len) : (i += 1) {
-        switch (json[i]) {
-            '{' => depth += 1,
-            '}' => {
-                if (depth > 0) depth -= 1;
-            },
-            '"' => {
-                if (depth == 1 and i + key.len <= json.len and std.mem.eql(u8, json[i .. i + key.len], key)) {
-                    var j: usize = i + key.len;
-                    while (j < json.len and (std.ascii.isWhitespace(json[j]) or json[j] == ':')) : (j += 1) {}
-                    if (j < json.len and json[j] == '"') {
-                        const start = j + 1;
-                        var end = start;
-                        while (end < json.len and json[end] != '"') : (end += 1) {}
-                        if (end <= json.len) return json[start..end];
-                    }
-                }
-            },
-            else => {},
+fn jsonStringAt(root: std.json.Value, path: []const []const u8) ?[]const u8 {
+    var current = root;
+    for (path) |segment| {
+        switch (current) {
+            .object => |object| current = object.get(segment) orelse return null,
+            else => return null,
         }
     }
-    return null;
-}
-
-fn extractJsonStringByPath(json: []const u8, top_key: []const u8, path: []const []const u8) ?[]const u8 {
-    if (std.mem.indexOf(u8, json, top_key)) |top_pos| {
-        if (std.mem.indexOfScalarPos(u8, json, top_pos, '{')) |obj_start| {
-            if (findMatchingBrace(json, obj_start)) |obj_end| {
-                var slice = json[obj_start .. obj_end + 1];
-                for (path, 0..) |key, idx| {
-                    if (std.mem.indexOf(u8, slice, key)) |key_pos| {
-                        if (idx == path.len - 1) {
-                            var j: usize = key_pos + key.len;
-                            while (j < slice.len and (std.ascii.isWhitespace(slice[j]) or slice[j] == ':')) : (j += 1) {}
-                            if (j < slice.len and slice[j] == '"') {
-                                const start = j + 1;
-                                var end = start;
-                                while (end < slice.len and slice[end] != '"') : (end += 1) {}
-                                if (end <= slice.len) return slice[start..end];
-                            }
-                            return null;
-                        }
-                        if (std.mem.indexOfScalarPos(u8, slice, key_pos, '{')) |nested_start| {
-                            if (findMatchingBrace(slice, nested_start)) |nested_end| {
-                                slice = slice[nested_start .. nested_end + 1];
-                                continue;
-                            }
-                        }
-                        return null;
-                    }
-                    return null;
-                }
-            }
-        }
-    }
-    return null;
-}
-
-fn findMatchingBrace(s: []const u8, start: usize) ?usize {
-    var depth: usize = 0;
-    var i = start;
-    while (i < s.len) : (i += 1) {
-        if (s[i] == '{') {
-            depth += 1;
-        } else if (s[i] == '}') {
-            depth -= 1;
-            if (depth == 0) return i;
-        }
-    }
-    return null;
+    return switch (current) {
+        .string => |value| value,
+        else => null,
+    };
 }
 
 test "registry stores source modules by specifier" {
@@ -376,6 +325,29 @@ test "hao namespace is reserved for the hao package" {
     });
 }
 
+test "registry runs package installers" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    var registry = Registry.init(std.testing.allocator);
+    defer registry.deinit();
+
+    const Installer = struct {
+        var called = false;
+
+        fn install(_: *qjs.Runtime) !void {
+            called = true;
+        }
+    };
+
+    try registry.register(.{
+        .name = "demo",
+        .install = Installer.install,
+    });
+    try registry.installPackages(&runtime);
+    try std.testing.expect(Installer.called);
+}
+
 test "package resolver accepts addon entries" {
     const root = ".zig-cache/hao-tests/package-native";
     try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo-native");
@@ -403,4 +375,19 @@ test "package resolver accepts colon native subpaths" {
     try std.testing.expectEqualStrings("foo", resolved.package_name);
     try std.testing.expect(js_addon.isAddonPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
+}
+
+test "package resolver reads escaped package json strings" {
+    const root = ".zig-cache/hao-tests/package-json-escaped";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo-json");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo-json';");
+    try fs.writeFile(root ++ "/node_modules/demo-json/package.json",
+        \\{"type":"module","exports":{"\\u002e":{"import":"./index.js"}}}
+    );
+    try fs.writeFile(root ++ "/node_modules/demo-json/index.js", "export const value = 1;");
+
+    const resolved = try resolveImport(root ++ "/main.ts", "demo-json", std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "index.js"));
 }

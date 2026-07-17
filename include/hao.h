@@ -9,6 +9,24 @@ extern "C" {
 
 #define JS_ADDON_ABI_VERSION 1
 
+/*
+ * Hao addon ABI notes:
+ *
+ * - An addon exports one symbol named `js_register_modules` with the
+ *   JsRegisterModulesFn signature.
+ * - JsModule.functions must point to a stable, null-terminated array of
+ *   JsFunction values. The last entry must have name == NULL.
+ * - JsModule, JsFunction, function names, and specifier strings must remain
+ *   valid for as long as the dynamic library is loaded.
+ * - JsValue handles are only valid during the native callback that received or
+ *   created them. Do not store JsValue values across callbacks.
+ * - Values returned by js_string, js_object, js_get_property, js_array_get, and
+ *   throw helpers are owned by the current callback frame. Return them directly
+ *   or pass them to other ABI helpers during the same callback.
+ * - js_to_string returns a pointer owned by the current callback frame. Copy it
+ *   if it must outlive the callback.
+ */
+
 typedef uintptr_t JsValue;
 
 typedef struct JsContext JsContext;
