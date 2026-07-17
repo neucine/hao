@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'std:test'
 import { readFileSync } from 'std:fs'
 import { run } from 'std:process'
+import { getEnv } from 'std:process'
 import { get, post } from 'std:http'
 
 const serverScript = 'test/e2e/http/server.py'
@@ -14,13 +15,18 @@ async function sleep(ms: number) {
 describe('http module', () => {
   let pid: string | null = null
   let portFile = ''
+  let errorFile = ''
   let serverUrl = ''
 
   beforeEach(async () => {
     portFile = `.hao-http-port-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    errorFile = `${portFile}.err`
+    const python = getEnv('pythonLocation')
+      ? `${getEnv('pythonLocation')}/bin/python3`
+      : 'python3'
     const out = await run({
       cmd: 'sh',
-      args: ['-c', `nohup python3 -u ${serverScript} > ${portFile} 2>/dev/null </dev/null & echo $!`],
+      args: ['-c', `nohup ${python} -u ${serverScript} > ${portFile} 2> ${errorFile} </dev/null & echo $!`],
     })
     pid = out.stdout.trim()
 
@@ -35,19 +41,24 @@ describe('http module', () => {
       await sleep(50)
     }
 
-    throw new Error('timed out waiting for local HTTP server to start')
+    let details = ''
+    try {
+      details = readFileSync(errorFile).trim()
+    } catch {}
+    throw new Error(`timed out waiting for local HTTP server to start${details ? `: ${details}` : ''}`)
   })
 
   afterEach(async () => {
     if (pid) {
       await run({
         cmd: 'sh',
-        args: ['-c', `kill ${pid} >/dev/null 2>&1 || true; rm -f ${portFile}`],
+        args: ['-c', `kill ${pid} >/dev/null 2>&1 || true; rm -f ${portFile} ${errorFile}`],
         check: false,
       })
     }
     pid = null
     serverUrl = ''
+    errorFile = ''
   })
 
   test('performs a GET request with query params and JSON decoding', async () => {
