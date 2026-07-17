@@ -195,3 +195,31 @@ test "runtime host includes hao fs module by default" {
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &size, size_value));
     try std.testing.expectEqual(@as(f64, 14), size);
 }
+
+test "runtime host includes hao process module by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import process, { getEnv } from "hao:process";
+        \\globalThis.__hao_process_path_named = getEnv("PATH") !== null;
+        \\globalThis.__hao_process_path_default = process.getEnv("PATH") !== null;
+        \\globalThis.__hao_process_missing = getEnv("__HAO_ENV_MISSING_TEST_KEY__");
+        ,
+        "<hao-process-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    const named = qjs.getProperty(host.runtime.ctx, global, "__hao_process_path_named");
+    defer qjs.freeValue(host.runtime.ctx, named);
+    try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, named));
+
+    const default = qjs.getProperty(host.runtime.ctx, global, "__hao_process_path_default");
+    defer qjs.freeValue(host.runtime.ctx, default);
+    try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, default));
+
+    const missing = qjs.getProperty(host.runtime.ctx, global, "__hao_process_missing");
+    defer qjs.freeValue(host.runtime.ctx, missing);
+    try std.testing.expect(qjs.isNull(missing));
+}
