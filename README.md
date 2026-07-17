@@ -38,12 +38,6 @@ Run tests:
 hao test test/e2e/runtime
 ```
 
-Check TypeScript declarations:
-
-```bash
-bun x tsc -p test/types/tsconfig.json --noEmit
-```
-
 ## Development
 
 Build the local CLI from source:
