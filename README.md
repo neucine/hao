@@ -26,6 +26,11 @@ Current modules include:
 Host projects should use their own prefixes, such as `affon:` or `myapp:`, for
 their product modules.
 
+## Guides
+
+- [Embedding Hao](docs/embedding.md)
+- [Native Addons](docs/addons.md)
+
 ## Try It
 
 ```bash
