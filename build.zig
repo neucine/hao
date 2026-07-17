@@ -171,8 +171,8 @@ pub fn build(b: *std.Build) void {
         exe.root_module.linkSystemLibrary("iconv", .{});
     }
 
-    exe.installHeader(b.path("include/addon.h"), "addon.h");
-    exe.installHeader(b.path("include/hao.h"), "hao.h");
+    b.installFile("include/addon.h", "include/addon.h");
+    b.installFile("include/hao.h", "include/hao.h");
     b.installArtifact(exe);
 
     const tests = b.addTest(.{

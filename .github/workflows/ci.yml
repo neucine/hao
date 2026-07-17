@@ -56,5 +56,11 @@ jobs:
       - name: Compile C addon header example
         run: cc -Iinclude -c examples/native-addon/native.c -o .zig-cache/js-addon-example.o
 
+      - name: Check addon headers
+        run: |
+          printf '#include "addon.h"\nint main(void) { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o .zig-cache/js-addon-header-c.o -
+          printf '#include "hao.h"\nint main(void) { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o .zig-cache/js-addon-header-compat.o -
+          printf '#include "addon.h"\nint main() { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | c++ -Iinclude -std=c++11 -x c++ -c -o .zig-cache/js-addon-header-cxx.o -
+
       - name: Run e2e suite
         run: ./zig-out/bin/hao test test/e2e/runtime test/e2e/test test/e2e/fs test/e2e/process test/e2e/http test/e2e/ffi test/e2e/util
