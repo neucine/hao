@@ -30,6 +30,11 @@ pub fn runScript(source: []const u8) !void {
         .name = "app",
         .sources = &sources,
     });
+    var install_context = hao.package.InstallContext{
+        .runtime = &host.runtime,
+        .allocator = std.heap.page_allocator,
+    };
+    defer registry.deinitPackages(&install_context);
 
     try host.evalModuleSourceWithRegistry(
         "import 'app:main';",
@@ -43,6 +48,10 @@ pub fn runScript(source: []const u8) !void {
 `CoreHost.installGlobals()` installs `RuntimeError`, `console`, and timers.
 It does not register the built-in `hao:` package, and it does not initialize
 the `hao:test` registry.
+
+When using `CoreHost`, the caller owns package lifecycle. If a package installs
+native state or stores JavaScript values, call `registry.deinitPackages()` before
+deinitializing the host runtime.
 
 ## Standard Host
 

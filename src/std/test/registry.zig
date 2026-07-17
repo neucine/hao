@@ -77,6 +77,11 @@ pub fn init(alloc: std.mem.Allocator) !void {
     current_file_path = "";
 }
 
+pub fn ensureInit(alloc: std.mem.Allocator) !void {
+    if (root_suite_ptr != null) return;
+    try init(alloc);
+}
+
 fn deinitSuite(ctx: ?*qjs.c.JSContext, suite: *Suite) void {
     const alloc = allocator();
     for (suite.children.items) |child| deinitSuite(ctx, child);

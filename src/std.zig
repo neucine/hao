@@ -5,6 +5,7 @@ const http_native = @import("std/http/native.zig");
 const package = @import("package.zig");
 const process_native = @import("std/process/native.zig");
 const test_native = @import("std/test/native.zig");
+const test_registry = @import("std/test/registry.zig");
 const util_native = @import("std/util/native.zig");
 
 pub const sources = [_]package.SourceModule{
@@ -81,8 +82,18 @@ pub const package_descriptor = package.Package{
     .name = "hao",
     .sources = &sources,
     .native_modules = &native_modules,
+    .install = install,
+    .deinit = deinit,
 };
 
 pub fn register(registry: *package.Registry) !void {
     try registry.register(package_descriptor);
+}
+
+fn install(context: *package.InstallContext) !void {
+    try test_registry.ensureInit(context.allocator);
+}
+
+fn deinit(context: *package.InstallContext) void {
+    test_registry.deinit(context.runtime.ctx);
 }

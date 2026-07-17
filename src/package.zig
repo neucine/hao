@@ -13,11 +13,17 @@ pub const NativeModule = struct {
     load: *const fn (ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef,
 };
 
+pub const InstallContext = struct {
+    runtime: *qjs.Runtime,
+    allocator: std.mem.Allocator,
+};
+
 pub const Package = struct {
     name: []const u8,
     sources: []const SourceModule = &.{},
     native_modules: []const NativeModule = &.{},
-    install: ?*const fn (*qjs.Runtime) anyerror!void = null,
+    install: ?*const fn (*InstallContext) anyerror!void = null,
+    deinit: ?*const fn (*InstallContext) void = null,
 };
 
 pub fn isHaoSpecifier(specifier: []const u8) bool {
@@ -88,9 +94,17 @@ pub const Registry = struct {
         return null;
     }
 
-    pub fn installPackages(self: *const Registry, runtime: *qjs.Runtime) !void {
+    pub fn installPackages(self: *const Registry, context: *InstallContext) !void {
         for (self.packages.items) |package| {
-            if (package.install) |install| try install(runtime);
+            if (package.install) |install| try install(context);
+        }
+    }
+
+    pub fn deinitPackages(self: *const Registry, context: *InstallContext) void {
+        var index = self.packages.items.len;
+        while (index > 0) {
+            index -= 1;
+            if (self.packages.items[index].deinit) |deinit_package| deinit_package(context);
         }
     }
 };
@@ -335,7 +349,7 @@ test "registry runs package installers" {
     const Installer = struct {
         var called = false;
 
-        fn install(_: *qjs.Runtime) !void {
+        fn install(_: *InstallContext) !void {
             called = true;
         }
     };
@@ -344,7 +358,8 @@ test "registry runs package installers" {
         .name = "demo",
         .install = Installer.install,
     });
-    try registry.installPackages(&runtime);
+    var context = InstallContext{ .runtime = &runtime, .allocator = std.testing.allocator };
+    try registry.installPackages(&context);
     try std.testing.expect(Installer.called);
 }
 

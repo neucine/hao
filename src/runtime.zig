@@ -12,7 +12,6 @@ const packages = @import("package.zig");
 const hao_std = @import("std.zig");
 const http_native = @import("std/http/native.zig");
 const process_native = @import("std/process/native.zig");
-const test_registry = @import("std/test/registry.zig");
 const util_native = @import("std/util/native.zig");
 
 pub const CoreHost = struct {
@@ -69,7 +68,8 @@ pub const CoreHost = struct {
         };
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
-        try registry.installPackages(&self.runtime);
+        var install_context = packages.InstallContext{ .runtime = &self.runtime, .allocator = self.allocator };
+        try registry.installPackages(&install_context);
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
@@ -117,9 +117,6 @@ pub const Host = struct {
         var core = try CoreHost.initWithIo(allocator, io);
         errdefer core.deinit();
 
-        try test_registry.init(allocator);
-        errdefer test_registry.deinit(core.runtime.ctx);
-
         return .{
             .runtime = core.runtime,
             .loop = core.loop,
@@ -135,7 +132,10 @@ pub const Host = struct {
         global_console.capture_state = null;
         global_timer.cleanup(self.allocator);
         js_addon.cleanup();
-        test_registry.deinit(self.runtime.ctx);
+        if (hao_std.package_descriptor.deinit) |deinit_package| {
+            var install_context = packages.InstallContext{ .runtime = &self.runtime, .allocator = self.allocator };
+            deinit_package(&install_context);
+        }
         self.loop.deinit();
         self.runtime.deinit();
         self.* = undefined;
@@ -169,7 +169,8 @@ pub const Host = struct {
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
         self.attachStdIo();
-        try registry.installPackages(&self.runtime);
+        var install_context = packages.InstallContext{ .runtime = &self.runtime, .allocator = self.allocator };
+        try registry.installPackages(&install_context);
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try module.evalModuleSource(&loader, &self.runtime, source, source_name);
@@ -570,6 +571,37 @@ test "runtime host includes hao test module by default" {
     var hooks_count: f64 = 0;
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &hooks_count, registered_hooks));
     try std.testing.expectEqual(@as(f64, 1), hooks_count);
+}
+
+test "std package install initializes hao test registry" {
+    var host = try CoreHost.init(std.testing.allocator);
+    defer host.deinit();
+
+    var registry = packages.Registry.init(std.testing.allocator);
+    defer registry.deinit();
+    try hao_std.register(&registry);
+    var install_context = packages.InstallContext{ .runtime = &host.runtime, .allocator = host.allocator };
+    defer registry.deinitPackages(&install_context);
+
+    try host.evalModuleSourceWithRegistry(
+        \\import { test } from "hao:test";
+        \\import { getRegisteredCounts } from "hao:test/native";
+        \\test("registered by package install", () => {});
+        \\globalThis.__hao_test_install_counts = getRegisteredCounts();
+    ,
+        "<hao-test-install-test>",
+        &registry,
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+    const counts = qjs.getProperty(host.runtime.ctx, global, "__hao_test_install_counts");
+    defer qjs.freeValue(host.runtime.ctx, counts);
+    const registered_tests = qjs.getProperty(host.runtime.ctx, counts, "registeredTests");
+    defer qjs.freeValue(host.runtime.ctx, registered_tests);
+    var tests_count: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &tests_count, registered_tests));
+    try std.testing.expectEqual(@as(f64, 1), tests_count);
 }
 
 test "runtime host captures console output through hao test module" {
