@@ -1,4 +1,4 @@
-const fs_native = @import("standard/fs_native.zig");
+const fs_native = @import("std/fs_native.zig");
 const package = @import("package.zig");
 
 pub const runtime_source =

@@ -5,7 +5,7 @@ const async_loop = @import("async/loop.zig");
 const global_timer = @import("global/timer.zig");
 const module = @import("module.zig");
 const packages = @import("package.zig");
-const standard = @import("standard.zig");
+const hao_std = @import("std.zig");
 
 pub const Host = struct {
     runtime: qjs.Runtime,
@@ -57,7 +57,7 @@ pub const Host = struct {
     pub fn evalModuleSource(self: *Host, source: []const u8, source_name: []const u8) !void {
         var registry = packages.Registry.init(self.allocator);
         defer registry.deinit();
-        try standard.register(&registry);
+        try hao_std.register(&registry);
         try self.evalModuleSourceWithRegistry(source, source_name, &registry);
     }
 
@@ -72,7 +72,7 @@ pub const Host = struct {
     pub fn runFile(self: *Host, path: []const u8) !void {
         var registry = packages.Registry.init(self.allocator);
         defer registry.deinit();
-        try standard.register(&registry);
+        try hao_std.register(&registry);
         try self.runFileWithRegistry(path, &registry);
     }
 
