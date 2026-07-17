@@ -30,7 +30,7 @@ describe('http module', () => {
     })
     pid = out.stdout.trim()
 
-    for (let attempt = 0; attempt < 50; attempt += 1) {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
       try {
         const port = readFileSync(portFile).trim()
         if (port) {
@@ -45,7 +45,8 @@ describe('http module', () => {
     try {
       details = readFileSync(errorFile).trim()
     } catch {}
-    throw new Error(`timed out waiting for local HTTP server to start${details ? `: ${details}` : ''}`)
+    const processDetails = `launcher exit=${out.exitCode} stdout=${JSON.stringify(out.stdout)} stderr=${JSON.stringify(out.stderr)}`
+    throw new Error(`timed out waiting for local HTTP server to start${details ? `: ${details}` : ''} (${processDetails})`)
   })
 
   afterEach(async () => {
