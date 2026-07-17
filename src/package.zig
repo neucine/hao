@@ -172,6 +172,10 @@ fn splitPackageSpecifier(specifier: []const u8) struct { []const u8, []const u8 
         return .{ specifier, "" };
     }
 
+    if (std.mem.indexOfScalar(u8, specifier, ':')) |idx| {
+        return .{ specifier[0..idx], specifier[idx + 1 ..] };
+    }
+
     if (std.mem.indexOfScalar(u8, specifier, '/')) |idx| {
         return .{ specifier[0..idx], specifier[idx + 1 ..] };
     }
@@ -382,6 +386,21 @@ test "package resolver accepts native extension entries" {
     const resolved = try resolveImport(root ++ "/main.ts", "demo-native", std.testing.allocator);
     defer resolved.deinit(std.testing.allocator);
 
+    try std.testing.expect(native_extension.isNativeExtensionPath(resolved.abs_path));
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
+}
+
+test "package resolver accepts colon native subpaths" {
+    const root = ".zig-cache/hao-tests/package-colon-native";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/foo");
+    try fs.writeFile(root ++ "/main.ts", "import 'foo:native';");
+    try fs.writeFile(root ++ "/node_modules/foo/package.json", "{\"type\":\"module\"}");
+    try fs.writeFile(root ++ "/node_modules/foo/native.dylib", "");
+
+    const resolved = try resolveImport(root ++ "/main.ts", "foo:native", std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expectEqualStrings("foo", resolved.package_name);
     try std.testing.expect(native_extension.isNativeExtensionPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }

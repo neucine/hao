@@ -1,7 +1,7 @@
 const std = @import("std");
 const fs = @import("fs.zig");
+const native_abi = @import("native_abi.zig");
 const qjs = @import("qjs.zig");
-const native_module = @import("native_module.zig");
 const native_extension = @import("native_extension.zig");
 const packages = @import("package.zig");
 const transpiler = @import("transpiler.zig");
@@ -272,7 +272,7 @@ fn loadModule(
     }
 
     if (native_extension.isNativeExtensionPath(name)) {
-        return native_extension.loadModule(ctx, name, module_name);
+        return native_extension.loadModule(loader.allocator, ctx, name, module_name);
     }
 
     const source_info = loader.registry.findSource(name);
@@ -428,22 +428,26 @@ test "loader resolves relative TypeScript files and node_modules packages" {
     try std.testing.expectEqual(@as(f64, 42), try getGlobalNumber(runtime.ctx, "__hao_file_loader_value"));
 }
 
-const fixture_native_functions = [_]native_module.Function{.{
-    .name = "nativeValue",
-    .function = fixtureNativeValue,
-    .length = 0,
-}};
+const fixture_abi_functions = [_]native_abi.Function{
+    .{
+        .name = "nativeValue",
+        .callback = fixtureAbiNativeValue,
+        .length = 0,
+    },
+    .{
+        .name = null,
+        .callback = fixtureAbiNativeValue,
+        .length = 0,
+    },
+};
+const fixture_abi_function_ptrs = [_]*const native_abi.Function{&fixture_abi_functions[0]};
 
 fn fixtureNativeLoad(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return native_module.createFunctionModule(ctx, module_name, fixtureNativeInit, &fixture_native_functions);
+    return native_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &fixture_abi_function_ptrs);
 }
 
-fn fixtureNativeInit(ctx: ?*qjs.c.JSContext, mod: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return native_module.bindFunctionExports(ctx, mod, &fixture_native_functions);
-}
-
-fn fixtureNativeValue(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    return qjs.c.JS_NewInt32(ctx, 42);
+fn fixtureAbiNativeValue(ctx: *native_abi.Context, _: c_int, _: [*c]const native_abi.Value) callconv(.c) native_abi.Value {
+    return ctx.api.int32_value(ctx, 42);
 }
 
 test "loader composes source modules with native package modules" {

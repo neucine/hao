@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) void {
     });
     hao.addIncludePath(libuv_dep.path("include"));
     hao.addIncludePath(quickjs_dep.path("."));
+    hao.addIncludePath(b.path("include"));
 
     const libuv = b.addLibrary(.{
         .name = "uv",
@@ -157,6 +158,7 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addIncludePath(libuv_dep.path("include"));
     exe.root_module.addIncludePath(quickjs_dep.path("."));
+    exe.root_module.addIncludePath(b.path("include"));
     exe.root_module.linkLibrary(libuv);
     exe.root_module.linkLibrary(quickjs);
     exe.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
@@ -169,6 +171,7 @@ pub fn build(b: *std.Build) void {
         exe.root_module.linkSystemLibrary("iconv", .{});
     }
 
+    exe.installHeader(b.path("include/hao.h"), "hao.h");
     b.installArtifact(exe);
 
     const tests = b.addTest(.{
@@ -181,6 +184,7 @@ pub fn build(b: *std.Build) void {
     });
     tests.root_module.addIncludePath(libuv_dep.path("include"));
     tests.root_module.addIncludePath(quickjs_dep.path("."));
+    tests.root_module.addIncludePath(b.path("include"));
     tests.root_module.linkLibrary(libuv);
     tests.root_module.linkLibrary(quickjs);
     tests.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
