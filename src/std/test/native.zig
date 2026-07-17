@@ -11,16 +11,28 @@ var capture_stdout = std.ArrayList(u8).empty;
 var capture_stderr = std.ArrayList(u8).empty;
 var capture_active = false;
 
-const functions = [_]js_abi.LegacyFunction{
-    .{ .name = "pushSuite", .function = js_pushSuite, .length = 1 },
-    .{ .name = "popSuite", .function = js_popSuite, .length = 0 },
-    .{ .name = "registerTest", .function = js_registerTest, .length = 3 },
-    .{ .name = "registerHook", .function = js_registerHook, .length = 2 },
-    .{ .name = "getCurrentTestFilePath", .function = js_getCurrentTestFilePath, .length = 0 },
-    .{ .name = "getCurrentExecutablePath", .function = js_getCurrentExecutablePath, .length = 0 },
-    .{ .name = "beginCapture", .function = js_beginCapture, .length = 1 },
-    .{ .name = "endCapture", .function = js_endCapture, .length = 0 },
-    .{ .name = "getRegisteredCounts", .function = js_getRegisteredCounts, .length = 0 },
+const functions = [_]js_abi.Function{
+    .{ .name = "pushSuite", .callback = js_pushSuite, .length = 1 },
+    .{ .name = "popSuite", .callback = js_popSuite, .length = 0 },
+    .{ .name = "registerTest", .callback = js_registerTest, .length = 3 },
+    .{ .name = "registerHook", .callback = js_registerHook, .length = 2 },
+    .{ .name = "getCurrentTestFilePath", .callback = js_getCurrentTestFilePath, .length = 0 },
+    .{ .name = "getCurrentExecutablePath", .callback = js_getCurrentExecutablePath, .length = 0 },
+    .{ .name = "beginCapture", .callback = js_beginCapture, .length = 1 },
+    .{ .name = "endCapture", .callback = js_endCapture, .length = 0 },
+    .{ .name = "getRegisteredCounts", .callback = js_getRegisteredCounts, .length = 0 },
+    .{ .name = null, .callback = js_popSuite },
+};
+const function_ptrs = [_]*const js_abi.Function{
+    &functions[0],
+    &functions[1],
+    &functions[2],
+    &functions[3],
+    &functions[4],
+    &functions[5],
+    &functions[6],
+    &functions[7],
+    &functions[8],
 };
 
 pub fn setCurrentTestFilePath(path: []const u8) void {
@@ -32,77 +44,79 @@ pub fn setCurrentExecutablePath(path: []const u8) void {
 }
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createLegacyFunctionModule(ctx, module_name, init, &functions);
+    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
 }
 
-fn init(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    return js_abi.bindLegacyFunctionExports(ctx, module, &functions);
+fn stringArg(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, index: usize) ?[]const u8 {
+    if (argc <= index) return null;
+    return std.mem.span(ctx.api.to_string(ctx, argv[index]) orelse return null);
 }
 
-fn allocString(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst, allocator: std.mem.Allocator) ![]u8 {
-    return qjs.valueToStringAlloc(ctx, value, allocator);
+fn throwType(ctx: *js_abi.Context, message: [*:0]const u8) js_abi.Value {
+    return ctx.api.throw_type_error(ctx, message);
 }
 
-fn throwType(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {
-    return qjs.c.JS_ThrowTypeError(ctx, message.ptr);
+fn throwInternal(ctx: *js_abi.Context, message: [*:0]const u8) js_abi.Value {
+    return ctx.api.throw_error(ctx, message);
 }
 
-fn throwInternal(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {
-    return qjs.c.JS_ThrowInternalError(ctx, message.ptr);
-}
-
-fn js_pushSuite(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
+fn js_pushSuite(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     if (argc < 1) return throwType(ctx, "describe requires a suite name");
-    const name = allocString(ctx, argv[0], std.heap.page_allocator) catch return throwInternal(ctx, "failed to read suite name");
-    defer std.heap.page_allocator.free(name);
+    const name = stringArg(ctx, argc, argv, 0) orelse return throwInternal(ctx, "failed to read suite name");
     registry.pushSuite(name) catch return throwInternal(ctx, "failed to register suite");
-    return qjs.undefinedValue(ctx);
+    return ctx.api.undefined(ctx);
 }
 
-fn js_popSuite(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
+fn js_popSuite(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     registry.popSuite() catch return throwInternal(ctx, "unbalanced describe() nesting");
-    return qjs.undefinedValue(ctx);
+    return ctx.api.undefined(ctx);
 }
 
-fn js_registerTest(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    if (argc < 3 or !qjs.isFunction(ctx, argv[1])) {
+fn js_registerTest(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    if (argc < 3 or ctx.api.is_function(ctx, argv[1]) == 0) {
         return throwType(ctx, "test(name, fn, mode) requires a callback");
     }
-    const name = allocString(ctx, argv[0], std.heap.page_allocator) catch return throwInternal(ctx, "failed to read test name");
-    defer std.heap.page_allocator.free(name);
-    const mode_text = allocString(ctx, argv[2], std.heap.page_allocator) catch return throwInternal(ctx, "failed to read test mode");
-    defer std.heap.page_allocator.free(mode_text);
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    const callback = js_abi.borrowValue(ctx, argv[1]) orelse return throwInternal(ctx, "failed to read test callback");
+    const name = stringArg(ctx, argc, argv, 0) orelse return throwInternal(ctx, "failed to read test name");
+    const mode_text = stringArg(ctx, argc, argv, 2) orelse return throwInternal(ctx, "failed to read test mode");
     const mode = std.meta.stringToEnum(registry.TestMode, mode_text) orelse return throwType(ctx, "unknown test mode");
-    registry.registerTest(ctx, name, argv[1], mode) catch return throwInternal(ctx, "failed to register test");
-    return qjs.undefinedValue(ctx);
+    registry.registerTest(qjs_ctx, name, callback, mode) catch return throwInternal(ctx, "failed to register test");
+    return ctx.api.undefined(ctx);
 }
 
-fn js_registerHook(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    if (argc < 2 or !qjs.isFunction(ctx, argv[1])) {
+fn js_registerHook(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    if (argc < 2 or ctx.api.is_function(ctx, argv[1]) == 0) {
         return throwType(ctx, "hook registration requires a name and callback");
     }
-    const kind_text = allocString(ctx, argv[0], std.heap.page_allocator) catch return throwInternal(ctx, "failed to read hook kind");
-    defer std.heap.page_allocator.free(kind_text);
+    const qjs_ctx = js_abi.borrowContext(ctx);
+    const callback = js_abi.borrowValue(ctx, argv[1]) orelse return throwInternal(ctx, "failed to read hook callback");
+    const kind_text = stringArg(ctx, argc, argv, 0) orelse return throwInternal(ctx, "failed to read hook kind");
     const kind = std.meta.stringToEnum(registry.HookKind, kind_text) orelse return throwType(ctx, "unknown hook kind");
-    registry.registerHook(ctx, kind, argv[1]) catch return throwInternal(ctx, "failed to register hook");
-    return qjs.undefinedValue(ctx);
+    registry.registerHook(qjs_ctx, kind, callback) catch return throwInternal(ctx, "failed to register hook");
+    return ctx.api.undefined(ctx);
 }
 
-fn js_getCurrentTestFilePath(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    return qjs.createString(ctx, current_test_file_path);
+fn stringValue(ctx: *js_abi.Context, value: []const u8) js_abi.Value {
+    const value_z = std.heap.page_allocator.dupeZ(u8, value) catch return throwInternal(ctx, "out of memory");
+    defer std.heap.page_allocator.free(value_z);
+    return ctx.api.string_value(ctx, value_z.ptr);
 }
 
-fn js_getCurrentExecutablePath(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    return qjs.createString(ctx, current_executable_path);
+fn js_getCurrentTestFilePath(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    return stringValue(ctx, current_test_file_path);
 }
 
-fn js_beginCapture(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
+fn js_getCurrentExecutablePath(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    return stringValue(ctx, current_executable_path);
+}
+
+fn js_beginCapture(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     if (capture_active) return throwInternal(ctx, "captureOutput does not support nested captures");
     const target_text = if (argc >= 1)
-        allocString(ctx, argv[0], std.heap.page_allocator) catch return throwInternal(ctx, "failed to read capture target")
+        stringArg(ctx, argc, argv, 0) orelse return throwInternal(ctx, "failed to read capture target")
     else
-        std.heap.page_allocator.dupe(u8, "stdout") catch return qjs.c.JS_ThrowOutOfMemory(ctx);
-    defer std.heap.page_allocator.free(target_text);
+        "stdout";
     const target = std.meta.stringToEnum(console.CaptureTarget, target_text) orelse {
         return throwType(ctx, "captureOutput target must be 'stdout', 'stderr', or 'both'");
     };
@@ -114,31 +128,40 @@ fn js_beginCapture(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, a
         .stderr = if (target == .stderr or target == .both) &capture_stderr else null,
     };
     capture_active = true;
-    return qjs.undefinedValue(ctx);
+    return ctx.api.undefined(ctx);
 }
 
-fn js_endCapture(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
+fn setStringProp(ctx: *js_abi.Context, object: js_abi.Value, key: [*:0]const u8, value: []const u8) !void {
+    const value_z = try std.heap.page_allocator.dupeZ(u8, value);
+    defer std.heap.page_allocator.free(value_z);
+    const value_handle = ctx.api.string_value(ctx, value_z.ptr);
+    if (ctx.api.set_property(ctx, object, key, value_handle) < 0) return error.JavaScriptError;
+}
+
+fn js_endCapture(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     if (!capture_active) return throwInternal(ctx, "captureOutput end called without an active capture");
     capture_active = false;
     console.capture_state = null;
-    const obj = qjs.newObject(ctx);
-    if (qjs.isException(obj)) return obj;
-    qjs.setProperty(ctx, obj, "stdout", qjs.createString(ctx, capture_stdout.items)) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "stderr", qjs.createString(ctx, capture_stderr.items)) catch return qjs.exceptionValue();
+    const obj = ctx.api.object_value(ctx);
+    setStringProp(ctx, obj, "stdout", capture_stdout.items) catch return throwInternal(ctx, "failed to create capture result");
+    setStringProp(ctx, obj, "stderr", capture_stderr.items) catch return throwInternal(ctx, "failed to create capture result");
     var combined = std.ArrayList(u8).empty;
     defer combined.deinit(std.heap.page_allocator);
     combined.appendSlice(std.heap.page_allocator, capture_stdout.items) catch {};
     combined.appendSlice(std.heap.page_allocator, capture_stderr.items) catch {};
-    qjs.setProperty(ctx, obj, "combined", qjs.createString(ctx, combined.items)) catch return qjs.exceptionValue();
+    setStringProp(ctx, obj, "combined", combined.items) catch return throwInternal(ctx, "failed to create capture result");
     return obj;
 }
 
-fn js_getRegisteredCounts(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
-    const obj = qjs.newObject(ctx);
-    if (qjs.isException(obj)) return obj;
-    qjs.setProperty(ctx, obj, "suiteDepth", qjs.c.JS_NewInt32(ctx, @intCast(countSuiteDepth(registry.root(), 0)))) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "registeredTests", qjs.c.JS_NewInt32(ctx, @intCast(countTests(registry.root())))) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "registeredHooks", qjs.c.JS_NewInt32(ctx, @intCast(countHooks(registry.root())))) catch return qjs.exceptionValue();
+fn setIntProp(ctx: *js_abi.Context, object: js_abi.Value, key: [*:0]const u8, value: usize) !void {
+    if (ctx.api.set_property(ctx, object, key, ctx.api.int32_value(ctx, @intCast(value))) < 0) return error.JavaScriptError;
+}
+
+fn js_getRegisteredCounts(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    const obj = ctx.api.object_value(ctx);
+    setIntProp(ctx, obj, "suiteDepth", countSuiteDepth(registry.root(), 0)) catch return throwInternal(ctx, "failed to create test counts");
+    setIntProp(ctx, obj, "registeredTests", countTests(registry.root())) catch return throwInternal(ctx, "failed to create test counts");
+    setIntProp(ctx, obj, "registeredHooks", countHooks(registry.root())) catch return throwInternal(ctx, "failed to create test counts");
     return obj;
 }
 

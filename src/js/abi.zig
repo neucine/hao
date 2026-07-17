@@ -62,6 +62,7 @@ pub const ContextApi = extern struct {
     is_null: *const fn (*Context, Value) callconv(.c) c_int,
     is_object: *const fn (*Context, Value) callconv(.c) c_int,
     is_array: *const fn (*Context, Value) callconv(.c) c_int,
+    is_function: *const fn (*Context, Value) callconv(.c) c_int,
     array_length: *const fn (*Context, Value, *u32) callconv(.c) c_int,
     array_get: *const fn (*Context, Value, u32) callconv(.c) Value,
 };
@@ -201,6 +202,14 @@ fn valueToJs(context: *Context, value: Value) ?qjs.c.JSValueConst {
     return contextData(context).frame.toJsValueConst(value);
 }
 
+pub fn borrowContext(context: *Context) ?*qjs.c.JSContext {
+    return contextData(context).frame.ctx;
+}
+
+pub fn borrowValue(context: *Context, value: Value) ?qjs.c.JSValueConst {
+    return valueToJs(context, value);
+}
+
 fn contextUndefined(context: *Context) callconv(.c) Value {
     return pushJs(context, qjs.undefinedValue(contextData(context).frame.ctx));
 }
@@ -261,6 +270,12 @@ fn contextIsArray(context: *Context, value: Value) callconv(.c) c_int {
     const data = contextData(context);
     const js_value = valueToJs(context, value) orelse return 0;
     return if (qjs.isArray(data.frame.ctx, js_value)) 1 else 0;
+}
+
+fn contextIsFunction(context: *Context, value: Value) callconv(.c) c_int {
+    const data = contextData(context);
+    const js_value = valueToJs(context, value) orelse return 0;
+    return if (qjs.isFunction(data.frame.ctx, js_value)) 1 else 0;
 }
 
 fn contextArrayLength(context: *Context, value: Value, out: *u32) callconv(.c) c_int {
@@ -341,6 +356,7 @@ const context_api = ContextApi{
     .is_null = contextIsNull,
     .is_object = contextIsObject,
     .is_array = contextIsArray,
+    .is_function = contextIsFunction,
     .array_length = contextArrayLength,
     .array_get = contextArrayGet,
 };

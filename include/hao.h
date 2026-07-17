@@ -62,6 +62,7 @@ typedef struct JsContextApi {
     int (*is_null)(JsContext* ctx, JsValue value);
     int (*is_object)(JsContext* ctx, JsValue value);
     int (*is_array)(JsContext* ctx, JsValue value);
+    int (*is_function)(JsContext* ctx, JsValue value);
     int (*array_length)(JsContext* ctx, JsValue value, uint32_t* out);
     JsValue (*array_get)(JsContext* ctx, JsValue value, uint32_t index);
 } JsContextApi;
@@ -135,6 +136,10 @@ static inline int js_is_object(JsContext* ctx, JsValue value) {
 
 static inline int js_is_array(JsContext* ctx, JsValue value) {
     return ctx->api->is_array(ctx, value);
+}
+
+static inline int js_is_function(JsContext* ctx, JsValue value) {
+    return ctx->api->is_function(ctx, value);
 }
 
 static inline int js_array_length(JsContext* ctx, JsValue value, uint32_t* out) {
