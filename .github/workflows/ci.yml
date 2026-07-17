@@ -44,6 +44,9 @@ jobs:
       - name: Build CLI
         run: zig build
 
+      - name: Check CLI version
+        run: ./zig-out/bin/hao --version
+
       - name: Check root TypeScript
         run: npm exec --yes --package typescript@5.5.4 -- tsc -p tsconfig.json --pretty false
 

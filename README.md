@@ -36,6 +36,7 @@ their product modules.
 
 ```bash
 hao path/to/main.ts
+hao --version
 ```
 
 Run tests:

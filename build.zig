@@ -1,4 +1,5 @@
 const std = @import("std");
+const manifest = @import("build.zig.zon");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -156,6 +157,9 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         }),
     });
+    const cli_options = b.addOptions();
+    cli_options.addOption([]const u8, "version", manifest.version);
+    exe.root_module.addOptions("build_options", cli_options);
     exe.root_module.addIncludePath(libuv_dep.path("include"));
     exe.root_module.addIncludePath(quickjs_dep.path("."));
     exe.root_module.addIncludePath(b.path("include"));

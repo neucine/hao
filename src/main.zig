@@ -1,6 +1,7 @@
 const std = @import("std");
 const hao = @import("hao.zig");
 const config = @import("config.zig");
+const build_options = @import("build_options");
 
 const c = @cImport({
     @cInclude("stdio.h");
@@ -13,6 +14,13 @@ fn writeStderr(bytes: []const u8) void {
     _ = c.fflush(stderr);
 }
 
+fn writeStdout(bytes: []const u8) void {
+    if (bytes.len == 0) return;
+    const stdout = c.stdout();
+    _ = c.fwrite(bytes.ptr, 1, bytes.len, stdout);
+    _ = c.fflush(stdout);
+}
+
 fn usage() void {
     writeStderr(
         \\Usage:
@@ -20,6 +28,7 @@ fn usage() void {
         \\  hao test [--grep pattern] <file-or-dir>...
         \\  hao jupyter --connection-file <file>
         \\  hao jupyter install
+        \\  hao --version
         \\
     );
 }
@@ -36,6 +45,16 @@ pub fn main(init: std.process.Init) !void {
         usage();
         std.process.exit(2);
     };
+    if (std.mem.eql(u8, path, "--version") or std.mem.eql(u8, path, "-v")) {
+        if (args.next() != null) {
+            usage();
+            std.process.exit(2);
+        }
+        writeStdout("hao ");
+        writeStdout(build_options.version);
+        writeStdout("\n");
+        return;
+    }
     if (std.mem.eql(u8, path, "test")) {
         var test_paths = std.ArrayList([]const u8).empty;
         defer test_paths.deinit(allocator);
