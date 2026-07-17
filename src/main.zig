@@ -14,7 +14,9 @@ fn writeStderr(bytes: []const u8) void {
 
 fn usage() void {
     writeStderr(
-        \\Usage: hao <file.ts|file.js>
+        \\Usage:
+        \\  hao <file.ts|file.js>
+        \\  hao test [--grep pattern] <file-or-dir>...
         \\
     );
 }
@@ -30,6 +32,32 @@ pub fn main(init: std.process.Init) !void {
         usage();
         std.process.exit(2);
     };
+    if (std.mem.eql(u8, path, "test")) {
+        var test_paths = std.ArrayList([]const u8).empty;
+        defer test_paths.deinit(allocator);
+        var grep: ?[]const u8 = null;
+        while (args.next()) |arg| {
+            if (std.mem.eql(u8, arg, "--grep")) {
+                grep = args.next() orelse {
+                    usage();
+                    std.process.exit(2);
+                };
+                continue;
+            }
+            try test_paths.append(allocator, arg);
+        }
+        if (test_paths.items.len == 0) {
+            usage();
+            std.process.exit(2);
+        }
+        const result = hao.test_runner.run(test_paths.items, grep, true, allocator, init.io) catch |err| {
+            writeStderr(@errorName(err));
+            writeStderr("\n");
+            std.process.exit(1);
+        };
+        std.process.exit(result.exitCode());
+    }
+
     if (args.next() != null) {
         usage();
         std.process.exit(2);

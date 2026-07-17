@@ -5,6 +5,7 @@ pub const module = @import("module.zig");
 pub const native_module = @import("native_module.zig");
 pub const runtime = @import("runtime.zig");
 pub const std = @import("std.zig");
+pub const test_runner = @import("std/test/runner.zig");
 pub const transpiler = @import("transpiler.zig");
 
 pub const Runtime = qjs.Runtime;
@@ -24,5 +25,6 @@ test {
     _ = native_module;
     _ = runtime;
     _ = std;
+    _ = test_runner;
     _ = transpiler;
 }
