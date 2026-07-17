@@ -164,6 +164,9 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
     exe.root_module.linkSystemLibrary("hao_transpiler", .{});
     exe.step.dependOn(&build_transpiler.step);
+    if (target.result.os.tag == .linux) {
+        exe.root_module.linkSystemLibrary("unwind", .{});
+    }
 
     if (target.result.os.tag == .macos) {
         exe.root_module.linkFramework("CoreFoundation", .{});
@@ -191,6 +194,9 @@ pub fn build(b: *std.Build) void {
     tests.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
     tests.root_module.linkSystemLibrary("hao_transpiler", .{});
     tests.step.dependOn(&build_transpiler.step);
+    if (target.result.os.tag == .linux) {
+        tests.root_module.linkSystemLibrary("unwind", .{});
+    }
 
     if (target.result.os.tag == .macos) {
         tests.root_module.linkFramework("CoreFoundation", .{});

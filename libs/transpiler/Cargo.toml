@@ -7,6 +7,9 @@ edition = "2021"
 crate-type = ["staticlib"]
 name = "hao_transpiler"
 
+[profile.release]
+panic = "abort"
+
 [[bin]]
 name = "transpiler"
 path = "src/main.rs"
