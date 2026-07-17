@@ -49,6 +49,8 @@ typedef struct JsContextApi {
     JsValue (*int32_value)(JsContext* ctx, int32_t value);
     JsValue (*float64_value)(JsContext* ctx, double value);
     JsValue (*string_value)(JsContext* ctx, const char* value);
+    JsValue (*object_value)(JsContext* ctx);
+    int (*set_property)(JsContext* ctx, JsValue object, const char* key, JsValue value);
     int (*to_bool)(JsContext* ctx, JsValue value, int* out);
     int (*to_int32)(JsContext* ctx, JsValue value, int32_t* out);
     int (*to_float64)(JsContext* ctx, JsValue value, double* out);
@@ -93,6 +95,19 @@ static inline JsValue js_float64(JsContext* ctx, double value) {
 
 static inline JsValue js_string(JsContext* ctx, const char* value) {
     return ctx->api->string_value(ctx, value);
+}
+
+static inline JsValue js_object(JsContext* ctx) {
+    return ctx->api->object_value(ctx);
+}
+
+static inline int js_set_property(
+    JsContext* ctx,
+    JsValue object,
+    const char* key,
+    JsValue value
+) {
+    return ctx->api->set_property(ctx, object, key, value);
 }
 
 static inline int js_to_bool(JsContext* ctx, JsValue value, int* out) {

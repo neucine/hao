@@ -49,6 +49,8 @@ pub const ContextApi = extern struct {
     int32_value: *const fn (*Context, i32) callconv(.c) Value,
     float64_value: *const fn (*Context, f64) callconv(.c) Value,
     string_value: *const fn (*Context, [*:0]const u8) callconv(.c) Value,
+    object_value: *const fn (*Context) callconv(.c) Value,
+    set_property: *const fn (*Context, Value, [*:0]const u8, Value) callconv(.c) c_int,
     to_bool: *const fn (*Context, Value, *c_int) callconv(.c) c_int,
     to_int32: *const fn (*Context, Value, *i32) callconv(.c) c_int,
     to_float64: *const fn (*Context, Value, *f64) callconv(.c) c_int,
@@ -216,6 +218,18 @@ fn contextString(context: *Context, value: [*:0]const u8) callconv(.c) Value {
     return pushJs(context, qjs.createString(contextData(context).frame.ctx, std.mem.span(value)));
 }
 
+fn contextObject(context: *Context) callconv(.c) Value {
+    return pushJs(context, qjs.newObject(contextData(context).frame.ctx));
+}
+
+fn contextSetProperty(context: *Context, object: Value, key: [*:0]const u8, value: Value) callconv(.c) c_int {
+    const data = contextData(context);
+    const js_object = valueToJs(context, object) orelse return -1;
+    const js_value = valueToJs(context, value) orelse return -1;
+    qjs.setProperty(data.frame.ctx, js_object, std.mem.span(key), qjs.dupValue(data.frame.ctx, js_value)) catch return -1;
+    return 0;
+}
+
 fn contextToBool(context: *Context, value: Value, out: *c_int) callconv(.c) c_int {
     const js_value = valueToJs(context, value) orelse return -1;
     out.* = qjs.c.JS_ToBool(contextData(context).frame.ctx, js_value);
@@ -264,6 +278,8 @@ const context_api = ContextApi{
     .int32_value = contextInt32,
     .float64_value = contextFloat64,
     .string_value = contextString,
+    .object_value = contextObject,
+    .set_property = contextSetProperty,
     .to_bool = contextToBool,
     .to_int32 = contextToInt32,
     .to_float64 = contextToFloat64,
@@ -313,6 +329,33 @@ pub fn createLegacyFunctionModule(
     const module = qjs.c.JS_NewCModule(ctx, module_name, init) orelse return null;
     addLegacyFunctionExports(ctx, module, functions);
     return module;
+}
+
+pub fn createLegacyDefaultObjectModule(
+    ctx: ?*qjs.c.JSContext,
+    module_name: [*c]const u8,
+    init: *const fn (?*qjs.c.JSContext, ?*qjs.c.JSModuleDef) callconv(.c) c_int,
+    functions: []const LegacyFunction,
+) ?*qjs.c.JSModuleDef {
+    const module = createLegacyFunctionModule(ctx, module_name, init, functions) orelse return null;
+    _ = qjs.c.JS_AddModuleExport(ctx, module, "default");
+    return module;
+}
+
+pub fn bindLegacyDefaultObjectExports(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef, functions: []const LegacyFunction) c_int {
+    const exports = qjs.newObject(ctx);
+    if (qjs.isException(exports)) return -1;
+    defer qjs.freeValue(ctx, exports);
+
+    for (functions) |exported| {
+        const value = qjs.c.JS_NewCFunction(ctx, exported.function, exported.name.ptr, exported.length);
+        if (qjs.isException(value)) return -1;
+        if (qjs.c.JS_SetModuleExport(ctx, module, exported.name.ptr, qjs.dupValue(ctx, value)) < 0) return -1;
+        qjs.setProperty(ctx, exports, exported.name, value) catch return -1;
+    }
+
+    if (qjs.c.JS_SetModuleExport(ctx, module, "default", qjs.dupValue(ctx, exports)) < 0) return -1;
+    return 0;
 }
 
 fn initFunctionModule(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
@@ -366,6 +409,7 @@ fn callNativeFunction(
     const returned = function.callback(&context, argc, handles.ptr);
     defer frame.deinit(std.heap.page_allocator, returned);
     const value = frame.toJsValueConst(returned) orelse return qjs.exceptionValue();
+    if (returned > argc_usize) return value;
     return qjs.dupValue(ctx, value);
 }
 
@@ -406,6 +450,26 @@ test "legacy function export helper creates a module" {
     const module = createLegacyFunctionModule(runtime.ctx, "hao:test/native", struct {
         fn init(ctx: ?*qjs.c.JSContext, mod: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
             return bindLegacyFunctionExports(ctx, mod, &funcs);
+        }
+    }.init, &funcs);
+    try std.testing.expect(module != null);
+}
+
+test "legacy default object helper creates a module" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const funcs = [_]LegacyFunction{.{
+        .name = "noop",
+        .function = struct {
+            fn call(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, _: c_int, _: [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue {
+                return qjs.undefinedValue(ctx);
+            }
+        }.call,
+    }};
+    const module = createLegacyDefaultObjectModule(runtime.ctx, "hao:test/default-native", struct {
+        fn init(ctx: ?*qjs.c.JSContext, mod: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
+            return bindLegacyDefaultObjectExports(ctx, mod, &funcs);
         }
     }.init, &funcs);
     try std.testing.expect(module != null);

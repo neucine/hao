@@ -1,4 +1,5 @@
 const std = @import("std");
+const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 const console = @import("../../global/console.zig");
 const registry = @import("registry.zig");
@@ -10,6 +11,18 @@ var capture_stdout = std.ArrayList(u8).empty;
 var capture_stderr = std.ArrayList(u8).empty;
 var capture_active = false;
 
+const functions = [_]js_abi.LegacyFunction{
+    .{ .name = "pushSuite", .function = js_pushSuite, .length = 1 },
+    .{ .name = "popSuite", .function = js_popSuite, .length = 0 },
+    .{ .name = "registerTest", .function = js_registerTest, .length = 3 },
+    .{ .name = "registerHook", .function = js_registerHook, .length = 2 },
+    .{ .name = "getCurrentTestFilePath", .function = js_getCurrentTestFilePath, .length = 0 },
+    .{ .name = "getCurrentExecutablePath", .function = js_getCurrentExecutablePath, .length = 0 },
+    .{ .name = "beginCapture", .function = js_beginCapture, .length = 1 },
+    .{ .name = "endCapture", .function = js_endCapture, .length = 0 },
+    .{ .name = "getRegisteredCounts", .function = js_getRegisteredCounts, .length = 0 },
+};
+
 pub fn setCurrentTestFilePath(path: []const u8) void {
     current_test_file_path = path;
 }
@@ -19,46 +32,11 @@ pub fn setCurrentExecutablePath(path: []const u8) void {
 }
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    const module = qjs.c.JS_NewCModule(ctx, module_name, init) orelse return null;
-    inline for ([_][:0]const u8{
-        "pushSuite",
-        "popSuite",
-        "registerTest",
-        "registerHook",
-        "getCurrentTestFilePath",
-        "getCurrentExecutablePath",
-        "beginCapture",
-        "endCapture",
-        "getRegisteredCounts",
-    }) |name| {
-        _ = qjs.c.JS_AddModuleExport(ctx, module, name.ptr);
-    }
-    return module;
+    return js_abi.createLegacyFunctionModule(ctx, module_name, init, &functions);
 }
 
 fn init(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    if (setExportedFunction(ctx, module, "pushSuite", js_pushSuite, 1) < 0) return -1;
-    if (setExportedFunction(ctx, module, "popSuite", js_popSuite, 0) < 0) return -1;
-    if (setExportedFunction(ctx, module, "registerTest", js_registerTest, 3) < 0) return -1;
-    if (setExportedFunction(ctx, module, "registerHook", js_registerHook, 2) < 0) return -1;
-    if (setExportedFunction(ctx, module, "getCurrentTestFilePath", js_getCurrentTestFilePath, 0) < 0) return -1;
-    if (setExportedFunction(ctx, module, "getCurrentExecutablePath", js_getCurrentExecutablePath, 0) < 0) return -1;
-    if (setExportedFunction(ctx, module, "beginCapture", js_beginCapture, 1) < 0) return -1;
-    if (setExportedFunction(ctx, module, "endCapture", js_endCapture, 0) < 0) return -1;
-    if (setExportedFunction(ctx, module, "getRegisteredCounts", js_getRegisteredCounts, 0) < 0) return -1;
-    return 0;
-}
-
-fn setExportedFunction(
-    ctx: ?*qjs.c.JSContext,
-    module: ?*qjs.c.JSModuleDef,
-    name: [:0]const u8,
-    func: *const fn (?*qjs.c.JSContext, qjs.c.JSValueConst, c_int, [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue,
-    length: c_int,
-) c_int {
-    const value = qjs.c.JS_NewCFunction(ctx, func, name.ptr, length);
-    if (qjs.isException(value)) return -1;
-    return qjs.c.JS_SetModuleExport(ctx, module, name.ptr, value);
+    return js_abi.bindLegacyFunctionExports(ctx, module, &functions);
 }
 
 fn allocString(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst, allocator: std.mem.Allocator) ![]u8 {

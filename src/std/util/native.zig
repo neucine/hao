@@ -1,4 +1,5 @@
 const std = @import("std");
+const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 
 pub const specifier: [:0]const u8 = "hao:util/native";
@@ -13,52 +14,18 @@ pub const InspectOptions = struct {
 
 pub var defaults = InspectOptions{};
 
+const functions = [_]js_abi.LegacyFunction{
+    .{ .name = "inspect", .function = js_inspect, .length = 2 },
+    .{ .name = "setInspectOptions", .function = js_setInspectOptions, .length = 1 },
+    .{ .name = "getInspectOptions", .function = js_getInspectOptions, .length = 0 },
+};
+
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    const module = qjs.c.JS_NewCModule(ctx, module_name, initModule) orelse return null;
-    inline for ([_][:0]const u8{
-        "inspect",
-        "setInspectOptions",
-        "getInspectOptions",
-        "default",
-    }) |name| {
-        _ = qjs.c.JS_AddModuleExport(ctx, module, name.ptr);
-    }
-    return module;
+    return js_abi.createLegacyDefaultObjectModule(ctx, module_name, initModule, &functions);
 }
 
 fn initModule(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callconv(.c) c_int {
-    const mod = qjs.newObject(ctx);
-    if (qjs.isException(mod)) return -1;
-    defer qjs.freeValue(ctx, mod);
-
-    if (setFunction(ctx, mod, "inspect", js_inspect, 2) < 0) return -1;
-    if (setFunction(ctx, mod, "setInspectOptions", js_setInspectOptions, 1) < 0) return -1;
-    if (setFunction(ctx, mod, "getInspectOptions", js_getInspectOptions, 0) < 0) return -1;
-
-    if (exportProperty(ctx, module, mod, "inspect") < 0) return -1;
-    if (exportProperty(ctx, module, mod, "setInspectOptions") < 0) return -1;
-    if (exportProperty(ctx, module, mod, "getInspectOptions") < 0) return -1;
-    if (qjs.c.JS_SetModuleExport(ctx, module, "default", qjs.dupValue(ctx, mod)) < 0) return -1;
-    return 0;
-}
-
-fn setFunction(
-    ctx: ?*qjs.c.JSContext,
-    obj: qjs.c.JSValueConst,
-    name: [:0]const u8,
-    func: *const fn (?*qjs.c.JSContext, qjs.c.JSValueConst, c_int, [*c]qjs.c.JSValueConst) callconv(.c) qjs.c.JSValue,
-    length: c_int,
-) c_int {
-    const value = qjs.c.JS_NewCFunction(ctx, func, name.ptr, length);
-    if (qjs.isException(value)) return -1;
-    qjs.setProperty(ctx, obj, name, value) catch return -1;
-    return 0;
-}
-
-fn exportProperty(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef, obj: qjs.c.JSValueConst, name: [:0]const u8) c_int {
-    const value = qjs.getProperty(ctx, obj, name);
-    defer qjs.freeValue(ctx, value);
-    return qjs.c.JS_SetModuleExport(ctx, module, name.ptr, qjs.dupValue(ctx, value));
+    return js_abi.bindLegacyDefaultObjectExports(ctx, module, &functions);
 }
 
 fn isInfinity(n: f64) bool {
