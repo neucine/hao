@@ -17,6 +17,8 @@ fn usage() void {
         \\Usage:
         \\  hao <file.ts|file.js>
         \\  hao test [--grep pattern] <file-or-dir>...
+        \\  hao jupyter --connection-file <file>
+        \\  hao jupyter install
         \\
     );
 }
@@ -56,6 +58,30 @@ pub fn main(init: std.process.Init) !void {
             std.process.exit(1);
         };
         std.process.exit(result.exitCode());
+    }
+    if (std.mem.eql(u8, path, "jupyter")) {
+        const subcommand = args.next() orelse {
+            usage();
+            std.process.exit(2);
+        };
+        if (std.mem.eql(u8, subcommand, "install")) {
+            try hao.jupyter.install();
+            return;
+        }
+        if (std.mem.eql(u8, subcommand, "--connection-file")) {
+            const connection_file = args.next() orelse {
+                usage();
+                std.process.exit(2);
+            };
+            if (args.next() != null) {
+                usage();
+                std.process.exit(2);
+            }
+            try hao.jupyter.run(connection_file);
+            return;
+        }
+        usage();
+        std.process.exit(2);
     }
 
     if (args.next() != null) {

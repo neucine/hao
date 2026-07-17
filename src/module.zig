@@ -7,6 +7,18 @@ const transpiler = @import("transpiler.zig");
 
 var last_error_storage: [4096]u8 = undefined;
 var last_error_len: usize = 0;
+const notebook_namespace_name = "__hao_jupyter_module_cache";
+var jupyter_import_seq: u64 = 0;
+
+pub const PreparedNotebookCell = struct {
+    code: []u8,
+    source_url: []u8,
+
+    pub fn deinit(self: PreparedNotebookCell, allocator: std.mem.Allocator) void {
+        transpiler.deinitTranspilerString(self.code, allocator);
+        transpiler.deinitTranspilerString(self.source_url, allocator);
+    }
+};
 
 pub const Loader = struct {
     allocator: std.mem.Allocator,
@@ -78,6 +90,132 @@ pub fn evalPackageModule(loader: *Loader, runtime: *qjs.Runtime, specifier: []co
         return error.ModuleNotFound;
     };
     try evalModuleSource(loader, runtime, source.source, source.specifier);
+}
+
+pub fn prepareNotebookCell(loader: *Loader, runtime: *qjs.Runtime, source: []const u8, source_path: []const u8) !PreparedNotebookCell {
+    clearLastError();
+    qjs.updateStackTop(runtime.rt);
+
+    const transformed = transpiler.transformModule(
+        source,
+        source_path,
+        false,
+        notebook_namespace_name,
+        loader.allocator,
+    ) catch |err| {
+        if (err == error.TranspileFailed) rememberTranspileFailure(loader.allocator, source_path);
+        return err;
+    };
+    errdefer transformed.deinit(loader.allocator);
+
+    try ensureNotebookNamespace(runtime.ctx);
+
+    for (transformed.imports) |import_record| {
+        const value = try importNamespace(loader, runtime, source_path, import_record.source);
+        errdefer qjs.freeValue(runtime.ctx, value);
+        try setNotebookNamespaceValue(runtime.ctx, import_record.slot, value);
+    }
+
+    const exports_obj = qjs.newObject(runtime.ctx);
+    if (qjs.isException(exports_obj)) return error.JavaScriptError;
+    errdefer qjs.freeValue(runtime.ctx, exports_obj);
+    try setNotebookNamespaceValue(runtime.ctx, transformed.exports_slot, exports_obj);
+
+    for (transformed.imports) |import_record| {
+        transpiler.deinitRuntimeImport(import_record, loader.allocator);
+    }
+    transpiler.deinitRuntimeImports(transformed.imports, loader.allocator);
+    transpiler.deinitTranspilerString(transformed.exports_slot, loader.allocator);
+
+    return .{
+        .code = transformed.code,
+        .source_url = transformed.source_url,
+    };
+}
+
+fn ensureNotebookNamespace(ctx: ?*qjs.c.JSContext) !void {
+    const global = qjs.c.JS_GetGlobalObject(ctx);
+    defer qjs.freeValue(ctx, global);
+
+    const existing = qjs.getProperty(ctx, global, notebook_namespace_name);
+    defer qjs.freeValue(ctx, existing);
+    if (!qjs.isUndefined(existing) and !qjs.isNull(existing)) return;
+
+    const namespace = qjs.newObject(ctx);
+    if (qjs.isException(namespace)) return error.JavaScriptError;
+    try qjs.setProperty(ctx, global, notebook_namespace_name, namespace);
+}
+
+fn setNotebookNamespaceValue(ctx: ?*qjs.c.JSContext, slot: []const u8, value: qjs.c.JSValue) !void {
+    const global = qjs.c.JS_GetGlobalObject(ctx);
+    defer qjs.freeValue(ctx, global);
+
+    const namespace = qjs.getProperty(ctx, global, notebook_namespace_name);
+    defer qjs.freeValue(ctx, namespace);
+    if (qjs.isUndefined(namespace) or qjs.isNull(namespace)) return error.JavaScriptError;
+
+    const slot_z = try std.heap.page_allocator.dupeZ(u8, slot);
+    defer std.heap.page_allocator.free(slot_z);
+    try qjs.setProperty(ctx, namespace, slot_z, value);
+}
+
+fn importNamespace(loader: *Loader, runtime: *qjs.Runtime, current_file: []const u8, specifier: []const u8) !qjs.c.JSValue {
+    const resolved = try resolveSpecifier(loader, current_file, specifier);
+    defer freeTrackedModuleResolution(loader.allocator, resolved);
+
+    const helper_specifier = if (loader.registry.findSource(specifier) != null or loader.registry.findNativeModule(specifier) != null)
+        specifier
+    else
+        resolved;
+
+    const quoted = try quoteJsString(loader.allocator, helper_specifier);
+    defer loader.allocator.free(quoted);
+    const source = try std.fmt.allocPrint(
+        loader.allocator,
+        "import * as __hao_ns from {s}; globalThis.__hao_jupyter_import = __hao_ns;",
+        .{quoted},
+    );
+    defer loader.allocator.free(source);
+
+    jupyter_import_seq += 1;
+    const file_name = try std.fmt.allocPrint(loader.allocator, "<hao-jupyter-import-{d}>", .{jupyter_import_seq});
+    defer loader.allocator.free(file_name);
+    const source_z = try loader.allocator.dupeZ(u8, source);
+    defer loader.allocator.free(source_z);
+    const file_name_z = try loader.allocator.dupeZ(u8, file_name);
+    defer loader.allocator.free(file_name_z);
+
+    const compiled = qjs.eval(runtime.ctx, source_z, file_name_z, qjs.EvalFlags.module_compile_only);
+    if (qjs.isException(compiled)) return error.JavaScriptError;
+    defer qjs.freeValue(runtime.ctx, compiled);
+
+    const result = qjs.c.JS_EvalFunction(runtime.ctx, qjs.dupValue(runtime.ctx, compiled));
+    defer qjs.freeValue(runtime.ctx, result);
+    if (qjs.isException(result)) return error.JavaScriptError;
+
+    const global = qjs.c.JS_GetGlobalObject(runtime.ctx);
+    defer qjs.freeValue(runtime.ctx, global);
+    const value = qjs.getProperty(runtime.ctx, global, "__hao_jupyter_import");
+    if (qjs.isException(value)) return error.JavaScriptError;
+    return value;
+}
+
+fn quoteJsString(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
+    var out = std.ArrayList(u8).empty;
+    errdefer out.deinit(allocator);
+    try out.append(allocator, '"');
+    for (input) |ch| {
+        switch (ch) {
+            '"' => try out.appendSlice(allocator, "\\\""),
+            '\\' => try out.appendSlice(allocator, "\\\\"),
+            '\n' => try out.appendSlice(allocator, "\\n"),
+            '\r' => try out.appendSlice(allocator, "\\r"),
+            '\t' => try out.appendSlice(allocator, "\\t"),
+            else => try out.append(allocator, ch),
+        }
+    }
+    try out.append(allocator, '"');
+    return out.toOwnedSlice(allocator);
 }
 
 fn trackedModuleResolutionCopy(allocator: std.mem.Allocator, value: []const u8) ![]u8 {
