@@ -8,6 +8,7 @@ const packages = @import("package.zig");
 const hao_std = @import("std.zig");
 const http_native = @import("std/http/native.zig");
 const process_native = @import("std/process/native.zig");
+const util_native = @import("std/util/native.zig");
 
 pub const Host = struct {
     runtime: qjs.Runtime,
@@ -270,6 +271,44 @@ test "runtime host includes hao http module by default" {
         defer std.testing.allocator.free(text);
         try std.testing.expectEqualStrings("function", text);
     }
+}
+
+test "runtime host includes hao util module by default" {
+    util_native.defaults = .{};
+    defer util_native.defaults = .{};
+
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import util, { inspect, getInspectOptions, setInspectOptions } from "hao:util";
+        \\setInspectOptions({ maxArrayLength: 2 });
+        \\globalThis.__hao_util_text = inspect([1, 2, 3]);
+        \\globalThis.__hao_util_default = typeof util.inspect;
+        \\globalThis.__hao_util_options = getInspectOptions().maxArrayLength;
+    ,
+        "<hao-util-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    const text_value = qjs.getProperty(host.runtime.ctx, global, "__hao_util_text");
+    defer qjs.freeValue(host.runtime.ctx, text_value);
+    const text = try qjs.valueToStringAlloc(host.runtime.ctx, text_value, std.testing.allocator);
+    defer std.testing.allocator.free(text);
+    try std.testing.expectEqualStrings("[ 1, 2, ... 1 more items ]", text);
+
+    const default_value = qjs.getProperty(host.runtime.ctx, global, "__hao_util_default");
+    defer qjs.freeValue(host.runtime.ctx, default_value);
+    const default_text = try qjs.valueToStringAlloc(host.runtime.ctx, default_value, std.testing.allocator);
+    defer std.testing.allocator.free(default_text);
+    try std.testing.expectEqualStrings("function", default_text);
+
+    const options_value = qjs.getProperty(host.runtime.ctx, global, "__hao_util_options");
+    defer qjs.freeValue(host.runtime.ctx, options_value);
+    var options: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &options, options_value));
+    try std.testing.expectEqual(@as(f64, 2), options);
 }
 
 test "runtime host runs child process through hao process module" {

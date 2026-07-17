@@ -2,6 +2,7 @@ const fs_native = @import("std/fs/native.zig");
 const http_native = @import("std/http/native.zig");
 const package = @import("package.zig");
 const process_native = @import("std/process/native.zig");
+const util_native = @import("std/util/native.zig");
 
 pub const sources = [_]package.SourceModule{
     .{
@@ -20,6 +21,10 @@ pub const sources = [_]package.SourceModule{
         .specifier = "hao:http",
         .source = @embedFile("std/http/index.ts"),
     },
+    .{
+        .specifier = "hao:util",
+        .source = @embedFile("std/util/index.ts"),
+    },
 };
 
 pub const native_modules = [_]package.NativeModule{
@@ -34,6 +39,10 @@ pub const native_modules = [_]package.NativeModule{
     .{
         .specifier = http_native.specifier,
         .load = http_native.load,
+    },
+    .{
+        .specifier = util_native.specifier,
+        .load = util_native.load,
     },
 };
 
