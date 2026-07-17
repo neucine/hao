@@ -1,31 +1,46 @@
 # Hao JS
 
-Hao JS is an embeddable JavaScript/TypeScript runtime substrate for native packages.
+Hao JS is a small embeddable JavaScript and TypeScript runtime for native
+projects.
 
-This repository is being extracted from Affon. The first boundary is intentionally
-small: QuickJS lifecycle helpers, TypeScript transform bindings, filesystem and
-package resolution, libuv-backed timer/event-loop driving, and a package
-registry that lets host applications provide source modules and native modules
-without baking Affon module names into the engine.
+It is meant for projects that want to run JS/TS inside a native host, expose a
+few first-party modules, and keep the host language close to the script world.
+Hao owns the runtime layer: loading modules, running async work, registering
+native bindings, and giving scripts a stable `hao:` module namespace.
 
-Host applications register native packages through `hao.Package`, combining
-embedded source modules with QuickJS C modules.
+Hao is being extracted from Affon so the runtime can grow on its own and be
+reused by other projects. Affon can later become one native package built on top
+of Hao, rather than the place where the runtime itself lives.
 
-The `hao:` namespace is reserved for Hao-owned first-party runtime modules.
-Host applications should use their own prefixes, such as `affon:` or `myapp:`,
-for product/domain modules.
+## Modules
 
-Current first-party modules:
+Hao reserves `hao:` for runtime modules.
+
+Current modules include:
 
 - `hao:runtime`
 - `hao:fs`
-- `hao:process` (`getEnv`, `run`)
+- `hao:process`
+- `hao:http`
+- `hao:ffi`
+- `hao:util`
+- `hao:test`
+- `hao:plot`
 
-Run a script:
+Host projects should use their own prefixes, such as `affon:` or `myapp:`, for
+their product modules.
+
+## Try It
 
 ```bash
 zig build
 ./zig-out/bin/hao path/to/main.ts
+```
+
+Run tests:
+
+```bash
+./zig-out/bin/hao test test/e2e/runtime
 ```
 
 Check TypeScript declarations:
@@ -34,10 +49,17 @@ Check TypeScript declarations:
 bun x tsc -p test/types/tsconfig.json --noEmit
 ```
 
-Runtime configuration is read from process environment variables after loading
-dotenv values. Hao loads `.env` from the current working directory when present,
-or the file pointed to by `DOTENV=/path/to/env`. Existing environment variables
-win over dotenv values.
+## Configuration
 
-Affon remains unchanged during extraction. Once Hao has a stable embedded
-runtime API, Affon can switch to consuming Hao as a sibling dependency.
+Hao reads configuration from the environment. It also loads dotenv values before
+reading config:
+
+- `.env` in the current working directory is loaded when present.
+- `DOTENV=/path/to/file` loads a specific dotenv file.
+- Existing environment variables override dotenv values.
+
+Current runtime config:
+
+- `HAO_QJS_STACK_SIZE`
+- `HAO_LIBUV_THREADPOOL_SIZE`
+- `HAO_NATIVE_STACK_TRACE`
