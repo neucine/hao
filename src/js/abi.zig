@@ -198,6 +198,10 @@ fn pushJs(context: *Context, value: qjs.c.JSValue) Value {
     return data.frame.pushValue(data.allocator, value);
 }
 
+pub fn adoptValue(context: *Context, value: qjs.c.JSValue) Value {
+    return pushJs(context, value);
+}
+
 fn valueToJs(context: *Context, value: Value) ?qjs.c.JSValueConst {
     return contextData(context).frame.toJsValueConst(value);
 }
