@@ -8,10 +8,6 @@ few first-party modules, and keep the host language close to the script world.
 Hao owns the runtime layer: loading modules, running async work, registering
 native bindings, and giving scripts a stable `hao:` module namespace.
 
-Hao is being extracted from Affon so the runtime can grow on its own and be
-reused by other projects. Affon can later become one native package built on top
-of Hao, rather than the place where the runtime itself lives.
-
 ## Modules
 
 Hao reserves `hao:` for runtime modules.
