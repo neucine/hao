@@ -29,20 +29,28 @@ their product modules.
 ## Try It
 
 ```bash
-zig build
-./zig-out/bin/hao path/to/main.ts
+hao path/to/main.ts
 ```
 
 Run tests:
 
 ```bash
-./zig-out/bin/hao test test/e2e/runtime
+hao test test/e2e/runtime
 ```
 
 Check TypeScript declarations:
 
 ```bash
 bun x tsc -p test/types/tsconfig.json --noEmit
+```
+
+## Development
+
+Build the local CLI from source:
+
+```bash
+zig build
+./zig-out/bin/hao path/to/main.ts
 ```
 
 ## Configuration
