@@ -2,6 +2,7 @@ const fs_native = @import("std/fs/native.zig");
 const http_native = @import("std/http/native.zig");
 const package = @import("package.zig");
 const process_native = @import("std/process/native.zig");
+const test_native = @import("std/test/native.zig");
 const util_native = @import("std/util/native.zig");
 
 pub const sources = [_]package.SourceModule{
@@ -29,6 +30,10 @@ pub const sources = [_]package.SourceModule{
         .specifier = "hao:plot",
         .source = @embedFile("std/plot/index.ts"),
     },
+    .{
+        .specifier = "hao:test",
+        .source = @embedFile("std/test/index.ts"),
+    },
 };
 
 pub const native_modules = [_]package.NativeModule{
@@ -47,6 +52,10 @@ pub const native_modules = [_]package.NativeModule{
     .{
         .specifier = util_native.specifier,
         .load = util_native.load,
+    },
+    .{
+        .specifier = test_native.specifier,
+        .load = test_native.load,
     },
 };
 

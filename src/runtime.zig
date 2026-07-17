@@ -8,6 +8,7 @@ const packages = @import("package.zig");
 const hao_std = @import("std.zig");
 const http_native = @import("std/http/native.zig");
 const process_native = @import("std/process/native.zig");
+const test_registry = @import("std/test/registry.zig");
 const util_native = @import("std/util/native.zig");
 
 pub const Host = struct {
@@ -27,6 +28,9 @@ pub const Host = struct {
         var loop = try async_loop.Loop.init(allocator);
         errdefer loop.deinit();
 
+        try test_registry.init(allocator);
+        errdefer test_registry.deinit(runtime.ctx);
+
         return .{
             .runtime = runtime,
             .loop = loop,
@@ -40,6 +44,7 @@ pub const Host = struct {
         http_native.detachIo();
         process_native.detachIo();
         global_timer.cleanup(self.allocator);
+        test_registry.deinit(self.runtime.ctx);
         self.loop.deinit();
         self.runtime.deinit();
         self.* = undefined;
@@ -341,6 +346,41 @@ test "runtime host includes hao plot module by default" {
         defer qjs.freeValue(host.runtime.ctx, value);
         try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, value));
     }
+}
+
+test "runtime host includes hao test module by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import { describe, test, expect, mock } from "hao:test";
+        \\import { getRegisteredCounts } from "hao:test/native";
+        \\describe("math", () => {
+        \\  test("adds", () => expect(1 + 1).toBe(2));
+        \\});
+        \\const fn = mock.fn(() => 42);
+        \\fn();
+        \\expect(fn).toHaveBeenCalledTimes(1);
+        \\globalThis.__hao_test_counts = getRegisteredCounts();
+    ,
+        "<hao-test-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+    const counts = qjs.getProperty(host.runtime.ctx, global, "__hao_test_counts");
+    defer qjs.freeValue(host.runtime.ctx, counts);
+
+    const registered_tests = qjs.getProperty(host.runtime.ctx, counts, "registeredTests");
+    defer qjs.freeValue(host.runtime.ctx, registered_tests);
+    var tests_count: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &tests_count, registered_tests));
+    try std.testing.expectEqual(@as(f64, 1), tests_count);
+
+    const registered_hooks = qjs.getProperty(host.runtime.ctx, counts, "registeredHooks");
+    defer qjs.freeValue(host.runtime.ctx, registered_hooks);
+    var hooks_count: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &hooks_count, registered_hooks));
+    try std.testing.expectEqual(@as(f64, 1), hooks_count);
 }
 
 test "runtime host runs child process through hao process module" {
