@@ -160,3 +160,38 @@ test "runtime host includes hao namespace modules by default" {
     defer std.testing.allocator.free(text);
     try std.testing.expectEqualStrings("hao:", text);
 }
+
+test "runtime host includes hao fs module by default" {
+    var host = try Host.init(std.testing.allocator);
+    defer host.deinit();
+    try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/hao-fs");
+    try host.evalModuleSource(
+        \\import { existsSync, readFileSync, statSync, writeFileSync } from "hao:fs";
+        \\const path = ".zig-cache/hao-tests/hao-fs/default.txt";
+        \\writeFileSync(path, "hello from hao");
+        \\globalThis.__hao_fs_exists = existsSync(path);
+        \\globalThis.__hao_fs_text = readFileSync(path);
+        \\globalThis.__hao_fs_size = statSync(path).size;
+        ,
+        "<hao-fs-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    const exists = qjs.getProperty(host.runtime.ctx, global, "__hao_fs_exists");
+    defer qjs.freeValue(host.runtime.ctx, exists);
+    try std.testing.expectEqual(@as(c_int, 1), qjs.c.JS_ToBool(host.runtime.ctx, exists));
+
+    const text_value = qjs.getProperty(host.runtime.ctx, global, "__hao_fs_text");
+    defer qjs.freeValue(host.runtime.ctx, text_value);
+    const text = try qjs.valueToStringAlloc(host.runtime.ctx, text_value, std.testing.allocator);
+    defer std.testing.allocator.free(text);
+    try std.testing.expectEqualStrings("hello from hao", text);
+
+    const size_value = qjs.getProperty(host.runtime.ctx, global, "__hao_fs_size");
+    defer qjs.freeValue(host.runtime.ctx, size_value);
+    var size: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &size, size_value));
+    try std.testing.expectEqual(@as(f64, 14), size);
+}

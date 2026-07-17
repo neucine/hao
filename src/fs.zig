@@ -39,6 +39,21 @@ pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8, max_bytes: 
     return out;
 }
 
+pub fn fileSize(path: []const u8) !usize {
+    var path_buf: [std.Io.Dir.max_path_bytes + 1]u8 = undefined;
+    if (path.len >= path_buf.len) return error.NameTooLong;
+    @memcpy(path_buf[0..path.len], path);
+    path_buf[path.len] = 0;
+
+    const file = c.fopen(&path_buf, "rb") orelse return error.FileNotFound;
+    defer _ = c.fclose(file);
+
+    if (c.fseek(file, 0, c.SEEK_END) != 0) return error.FileReadFailed;
+    const size_raw = c.ftell(file);
+    if (size_raw < 0) return error.FileReadFailed;
+    return @intCast(size_raw);
+}
+
 pub fn makeDir(path: []const u8) !void {
     var path_buf: [std.Io.Dir.max_path_bytes + 1]u8 = undefined;
     if (path.len >= path_buf.len) return error.NameTooLong;
@@ -86,4 +101,5 @@ test "readFileAlloc reads a temp file" {
     defer std.testing.allocator.free(source);
     try std.testing.expectEqualStrings("hao", source);
     try std.testing.expect(pathExists(path));
+    try std.testing.expectEqual(@as(usize, 3), try fileSize(path));
 }

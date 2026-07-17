@@ -15,6 +15,11 @@ The `hao:` namespace is reserved for Hao-owned first-party runtime modules.
 Host applications should use their own prefixes, such as `affon:` or `myapp:`,
 for product/domain modules.
 
+Current first-party modules:
+
+- `hao:runtime`
+- `hao:fs`
+
 Run a script:
 
 ```bash
