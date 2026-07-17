@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "noEmit": true,
+    "lib": ["ESNext"],
+    "baseUrl": ".",
+    "paths": {
+      "hao:ffi": ["std/ffi/index.ts"],
+      "hao:ffi/c": ["std/ffi/c.ts"],
+      "hao:fs": ["std/fs/index.ts"],
+      "hao:http": ["std/http/index.ts"],
+      "hao:plot": ["std/plot/index.ts"],
+      "hao:process": ["std/process/index.ts"],
+      "hao:runtime": ["std/runtime/index.ts"],
+      "hao:test": ["std/test/index.ts"],
+      "hao:util": ["std/util/index.ts"]
+    },
+    "skipLibCheck": true
+  },
+  "include": [
+    "std/**/*.d.ts",
+    "std/runtime/index.ts",
+    "std/fs/index.ts",
+    "std/process/index.ts",
+    "std/http/index.ts",
+    "std/util/index.ts",
+    "std/plot/index.ts",
+    "std/ffi/index.ts",
+    "std/ffi/c.ts",
+    "std/test/index.ts"
+  ]
+}

@@ -141,6 +141,22 @@ interface TestModule {
 }
 
 declare module "hao:test" {
+  export const describe: TestDescribeRegistrar
+  export const test: TestRegistrar
+  export const it: TestRegistrar
+  export function expect<T>(actual: T): TestMatcher<T>
+  export const mock: TestMockModule
+  export function spy<T extends object, K extends keyof T>(target: T, key: K): TestSpyFunction
+  export function spyOn<T extends object, K extends keyof T>(target: T, key: K): TestSpyFunction
+  export function replaceProperty<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): TestPropertyReplacement
+  export function beforeAll(fn: () => void | Promise<void>): void
+  export function afterAll(fn: () => void | Promise<void>): void
+  export function beforeEach(fn: () => void | Promise<void>): void
+  export function afterEach(fn: () => void | Promise<void>): void
+  export function captureOutput(fn: () => void | Promise<void>, opts?: TestCaptureOptions): Promise<TestCapturedOutput>
+  export function captureOutput(path: string): Promise<TestCapturedOutput>
+  export function values(actual: unknown): unknown
+
   const testModule: TestModule
   export default testModule
 }
