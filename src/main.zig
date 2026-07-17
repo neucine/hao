@@ -1,7 +1,6 @@
 const std = @import("std");
 const hao = @import("hao.zig");
 const config = @import("config.zig");
-const build_options = @import("build_options");
 
 const c = @cImport({
     @cInclude("stdio.h");
@@ -51,7 +50,7 @@ pub fn main(init: std.process.Init) !void {
             std.process.exit(2);
         }
         writeStdout("hao ");
-        writeStdout(build_options.version);
+        writeStdout(hao.version);
         writeStdout("\n");
         return;
     }

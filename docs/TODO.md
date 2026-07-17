@@ -7,6 +7,8 @@ dependency used by Affon and other hosts.
 
 - Validate the Affon integration path by replacing copied runtime pieces with a
   Hao dependency in an Affon branch or worktree.
+- Add a release checklist that keeps `build.zig.zon` and `src/version.zig`
+  versions in sync.
 - Add the future runtime/embedder C header. `include/addon.h` is now the addon
   ABI; `include/hao.h` should eventually describe the runtime embedding ABI.
 - Decide the Jupyter boundary: core CLI/runtime feature, optional package, or

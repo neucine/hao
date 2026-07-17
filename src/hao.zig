@@ -10,7 +10,9 @@ pub const test_runner = @import("std/test/runner.zig");
 pub const transpiler = @import("transpiler.zig");
 pub const config = @import("config.zig");
 pub const errors = @import("errors.zig");
+pub const version_info = @import("version.zig");
 
+pub const version = version_info.string;
 pub const Runtime = qjs.Runtime;
 pub const RuntimeOptions = config.RuntimeOptions;
 pub const Package = package.Package;
@@ -34,4 +36,5 @@ test {
     _ = transpiler;
     _ = config;
     _ = errors;
+    _ = version_info;
 }

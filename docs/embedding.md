@@ -65,6 +65,14 @@ try host.runFile("main.ts");
 `StdHost` registers the built-in `std:` modules and wires IO-backed native modules
 such as `std:process` and `std:http`.
 
+## Version
+
+Hosts can read the Hao package version from Zig:
+
+```zig
+std.debug.print("Hao {s}\n", .{hao.version});
+```
+
 ## Packages
 
 A package owns a specifier prefix. The `std:` prefix is reserved for Hao.

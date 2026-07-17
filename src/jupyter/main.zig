@@ -12,6 +12,7 @@ const async_loop = @import("../async/loop.zig");
 const global_timer = @import("../global/timer.zig");
 const hao_std = @import("../std.zig");
 const util_native = @import("../std/util/native.zig");
+const version = @import("../version.zig");
 
 const c = @cImport({
     @cInclude("stdlib.h");
@@ -264,7 +265,7 @@ fn handleKernelInfo(z: *const zmq.Zmq, msg: *wire.Message) !void {
         \\  "file_extension": ".ts", "codemirror_mode": {{"name": "javascript", "typescript": true}}}},
         \\ "banner": "Hao JS - embedded TypeScript/JavaScript runtime",
         \\ "status": "ok"}}
-    , .{"0.1.0"});
+    , .{version.string});
     try sendReply(z, shell_sock, msg, "kernel_info_reply", content);
 
     try publishStatus(z, msg, "idle");
