@@ -58,7 +58,7 @@ fn nanoTimestamp() i128 {
     return @as(i128, ts.sec) * std.time.ns_per_s + ts.nsec;
 }
 
-fn selfExePathAlloc(allocator: std.mem.Allocator) ![]u8 {
+fn selfExePathAlloc(allocator: std.mem.Allocator, io: ?std.Io) ![]u8 {
     if (builtin.os.tag == .macos) {
         var size: u32 = std.Io.Dir.max_path_bytes;
         var buf = try allocator.alloc(u8, size);
@@ -72,11 +72,9 @@ fn selfExePathAlloc(allocator: std.mem.Allocator) ![]u8 {
         return try allocator.realloc(buf, std.mem.indexOfScalar(u8, buf, 0) orelse size);
     }
 
-    const path_z = try allocator.dupeZ(u8, "/proc/self/exe");
-    defer allocator.free(path_z);
-    const resolved = c.realpath(path_z.ptr, null) orelse return error.ExecutablePathUnavailable;
-    defer c.free(resolved);
-    return try allocator.dupe(u8, std.mem.span(resolved));
+    const resolved = try std.process.executablePathAlloc(io orelse return error.ExecutablePathUnavailable, allocator);
+    defer allocator.free(resolved);
+    return try allocator.dupe(u8, resolved[0..resolved.len]);
 }
 
 fn exceptionSummaryAlloc(ctx: ?*qjs.c.JSContext, exception: qjs.c.JSValueConst, allocator: std.mem.Allocator) ![]u8 {
@@ -632,7 +630,7 @@ pub fn run(paths: [][]const u8, grep: ?[]const u8, print_summary: bool, allocato
     try registry.init(allocator);
     defer registry.deinit(runtime.ctx);
 
-    const exe_path = try selfExePathAlloc(allocator);
+    const exe_path = try selfExePathAlloc(allocator, io);
     defer allocator.free(exe_path);
     bindings.setCurrentExecutablePath(exe_path);
 
