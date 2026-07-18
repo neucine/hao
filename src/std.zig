@@ -8,6 +8,7 @@ const test_native = @import("std/test/native.zig");
 const test_registry = @import("std/test/registry.zig");
 const telemetry_native = @import("std/telemetry/native.zig");
 const telemetry_metrics = @import("telemetry/metrics.zig");
+const telemetry_store = @import("telemetry/store.zig");
 const util_native = @import("std/util/native.zig");
 
 pub const sources = [_]package.SourceModule{
@@ -107,4 +108,5 @@ fn install(context: *package.PackageContext) !void {
 fn deinit(context: *package.PackageContext) void {
     test_registry.deinit(context.runtime.ctx);
     telemetry_metrics.clear();
+    telemetry_store.clear();
 }

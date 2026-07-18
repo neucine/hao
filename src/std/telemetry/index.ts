@@ -5,6 +5,10 @@ import {
   registerMetricNative,
   setMetricNative,
   snapshotMetricsNative,
+  startTraceNative,
+  enterTraceNative,
+  exitTraceNative,
+  endTraceNative,
   type MetricDefinition,
   type MetricSnapshot,
 } from "std:telemetry/native";
@@ -81,4 +85,47 @@ export function metrics(): MetricSnapshot[] {
   return snapshotMetricsNative();
 }
 
-export default { counter, gauge, histogram, metrics };
+export function trace<T>(name: string, callback: () => T): T | Promise<T> {
+  const spanId = startTraceNative(name);
+  const invoke = () => {
+    const scopeId = enterTraceNative(spanId);
+    try {
+      return callback();
+    } finally {
+      exitTraceNative(scopeId);
+    }
+  };
+
+  try {
+    const result = invoke();
+    if (result && typeof (result as any).then === "function") {
+      return Promise.resolve(result).then(
+        (value) => {
+          const scopeId = enterTraceNative(spanId);
+          try {
+            endTraceNative(spanId, "ok");
+            return value;
+          } finally {
+            exitTraceNative(scopeId);
+          }
+        },
+        (error) => {
+          const scopeId = enterTraceNative(spanId);
+          try {
+            endTraceNative(spanId, "err");
+          } finally {
+            exitTraceNative(scopeId);
+          }
+          throw error;
+        },
+      );
+    }
+    endTraceNative(spanId, "ok");
+    return result;
+  } catch (error) {
+    endTraceNative(spanId, "err");
+    throw error;
+  }
+}
+
+export default { counter, gauge, histogram, metrics, trace };

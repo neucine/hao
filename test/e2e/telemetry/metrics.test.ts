@@ -1,5 +1,5 @@
 import { describe, expect, test } from "std:test";
-import { counter, gauge, histogram, metrics } from "std:telemetry";
+import { counter, gauge, histogram, metrics, trace } from "std:telemetry";
 
 describe("telemetry metrics", () => {
   test("records counters gauges and histograms", () => {
@@ -41,5 +41,33 @@ describe("telemetry metrics", () => {
     expect(a.id).toBe(b.id);
     expect(a.value()).toBe(5);
     expect(metrics().filter((metric) => metric.scope === "test.idempotent").length).toBe(1);
+  });
+
+  test("includes runtime memory gauges", () => {
+    const snapshot = metrics();
+    const memoryUsed = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "qjs_used_size");
+    const objects = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "obj_count");
+    const allocatorActive = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_active_size");
+    const allocatorPeak = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_peak_size");
+
+    expect(memoryUsed?.kind).toBe("gauge");
+    expect(memoryUsed?.unit).toBe("bytes");
+    expect((memoryUsed?.value ?? 0) > 0).toBe(true);
+    expect(objects?.kind).toBe("gauge");
+    expect(objects?.unit).toBe("count");
+    expect(allocatorActive?.kind).toBe("gauge");
+    expect(allocatorActive?.unit).toBe("bytes");
+    expect(allocatorPeak?.kind).toBe("gauge");
+    expect(allocatorPeak?.unit).toBe("bytes");
+  });
+
+  test("propagates trace context through sync and async callbacks", async () => {
+    expect(trace("test.sync", () => 42)).toBe(42);
+
+    const value = await trace("test.async", async () => {
+      await Promise.resolve();
+      return "done";
+    });
+    expect(value).toBe("done");
   });
 });
