@@ -53,36 +53,17 @@ fn writeStderr(bytes: []const u8) void {
     std.debug.print("{s}", .{bytes});
 }
 
-fn realpathAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    const path_z = try allocator.dupeZ(u8, path);
-    defer allocator.free(path_z);
-    const resolved = c.realpath(path_z.ptr, null) orelse return error.FileNotFound;
-    defer c.free(resolved);
-    return try allocator.dupe(u8, std.mem.span(resolved));
-}
-
-fn selfExePathAlloc(allocator: std.mem.Allocator) ![]u8 {
-    if (builtin.os.tag == .macos) {
-        var size: u32 = std.Io.Dir.max_path_bytes;
-        var buf = try allocator.alloc(u8, size);
-        errdefer allocator.free(buf);
-        if (std.c._NSGetExecutablePath(buf.ptr, &size) != 0) {
-            allocator.free(buf);
-            buf = try allocator.alloc(u8, size);
-            errdefer allocator.free(buf);
-            if (std.c._NSGetExecutablePath(buf.ptr, &size) != 0) return error.ExecutablePathUnavailable;
-        }
-        return try allocator.realloc(buf, std.mem.indexOfScalar(u8, buf, 0) orelse size);
-    }
-
-    return realpathAlloc(allocator, "/proc/self/exe");
+fn selfExePathAlloc(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
+    const resolved = try std.process.executablePathAlloc(io, allocator);
+    defer allocator.free(resolved);
+    return try allocator.dupe(u8, resolved[0..resolved.len]);
 }
 
 // ============================================================
 // Entry point
 // ============================================================
 
-pub fn run(connection_file: []const u8) !void {
+pub fn run(connection_file: []const u8, io: std.Io) !void {
     // Parse connection file
     conn_info = try connection.parse(alloc, connection_file);
 
@@ -208,7 +189,7 @@ pub fn run(connection_file: []const u8) !void {
         if (poll_items[2].revents & zmq.ZMQ_POLLIN != 0) {
             var msg = wire.recvMessage(&z, shell_sock, alloc) catch continue;
             defer msg.deinit();
-            handleShell(&z, &msg) catch |err| {
+            handleShell(&z, &msg, io) catch |err| {
                 var buf: [128]u8 = undefined;
                 const warn_msg = std.fmt.bufPrint(&buf, "kernel shell handler failed: {s}", .{@errorName(err)}) catch "kernel shell handler failed";
                 std.debug.print("{s}\n", .{warn_msg});
@@ -234,13 +215,13 @@ fn handleControl(z: *const zmq.Zmq, msg: *wire.Message) !void {
     }
 }
 
-fn handleShell(z: *const zmq.Zmq, msg: *wire.Message) !void {
+fn handleShell(z: *const zmq.Zmq, msg: *wire.Message, io: std.Io) !void {
     const msg_type = wire.jsonExtractString(msg.header, "msg_type") orelse return;
 
     if (std.mem.eql(u8, msg_type, "kernel_info_request")) {
         try handleKernelInfo(z, msg);
     } else if (std.mem.eql(u8, msg_type, "execute_request")) {
-        try handleExecute(z, msg);
+        try handleExecute(z, msg, io);
     } else if (std.mem.eql(u8, msg_type, "is_complete_request")) {
         try sendReply(z, shell_sock, msg, "is_complete_reply",
             \\{"status": "complete"}
@@ -275,7 +256,7 @@ fn handleKernelInfo(z: *const zmq.Zmq, msg: *wire.Message) !void {
 // execute_request
 // ============================================================
 
-fn handleExecute(z: *const zmq.Zmq, msg: *wire.Message) !void {
+fn handleExecute(z: *const zmq.Zmq, msg: *wire.Message, io: std.Io) !void {
     const code_raw = wire.jsonExtractString(msg.content, "code") orelse return;
     // Unescape JSON string (e.g. \n -> newline, \" -> quote)
     const code = wire.jsonUnescapeAlloc(alloc, code_raw) catch return;
@@ -298,7 +279,7 @@ fn handleExecute(z: *const zmq.Zmq, msg: *wire.Message) !void {
         try publishMessage(z, msg, "execute_input", content);
     }
 
-    const cwd = try realpathAlloc(alloc, ".");
+    const cwd = try std.process.currentPathAlloc(io, alloc);
     defer alloc.free(cwd);
     const cell_file = try std.fmt.allocPrint(alloc, "__hao_kernel_cell_{d}.ts", .{execution_count});
     defer alloc.free(cell_file);
@@ -892,10 +873,10 @@ fn renderKernelJson(exe_path: []const u8, buf: []u8) ![]const u8 {
     , .{exe_path});
 }
 
-pub fn install() !void {
+pub fn install(io: std.Io) !void {
 
     // Get hao binary path
-    const exe_path_owned = try selfExePathAlloc(std.heap.page_allocator);
+    const exe_path_owned = try selfExePathAlloc(std.heap.page_allocator, io);
     defer std.heap.page_allocator.free(exe_path_owned);
     const exe_path = exe_path_owned;
 

@@ -99,7 +99,7 @@ pub fn main(init: std.process.Init) !void {
             std.process.exit(2);
         };
         if (std.mem.eql(u8, subcommand, "install")) {
-            try hao.jupyter.install();
+            try hao.jupyter.install(init.io);
             return;
         }
         if (std.mem.eql(u8, subcommand, "--connection-file")) {
@@ -111,7 +111,7 @@ pub fn main(init: std.process.Init) !void {
                 usage();
                 std.process.exit(2);
             }
-            try hao.jupyter.run(connection_file);
+            try hao.jupyter.run(connection_file, init.io);
             return;
         }
         usage();
