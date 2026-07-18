@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const qjs = @import("../../qjs.zig");
 const async_loop = @import("../../async/loop.zig");
 const errors = @import("../../errors.zig");
@@ -13,6 +14,10 @@ const http_native = @import("../http/native.zig");
 const process_native = @import("../process/native.zig");
 const registry = @import("registry.zig");
 const bindings = @import("native.zig");
+
+const c = @cImport({
+    @cInclude("stdlib.h");
+});
 
 const Failure = struct {
     phase: []const u8,
@@ -54,16 +59,24 @@ fn nanoTimestamp() i128 {
 }
 
 fn selfExePathAlloc(allocator: std.mem.Allocator) ![]u8 {
-    var size: u32 = std.Io.Dir.max_path_bytes;
-    var buf = try allocator.alloc(u8, size);
-    errdefer allocator.free(buf);
-    if (std.c._NSGetExecutablePath(buf.ptr, &size) != 0) {
-        allocator.free(buf);
-        buf = try allocator.alloc(u8, size);
+    if (builtin.os.tag == .macos) {
+        var size: u32 = std.Io.Dir.max_path_bytes;
+        var buf = try allocator.alloc(u8, size);
         errdefer allocator.free(buf);
-        if (std.c._NSGetExecutablePath(buf.ptr, &size) != 0) return error.ExecutablePathUnavailable;
+        if (std.c._NSGetExecutablePath(buf.ptr, &size) != 0) {
+            allocator.free(buf);
+            buf = try allocator.alloc(u8, size);
+            errdefer allocator.free(buf);
+            if (std.c._NSGetExecutablePath(buf.ptr, &size) != 0) return error.ExecutablePathUnavailable;
+        }
+        return try allocator.realloc(buf, std.mem.indexOfScalar(u8, buf, 0) orelse size);
     }
-    return try allocator.realloc(buf, std.mem.indexOfScalar(u8, buf, 0) orelse size);
+
+    const path_z = try allocator.dupeZ(u8, "/proc/self/exe");
+    defer allocator.free(path_z);
+    const resolved = c.realpath(path_z.ptr, null) orelse return error.ExecutablePathUnavailable;
+    defer c.free(resolved);
+    return try allocator.dupe(u8, std.mem.span(resolved));
 }
 
 fn exceptionSummaryAlloc(ctx: ?*qjs.c.JSContext, exception: qjs.c.JSValueConst, allocator: std.mem.Allocator) ![]u8 {
