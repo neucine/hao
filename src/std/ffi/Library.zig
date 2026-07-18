@@ -13,7 +13,14 @@ pub const Library = struct {
         const needs_free = path.ptr != lib_name.ptr;
         defer if (needs_free) alloc.free(path);
 
-        const dynlib = try std.DynLib.open(path);
+        const dynlib = std.DynLib.open(path) catch |err| {
+            if (builtin.os.tag == .linux and needs_free) {
+                const soname = try std.fmt.allocPrint(alloc, "lib{s}.so.6", .{lib_name});
+                defer alloc.free(soname);
+                return std.DynLib.open(soname) catch return err;
+            }
+            return err;
+        };
         return Library{
             .dynlib = dynlib,
             .name = lib_name,
