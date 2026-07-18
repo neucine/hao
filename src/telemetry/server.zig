@@ -16,8 +16,13 @@ pub const Handle = struct {
     pub fn deinit(self: *Handle) void {
         const state = self.state orelse return;
         state.stop.store(true, .release);
-        state.server.deinit(state.io);
+        // Wake a thread blocked in accept before joining it. Closing a listener
+        // from another thread does not reliably interrupt accept on Linux.
+        if (state.server.socket.address.connect(state.io, .{ .mode = .stream })) |stream| {
+            stream.close(state.io);
+        } else |_| {}
         if (state.thread) |thread| thread.join();
+        state.server.deinit(state.io);
         state.allocator.destroy(state);
         self.* = .{};
     }
