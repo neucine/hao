@@ -22,10 +22,26 @@ Hao releases are created from version tags. The tag, `build.zig.zon`, and
    git push origin v0.1.0
    ```
 
-The release workflow verifies the version, builds optimized binaries on Linux
-and macOS, and publishes archives containing the CLI, addon headers, and
-embedding documentation. GitHub also provides the tagged source archive.
+The release workflow verifies the version, builds optimized CLI archives on
+Linux and macOS, and publishes a source archive for Zig embedders. CLI archives
+contain the executable, addon headers, public TypeScript declarations, and
+embedding documentation. Every archive has a matching `.sha256` file.
 
-The first release is intentionally a CLI and source-level embedding release.
-Language package registries and a stable runtime embedding ABI can be added
-once those interfaces are ready.
+## Embedding From A Release
+
+The source archive is the release package for Zig embedders. Download it and
+add it as a local package dependency, or use the archive URL with `zig fetch`:
+
+```bash
+zig fetch --save \
+  https://github.com/neucine/hao/releases/download/v0.1.1/hao-0.1.1-source.tar.gz
+```
+
+Then import the `hao` module from the fetched dependency in the embedder's
+`build.zig`. The archive includes `build.zig`, `build.zig.zon`, `src/`,
+`include/`, `types/`, and the embedding documentation. Its dependencies are
+resolved by Zig from the hashes recorded in `build.zig.zon`.
+
+A binary runtime library is not published yet. That will require the stable C
+runtime embedding ABI and an exported runtime entry point; `include/addon.h`
+currently defines the addon ABI only.

@@ -56,20 +56,46 @@ jobs:
           mkdir -p "dist/${package}/include" "dist/${package}/docs"
           cp zig-out/bin/hao "dist/${package}/hao"
           cp zig-out/include/*.h "dist/${package}/include/"
+          cp -R types "dist/${package}/types"
           cp README.md "dist/${package}/"
           cp docs/addons.md docs/embedding.md docs/telemetry.md "dist/${package}/docs/"
           tar -C dist -czf "dist/${package}.tar.gz" "${package}"
+          sha256sum "dist/${package}.tar.gz" > "dist/${package}.tar.gz.sha256"
 
       - name: Upload release archive
         uses: actions/upload-artifact@v4
         with:
           name: hao-${{ matrix.artifact_os }}
-          path: dist/*.tar.gz
+          path: dist/*
+          if-no-files-found: error
+
+  source:
+    name: source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package source release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          package="hao-${version}-source"
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="${package}/" "$GITHUB_SHA" > "dist/${package}.tar.gz"
+          sha256sum "dist/${package}.tar.gz" > "dist/${package}.tar.gz.sha256"
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: hao-source
+          path: dist/*
           if-no-files-found: error
 
   publish:
     name: Publish GitHub release
-    needs: build
+    needs: [build, source]
     runs-on: ubuntu-latest
     steps:
       - name: Download release archives
@@ -83,4 +109,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" dist/*.tar.gz --verify-tag --generate-notes --title "Hao JS ${RELEASE_TAG}"
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes --title "Hao JS ${RELEASE_TAG}"
+          fi
