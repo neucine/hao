@@ -12,6 +12,6 @@
   "include": [
     "test/e2e/**/*.ts",
     "types/**/*.d.ts",
-    "src/std/**/*.d.ts"
+    "types/std/**/*.d.ts"
   ]
 }
