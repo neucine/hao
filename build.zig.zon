@@ -12,6 +12,9 @@
             .url = "https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.13.0.tar.gz",
             .hash = "N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp",
         },
+        .zig_libs = .{
+            .path = "../zig-libs",
+        },
     },
     .paths = .{
         "build.zig",

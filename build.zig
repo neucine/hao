@@ -5,6 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const libuv_dep = b.dependency("libuv", .{});
     const quickjs_dep = b.dependency("quickjs", .{});
+    const zig_libs_dep = b.dependency("zig_libs", .{});
 
     const hao = b.addModule("hao", .{
         .root_source_file = b.path("src/hao.zig"),
@@ -15,6 +16,7 @@ pub fn build(b: *std.Build) void {
     hao.addIncludePath(libuv_dep.path("include"));
     hao.addIncludePath(quickjs_dep.path("."));
     hao.addIncludePath(b.path("include"));
+    hao.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
 
     const libuv = b.addLibrary(.{
         .name = "uv",
@@ -152,6 +154,7 @@ pub fn build(b: *std.Build) void {
     runtime.root_module.linkLibrary(libuv);
     runtime.root_module.linkLibrary(quickjs);
     runtime.root_module.addObjectFile(b.path("libs/transpiler/target/release/libhao_transpiler.a"));
+    runtime.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     const build_transpiler = b.addSystemCommand(&.{
         "cargo",
         "build",
@@ -176,6 +179,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.linkLibrary(libuv);
     exe.root_module.linkLibrary(quickjs);
     exe.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
+    exe.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     exe.root_module.linkSystemLibrary("hao_transpiler", .{});
     exe.step.dependOn(&build_transpiler.step);
     if (target.result.os.tag == .linux) {
@@ -209,6 +213,7 @@ pub fn build(b: *std.Build) void {
     tests.root_module.linkLibrary(libuv);
     tests.root_module.linkLibrary(quickjs);
     tests.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
+    tests.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     tests.root_module.linkSystemLibrary("hao_transpiler", .{});
     tests.step.dependOn(&build_transpiler.step);
     if (target.result.os.tag == .linux) {

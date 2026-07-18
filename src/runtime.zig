@@ -9,6 +9,8 @@ const global_timer = @import("global/timer.zig");
 const module = @import("module.zig");
 const js_addon = @import("js/addon.zig");
 const packages = @import("package.zig");
+const runtime_allocator = @import("runtime_allocator.zig");
+const telemetry_metrics = @import("telemetry/metrics.zig");
 const hao_std = @import("std.zig");
 const http_native = @import("std/http/native.zig");
 const process_native = @import("std/process/native.zig");
@@ -27,6 +29,8 @@ const CoreEnvironment = struct {
     }
 
     pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !CoreEnvironment {
+        runtime_allocator.init(allocator);
+        telemetry_metrics.init(allocator);
         var runtime = try qjs.Runtime.init();
         errdefer runtime.deinit();
 
@@ -325,6 +329,39 @@ test "runtime environment includes std module namespace by default" {
     const text = try qjs.valueToStringAlloc(host.runtime.ctx, result, std.testing.allocator);
     defer std.testing.allocator.free(text);
     try std.testing.expectEqualStrings("std:", text);
+}
+
+test "runtime telemetry reports tracked Zig allocator stats" {
+    var host = try RuntimeEnvironment.init(std.testing.allocator, .{ .std = true });
+    defer host.deinit();
+
+    const alloc = runtime_allocator.allocator();
+    const bytes = try alloc.alloc(u8, 4096);
+    defer alloc.free(bytes);
+
+    try host.evalModuleSource(
+        \\import { metrics } from "std:telemetry";
+        \\const snapshot = metrics();
+        \\globalThis.__hao_runtime_active_size = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_active_size")?.value ?? -1;
+        \\globalThis.__hao_runtime_peak_size = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_peak_size")?.value ?? -1;
+    ,
+        "<hao-telemetry-memory-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+
+    const active_value = qjs.getProperty(host.runtime.ctx, global, "__hao_runtime_active_size");
+    defer qjs.freeValue(host.runtime.ctx, active_value);
+    var active: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &active, active_value));
+    try std.testing.expect(active >= 4096);
+
+    const peak_value = qjs.getProperty(host.runtime.ctx, global, "__hao_runtime_peak_size");
+    defer qjs.freeValue(host.runtime.ctx, peak_value);
+    var peak: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &peak, peak_value));
+    try std.testing.expect(peak >= active);
 }
 
 test "runtime environment includes std fs module by default" {
