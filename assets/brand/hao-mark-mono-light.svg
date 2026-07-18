@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Hao monochrome light mark</title>
+  <path d="M256 48 410 137v48M430 228v147L256 476 82 375V174L256 74" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="430" cy="184" r="25" fill="#FFFFFF"/>
+  <path d="M178 342V166h42v64c17-19 40-29 66-29 54 0 88 36 88 96v45h-43v-43c0-39-18-59-51-59-36 0-60 26-60 67v35h-42Z" fill="#FFFFFF"/>
+</svg>
