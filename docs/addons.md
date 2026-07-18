@@ -53,12 +53,12 @@ static JsValue foo(JsContext* ctx, int argc, const JsValue* argv) {
 
 static const JsFunction functions[] = {
     { "foo", foo, 0 },
-    { 0, 0, 0 },
 };
 
 static const JsModule module = {
-    "foo:native",
-    functions,
+    .specifier = "foo:native",
+    .functions = functions,
+    .function_count = sizeof(functions) / sizeof(functions[0]),
 };
 
 int js_register_modules(JsRegistry* registry) {
@@ -75,7 +75,7 @@ int js_register_modules(JsRegistry* registry) {
 - Check `registry->api->abi_version` before registering modules.
 - Keep `JsModule`, `JsFunction`, names, and specifier strings alive for the
   lifetime of the loaded library.
-- End every function array with `{ 0, 0, 0 }`.
+- Set `JsModule.function_count` to the number of function entries.
 - Treat `JsValue` handles as callback-local. Do not store them across calls.
 - Copy strings returned by `js_to_string` if they need to outlive the callback.
 

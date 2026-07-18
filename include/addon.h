@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define JS_ADDON_ABI_VERSION 2
+#define JS_ADDON_ABI_VERSION 3
 
 #define JS_METRIC_COUNTER 1
 #define JS_METRIC_GAUGE 2
@@ -26,8 +26,8 @@ extern "C" {
  * - An addon exports one symbol named `js_register_modules` with the
  *   JsRegisterModulesFn signature. It should check registry->api->abi_version
  *   against JS_ADDON_ABI_VERSION before registering modules.
- * - JsModule.functions must point to a stable, null-terminated array of
- *   JsFunction values. The last entry must have name == NULL.
+ * - JsModule.functions must point to a stable array of JsFunction values with
+ *   function_count entries.
  * - JsModule, JsFunction, function names, and specifier strings must remain
  *   valid for as long as the dynamic library is loaded.
  * - JsValue handles are only valid during the native callback that received or
@@ -59,6 +59,7 @@ typedef struct JsFunction {
 typedef struct JsModule {
     const char* specifier;
     const JsFunction* functions;
+    size_t function_count;
 } JsModule;
 
 typedef struct JsMetricDefinition {
@@ -130,7 +131,8 @@ HAO_STATIC_ASSERT(offsetof(JsFunction, callback) == sizeof(void*), "JsFunction.c
 HAO_STATIC_ASSERT(offsetof(JsFunction, length) == sizeof(void*) * 2, "JsFunction.length offset changed");
 HAO_STATIC_ASSERT(offsetof(JsModule, specifier) == 0, "JsModule.specifier offset changed");
 HAO_STATIC_ASSERT(offsetof(JsModule, functions) == sizeof(void*), "JsModule.functions offset changed");
-HAO_STATIC_ASSERT(sizeof(JsModule) == sizeof(void*) * 2, "JsModule size changed");
+HAO_STATIC_ASSERT(offsetof(JsModule, function_count) == sizeof(void*) * 2, "JsModule.function_count offset changed");
+HAO_STATIC_ASSERT(sizeof(JsModule) == sizeof(void*) * 3, "JsModule size changed");
 HAO_STATIC_ASSERT(offsetof(JsMetricDefinition, scope) == 0, "JsMetricDefinition.scope offset changed");
 HAO_STATIC_ASSERT(offsetof(JsMetricDefinition, name) == sizeof(void*), "JsMetricDefinition.name offset changed");
 HAO_STATIC_ASSERT(offsetof(JsMetricDefinition, kind) == sizeof(void*) * 2, "JsMetricDefinition.kind offset changed");

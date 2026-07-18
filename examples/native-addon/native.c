@@ -42,22 +42,22 @@ static const JsFunction functions[] = {
     { "foo", foo, 0 },
     { "add", add, 2 },
     { "pair", pair, 2 },
-    { 0, 0, 0 },
 };
 
 static const JsFunction extra_functions[] = {
     { "label", label, 0 },
-    { 0, 0, 0 },
 };
 
 static const JsModule native_module = {
-    "foo:native",
-    functions,
+    .specifier = "foo:native",
+    .functions = functions,
+    .function_count = sizeof(functions) / sizeof(functions[0]),
 };
 
 static const JsModule extra_module = {
-    "foo:extra",
-    extra_functions,
+    .specifier = "foo:extra",
+    .functions = extra_functions,
+    .function_count = sizeof(extra_functions) / sizeof(extra_functions[0]),
 };
 
 int js_register_modules(JsRegistry* registry) {

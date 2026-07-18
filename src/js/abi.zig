@@ -2,7 +2,7 @@ const std = @import("std");
 const qjs = @import("../qjs.zig");
 const telemetry_metrics = @import("../telemetry/metrics.zig");
 
-pub const abi_version: u32 = 2;
+pub const abi_version: u32 = 3;
 pub const register_symbol_name = "js_register_modules";
 pub const Value = usize;
 
@@ -27,6 +27,7 @@ pub const Function = extern struct {
 pub const Module = extern struct {
     specifier: [*:0]const u8,
     functions: [*c]const Function,
+    function_count: usize,
 };
 
 pub const MetricDefinition = extern struct {
@@ -100,7 +101,8 @@ test "native abi structs keep C layout" {
 
     try std.testing.expectEqual(@as(usize, 0), @offsetOf(Module, "specifier"));
     try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(Module, "functions"));
-    try std.testing.expectEqual(@as(usize, ptr_size * 2), @sizeOf(Module));
+    try std.testing.expectEqual(@as(usize, ptr_size * 2), @offsetOf(Module, "function_count"));
+    try std.testing.expectEqual(@as(usize, ptr_size * 3), @sizeOf(Module));
 
     try std.testing.expectEqual(@as(usize, 0), @offsetOf(MetricDefinition, "scope"));
     try std.testing.expectEqual(@as(usize, ptr_size), @offsetOf(MetricDefinition, "name"));
@@ -189,6 +191,11 @@ pub const FunctionModule = struct {
     functions: []const *const Function,
 };
 
+const FunctionTable = struct {
+    functions: [*]const Function,
+    count: usize,
+};
+
 pub const ModuleCollector = struct {
     allocator: std.mem.Allocator,
     modules: std.ArrayList(FunctionModule),
@@ -219,8 +226,7 @@ pub const ModuleCollector = struct {
 
         var functions: std.ArrayList(*const Function) = .empty;
         errdefer functions.deinit(self.allocator);
-        var i: usize = 0;
-        while (module.functions[i].name != null) : (i += 1) {
+        for (0..module.function_count) |i| {
             const function: *const Function = @ptrCast(&module.functions[i]);
             try functions.append(self.allocator, function);
         }
@@ -489,8 +495,13 @@ pub fn createFunctionModule(
     functions: []const *const Function,
 ) ?*qjs.c.JSModuleDef {
     if (functions.len == 0) return null;
-    const module = qjs.c.JS_NewCModule(ctx, module_name, initFunctionModule) orelse return null;
-    _ = qjs.c.JS_SetModulePrivateValue(ctx, module, qjs.c.JS_NewInt64(ctx, @intCast(@intFromPtr(functions[0]))));
+    const table = std.heap.page_allocator.create(FunctionTable) catch return null;
+    table.* = .{ .functions = @ptrCast(functions[0]), .count = functions.len };
+    const module = qjs.c.JS_NewCModule(ctx, module_name, initFunctionModule) orelse {
+        std.heap.page_allocator.destroy(table);
+        return null;
+    };
+    _ = qjs.c.JS_SetModulePrivateValue(ctx, module, qjs.c.JS_NewInt64(ctx, @intCast(@intFromPtr(table))));
     _ = qjs.c.JS_AddModuleExport(ctx, module, "default");
     for (functions) |function| {
         _ = qjs.c.JS_AddModuleExport(ctx, module, function.name.?);
@@ -502,13 +513,15 @@ fn initFunctionModule(ctx: ?*qjs.c.JSContext, module: ?*qjs.c.JSModuleDef) callc
     const private = qjs.c.JS_GetModulePrivateValue(ctx, module);
     var stored_ptr: i64 = 0;
     if (qjs.c.JS_ToInt64(ctx, &stored_ptr, private) < 0) return -1;
-    const functions: [*]const Function = @ptrFromInt(@as(usize, @intCast(stored_ptr)));
+    const table: *const FunctionTable = @ptrFromInt(@as(usize, @intCast(stored_ptr)));
+    const functions = table.functions;
+    const function_count = table.count;
+    std.heap.page_allocator.destroy(@constCast(table));
     const exports = qjs.newObject(ctx);
     if (qjs.isException(exports)) return -1;
     defer qjs.freeValue(ctx, exports);
 
-    var i: usize = 0;
-    while (functions[i].name != null) : (i += 1) {
+    for (0..function_count) |i| {
         const function = &functions[i];
         var data = [_]qjs.c.JSValue{qjs.c.JS_NewInt64(ctx, @intCast(@intFromPtr(function)))};
         const value = qjs.c.JS_NewCFunctionData(ctx, callNativeFunction, function.length, 0, 1, &data);
@@ -567,8 +580,8 @@ test "native abi creates a callable function module" {
         }.call,
         .length = 0,
     };
-    const functions = [_]Function{ function, .{ .name = null, .callback = function.callback } };
-    const module_descriptor = Module{ .specifier = "demo:native", .functions = &functions };
+    const functions = [_]Function{function};
+    const module_descriptor = Module{ .specifier = "demo:native", .functions = &functions, .function_count = functions.len };
     var collector = ModuleCollector.init(std.testing.allocator);
     defer collector.deinit();
     try collector.addModule(&module_descriptor);
