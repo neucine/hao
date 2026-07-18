@@ -176,6 +176,8 @@ pub fn build(b: *std.Build) void {
 
     b.installFile("include/addon.h", "include/addon.h");
     b.installFile("include/hao.h", "include/hao.h");
+    b.installArtifact(libuv);
+    b.installArtifact(quickjs);
     b.installArtifact(exe);
 
     const tests = b.addTest(.{
