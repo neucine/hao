@@ -156,21 +156,8 @@ declare module "std:ffi" {
     search?: CSearchOptions;
   }
 
-  type CBufferInputForElement<Element extends CBufferPolicy["element"]> =
-    ArrayBuffer |
-    (
-      Element extends "u8" ? Uint8Array :
-      Element extends "i8" ? Int8Array :
-      Element extends "u16" ? Uint16Array :
-      Element extends "i16" ? Int16Array :
-      Element extends "u32" ? Uint32Array :
-      Element extends "i32" ? Int32Array :
-      Element extends "u64" ? BigUint64Array :
-      Element extends "i64" ? BigInt64Array :
-      Element extends "f32" ? Float32Array :
-      Element extends "f64" ? Float64Array :
-      never
-    );
+  type CAnyTypedArray = Uint8Array | Int8Array | Uint16Array | Int16Array | Uint32Array | Int32Array | BigUint64Array | BigInt64Array | Float32Array | Float64Array;
+  type CBufferInputForElement<_Element extends CBufferPolicy["element"]> = ArrayBuffer | CAnyTypedArray;
 
   type CWhitespace = " " | "\n" | "\t" | "\r";
 

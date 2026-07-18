@@ -65,7 +65,7 @@ libc.memcpy(dest, src)
 libc.memcpy(new ArrayBuffer(4), src)
 // @ts-expect-error - memcpy buffer policy expects typed-array or ArrayBuffer values
 libc.memcpy('dest', src)
-// @ts-expect-error - u8 buffer policy does not infer Float32Array as the primary typed-array family
+// Typed-array element compatibility is validated at runtime.
 libc.memcpy(new Float32Array(1), src)
 // @ts-expect-error - hidden length param is not part of the JS signature
 libc.memcpy(dest, src, 4)
@@ -85,7 +85,7 @@ const floatBufLib = cdecl('vec', `
 
 floatBufLib.sum_f32(new Float32Array([1, 2, 3]))
 floatBufLib.sum_f32(new ArrayBuffer(12))
-// @ts-expect-error - f32 buffer policy should prefer Float32Array or raw ArrayBuffer
+// Typed-array element compatibility is validated at runtime.
 floatBufLib.sum_f32(new Uint8Array(12))
 // @ts-expect-error - f32 buffer policy still requires exactly one visible argument
 floatBufLib.sum_f32(new Float32Array([1, 2, 3]), 3)
