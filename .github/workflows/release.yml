@@ -74,10 +74,12 @@ jobs:
 
           mkdir -p dist package-source verify-source
           git archive --format=tar --prefix="${package}/" "$GITHUB_SHA" -- "${source_paths[@]}" | tar -C verify-source -xf -
+          git -C zig-libs archive --format=tar --prefix="zig-libs/" HEAD -- build.zig build.zig.zon README.md src .gitignore | tar -C verify-source -xf -
           zig build --build-file "verify-source/${package}/build.zig" -Doptimize=ReleaseSafe
 
           git archive --format=tar --prefix="${package}/" "$GITHUB_SHA" -- "${source_paths[@]}" | tar -C package-source -xf -
-          tar -C package-source -czf "dist/${package}.tar.gz" "${package}"
+          git -C zig-libs archive --format=tar --prefix="zig-libs/" HEAD -- build.zig build.zig.zon README.md src .gitignore | tar -C package-source -xf -
+          tar -C package-source -czf "dist/${package}.tar.gz" "${package}" zig-libs
           checksum "dist/${package}.tar.gz" > "dist/${package}.tar.gz.sha256"
 
           cp zig-out/bin/hao "dist/${package}"
