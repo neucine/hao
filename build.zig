@@ -139,6 +139,19 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const runtime = b.addLibrary(.{
+        .name = "hao_runtime",
+        .linkage = .static,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/link.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    runtime.root_module.linkLibrary(libuv);
+    runtime.root_module.linkLibrary(quickjs);
+    runtime.root_module.addObjectFile(b.path("libs/transpiler/target/release/libhao_transpiler.a"));
     const build_transpiler = b.addSystemCommand(&.{
         "cargo",
         "build",
@@ -146,6 +159,7 @@ pub fn build(b: *std.Build) void {
         "--quiet",
     });
     build_transpiler.setCwd(b.path("libs/transpiler"));
+    runtime.step.dependOn(&build_transpiler.step);
 
     const exe = b.addExecutable(.{
         .name = "hao",
@@ -178,6 +192,7 @@ pub fn build(b: *std.Build) void {
     b.installFile("include/hao.h", "include/hao.h");
     b.installArtifact(libuv);
     b.installArtifact(quickjs);
+    b.installArtifact(runtime);
     b.installArtifact(exe);
 
     const tests = b.addTest(.{

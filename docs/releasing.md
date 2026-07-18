@@ -42,6 +42,19 @@ Then import the `hao` module from the fetched dependency in the embedder's
 `include/`, `types/`, and the embedding documentation. Its dependencies are
 resolved by Zig from the hashes recorded in `build.zig.zon`.
 
+The package exposes one native link artifact for source-level embedders:
+
+```zig
+const hao = b.dependency("hao", .{ .target = target, .optimize = optimize });
+
+const app = b.addExecutable(.{ .name = "app", .root_module = app_module });
+app.root_module.addImport("hao", hao.module("hao"));
+app.root_module.linkLibrary(hao.artifact("hao_runtime"));
+```
+
+Consumers do not need to link Hao's QuickJS, libuv, or transpiler dependencies
+individually.
+
 A binary runtime library is not published yet. That will require the stable C
 runtime embedding ABI and an exported runtime entry point; `include/addon.h`
 currently defines the addon ABI only.
