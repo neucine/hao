@@ -15,50 +15,36 @@ const std = @import("std");
 const hao = @import("hao");
 
 pub fn runScript(source: []const u8) !void {
-    var host = try hao.RuntimeEnvironment.init(std.heap.page_allocator, .{ .std = false });
-    defer host.deinit();
-
-    var registry = hao.Registry.init(std.heap.page_allocator);
-    defer registry.deinit();
+    var environment = try hao.RuntimeEnvironment.init(std.heap.page_allocator, .{ .std = false });
+    defer environment.deinit();
 
     const sources = [_]hao.SourceModule{.{
         .specifier = "app:main",
         .source = source,
     }};
-    try registry.register(.{
+    try environment.registerPackage(.{
         .name = "app",
         .sources = &sources,
     });
-    var package_context = hao.package.PackageContext{
-        .runtime = &host.runtime,
-        .allocator = std.heap.page_allocator,
-    };
-    defer registry.deinitPackages(&package_context);
 
-    try host.evalModuleSourceWithRegistry(
+    try environment.evalModuleSource(
         "import 'app:main';",
         "<app>",
-        &registry,
     );
-    try host.runUntilIdle();
+    try environment.runUntilIdle();
 }
 ```
 
 `RuntimeEnvironment.installGlobals()` installs `RuntimeError`, `console`, and timers.
-It does not register the built-in `std:` standard modules, and it does not initialize
-the `std:test` registry.
-
-When using `RuntimeEnvironment`, the caller owns package lifecycle. If a package installs
-native state or stores JavaScript values, call `registry.deinitPackages()` before
-deinitializing the host runtime.
+The environment owns package registration and package lifecycle.
 
 ## Standard Modules
 
 ```zig
-var host = try hao.RuntimeEnvironment.initWithIo(allocator, io, .{ .std = true });
-defer host.deinit();
+var environment = try hao.RuntimeEnvironment.initWithIo(allocator, io, .{ .std = true });
+defer environment.deinit();
 
-try host.runFile("main.ts");
+try environment.runFile("main.ts");
 ```
 
 With `.std = true`, the environment registers the built-in `std:` modules and
@@ -66,7 +52,7 @@ wires IO-backed native modules such as `std:process` and `std:http`.
 
 ## Version
 
-Hosts can read the Hao package version from Zig:
+The Hao package version is available from Zig:
 
 ```zig
 std.debug.print("Hao {s}\n", .{hao.version});
@@ -76,7 +62,9 @@ std.debug.print("Hao {s}\n", .{hao.version});
 
 A package owns a specifier prefix. The `std:` prefix is reserved for Hao
 standard modules. Internally, those modules use the same package lifecycle as
-host packages.
+application packages.
+
+With an existing `RuntimeEnvironment`, register the package directly:
 
 ```zig
 const sources = [_]hao.SourceModule{.{
@@ -84,13 +72,13 @@ const sources = [_]hao.SourceModule{.{
     .source = "export const value = 42;",
 }};
 
-try registry.register(.{
+try environment.registerPackage(.{
     .name = "demo",
     .sources = &sources,
 });
 ```
 
-Host packages should use product prefixes such as `demo:` or `app:`. Native
+Application packages should use product prefixes such as `demo:` or `app:`. Native
 packages can also provide loader-backed native modules through
 `hao.NativeModule`.
 
@@ -98,4 +86,4 @@ packages can also provide loader-backed native modules through
 
 `runUntilIdle()` drains QuickJS promise jobs and the libuv loop until both are
 idle. Call it after evaluating scripts that schedule timers, async native work,
-or promises that resolve through host callbacks.
+or promises that resolve through runtime callbacks.

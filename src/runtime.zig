@@ -114,6 +114,7 @@ pub const RuntimeEnvironment = struct {
     allocator: std.mem.Allocator,
     io: ?std.Io = null,
     std_enabled: bool = false,
+    registry: packages.Registry,
     telemetry_console: telemetry_server.Handle = .{},
 
     pub const Options = struct {
@@ -128,12 +129,17 @@ pub const RuntimeEnvironment = struct {
         var core = try CoreEnvironment.initWithIo(allocator, io);
         errdefer core.deinit();
 
+        var registry = packages.Registry.init(allocator);
+        errdefer registry.deinit();
+        if (options.std) try hao_std.register(&registry);
+
         return .{
             .runtime = core.runtime,
             .loop = core.loop,
             .allocator = core.allocator,
             .io = core.io,
             .std_enabled = options.std,
+            .registry = registry,
             .telemetry_console = core.telemetry_console,
         };
     }
@@ -148,12 +154,9 @@ pub const RuntimeEnvironment = struct {
         global_console.capture_state = null;
         global_timer.cleanup(self.allocator);
         js_addon.cleanup();
-        if (self.std_enabled) {
-            if (hao_std.package_descriptor.deinit) |deinit_package| {
-                var package_context = packages.PackageContext{ .runtime = &self.runtime, .allocator = self.allocator };
-                deinit_package(&package_context);
-            }
-        }
+        var package_context = packages.PackageContext{ .runtime = &self.runtime, .allocator = self.allocator };
+        self.registry.deinitPackages(&package_context);
+        self.registry.deinit();
         self.loop.deinit();
         self.runtime.deinit();
         self.* = undefined;
@@ -173,6 +176,10 @@ pub const RuntimeEnvironment = struct {
         try errors.registerRuntimeError(self.runtime.ctx, self.allocator);
         try global_console.register(self.runtime.ctx);
         try global_timer.register(self.runtime.ctx);
+    }
+
+    pub fn registerPackage(self: *RuntimeEnvironment, package: packages.Package) !void {
+        try self.registry.register(package);
     }
 
     pub fn evalModuleSourceWithRegistry(
@@ -196,11 +203,7 @@ pub const RuntimeEnvironment = struct {
     }
 
     pub fn evalModuleSource(self: *RuntimeEnvironment, source: []const u8, source_name: []const u8) !void {
-        if (!self.std_enabled) return error.StandardLibraryDisabled;
-        var registry = packages.Registry.init(self.allocator);
-        defer registry.deinit();
-        try hao_std.register(&registry);
-        try self.evalModuleSourceWithRegistry(source, source_name, &registry);
+        try self.evalModuleSourceWithRegistry(source, source_name, &self.registry);
     }
 
     pub fn runFileWithRegistry(self: *RuntimeEnvironment, path: []const u8, registry: *const packages.Registry) !void {
@@ -212,11 +215,7 @@ pub const RuntimeEnvironment = struct {
     }
 
     pub fn runFile(self: *RuntimeEnvironment, path: []const u8) !void {
-        if (!self.std_enabled) return error.StandardLibraryDisabled;
-        var registry = packages.Registry.init(self.allocator);
-        defer registry.deinit();
-        try hao_std.register(&registry);
-        try self.runFileWithRegistry(path, &registry);
+        try self.runFileWithRegistry(path, &self.registry);
     }
 
     pub fn runUntilIdle(self: *RuntimeEnvironment) !void {
@@ -592,6 +591,29 @@ test "runtime environment includes std test module by default" {
     var hooks_count: f64 = 0;
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &hooks_count, registered_hooks));
     try std.testing.expectEqual(@as(f64, 1), hooks_count);
+}
+
+test "runtime environment evaluates registered packages without std" {
+    var host = try RuntimeEnvironment.init(std.testing.allocator, .{ .std = false });
+    defer host.deinit();
+
+    const sources = [_]packages.SourceModule{.{
+        .specifier = "app:main",
+        .source = "globalThis.__hao_app_value = 42;",
+    }};
+    try host.registerPackage(.{
+        .name = "app",
+        .sources = &sources,
+    });
+    try host.evalModuleSource("import 'app:main';", "<app>");
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+    const value = qjs.getProperty(host.runtime.ctx, global, "__hao_app_value");
+    defer qjs.freeValue(host.runtime.ctx, value);
+    var number: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &number, value));
+    try std.testing.expectEqual(@as(f64, 42), number);
 }
 
 test "standard module install initializes hao test registry" {
