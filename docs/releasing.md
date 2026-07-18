@@ -22,25 +22,26 @@ Hao releases are created from version tags. The tag, `build.zig.zon`, and
    git push origin v0.1.0
    ```
 
-The release workflow verifies the version, builds optimized CLI archives on
-Linux and macOS, and publishes a source archive for Zig embedders. CLI archives
-contain the executable, addon headers, public TypeScript declarations, and
-embedding documentation. Every archive has a matching `.sha256` file.
+The release workflow verifies the version and builds Linux and macOS release
+assets. Each platform publishes one source-level embedder archive and one
+standalone CLI binary. Every release asset has a matching `.sha256` file.
 
 ## Embedding From A Release
 
-The source archive is the release package for Zig embedders. Download it and
-add it as a local package dependency, or use the archive URL with `zig fetch`:
+The platform `.tar.gz` archive is the release package for Zig embedders.
+Download it and add it as a local package dependency, or use the archive URL
+with `zig fetch`:
 
 ```bash
 zig fetch --save \
-  https://github.com/neucine/hao/releases/download/v0.1.1/hao-0.1.1-source.tar.gz
+  https://github.com/neucine/hao/releases/download/v0.1.2/hao-0.1.2-linux-x86_64.tar.gz
 ```
 
 Then import the `hao` module from the fetched dependency in the embedder's
 `build.zig`. The archive includes `build.zig`, `build.zig.zon`, `src/`,
-`include/`, `types/`, and the embedding documentation. Its dependencies are
-resolved by Zig from the hashes recorded in `build.zig.zon`.
+`include/`, and `libs/transpiler/`. Its dependencies are resolved by Zig from
+the hashes recorded in `build.zig.zon`. The standalone
+`hao-<version>-<os>-<arch>` asset is the prebuilt CLI binary for that platform.
 
 The package exposes one native link artifact for source-level embedders:
 

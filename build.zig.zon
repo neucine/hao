@@ -1,6 +1,6 @@
 .{
     .name = .hao,
-    .version = "0.1.1",
+    .version = "0.1.2",
     .fingerprint = 0x186e65a5c2bc0a31,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
@@ -17,12 +17,7 @@
         "build.zig",
         "build.zig.zon",
         "include",
-        "docs",
         "src",
-        "types",
-        "test",
-        "examples",
         "libs/transpiler",
-        "README.md",
     },
 }
