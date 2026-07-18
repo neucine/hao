@@ -2,10 +2,12 @@ const std = @import("std");
 const async_loop = @import("../../async/loop.zig");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
+const trace = @import("../../telemetry/trace.zig");
 const uv = @import("../../async/uv.zig").c;
 
 const http = std.http;
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 pub const specifier: [:0]const u8 = "std:http/native";
 
@@ -68,6 +70,7 @@ const HttpRequestOp = struct {
     request: HttpRequestOptions,
     io: std.Io,
     allocator: std.mem.Allocator,
+    context: trace.Context,
     result: HttpRequestResult = .pending,
 
     fn destroy(self: *HttpRequestOp) void {
@@ -100,7 +103,7 @@ pub fn detachIo() void {
 }
 
 pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
+    return js_abi.createFunctionModule(runtime_allocator.allocator(), ctx, module_name, &function_ptrs);
 }
 
 fn throwType(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {
@@ -173,6 +176,7 @@ fn jsRequestAsync(ctx: ?*qjs.c.JSContext, options: qjs.c.JSValueConst, io: std.I
         .request = request,
         .io = io,
         .allocator = loop.allocator,
+        .context = trace.currentContext(),
     };
     op.req.data = op;
 
@@ -368,6 +372,8 @@ fn performRequest(io: std.Io, request: *const HttpRequestOptions) !HttpResponseD
 
 fn onRequestWork(req: ?*uv.uv_work_t) callconv(.c) void {
     const op: *HttpRequestOp = @ptrCast(@alignCast(req.?.data));
+    var context_scope = trace.ContextScope.enter(op.context);
+    defer context_scope.exit();
     const response = performRequest(op.io, &op.request) catch |err| {
         op.result = .{ .failure = std.fmt.allocPrint(alloc, "http.request error: {s}", .{@errorName(err)}) catch @panic("alloc failed") };
         return;
@@ -378,6 +384,8 @@ fn onRequestWork(req: ?*uv.uv_work_t) callconv(.c) void {
 fn onRequestDone(req: ?*uv.uv_work_t, _: c_int) callconv(.c) void {
     const op: *HttpRequestOp = @ptrCast(@alignCast(req.?.data));
     defer op.destroy();
+    var context_scope = trace.ContextScope.enter(op.context);
+    defer context_scope.exit();
 
     const undef = qjs.undefinedValue(op.ctx);
     switch (op.result) {

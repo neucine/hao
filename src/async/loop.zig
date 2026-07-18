@@ -1,7 +1,7 @@
 const std = @import("std");
 const uv = @import("uv.zig").c;
 
-var current_loop: ?*Loop = null;
+threadlocal var current_loop: ?*Loop = null;
 
 pub const TimerFireFn = *const fn (?*anyopaque) void;
 pub const TimerCloseFn = *const fn (?*anyopaque) void;

@@ -1,6 +1,7 @@
 const std = @import("std");
 const qjs = @import("../qjs.zig");
 const async_loop = @import("../async/loop.zig");
+const trace = @import("../telemetry/trace.zig");
 
 var next_timer_id: u32 = 1;
 var timers: std.AutoHashMapUnmanaged(u32, *TimerOp) = .empty;
@@ -11,6 +12,7 @@ const TimerOp = struct {
     callback: qjs.c.JSValue,
     handle: async_loop.TimerHandle,
     allocator: std.mem.Allocator,
+    context: trace.Context,
     closed: bool = false,
 
     fn cancel(self: *TimerOp, loop: *async_loop.Loop) void {
@@ -66,6 +68,7 @@ fn jsSetTimeout(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, argv
         .callback = qjs.dupValue(ctx, argv[0]),
         .handle = undefined,
         .allocator = loop.allocator,
+        .context = trace.currentContext(),
     };
     errdefer qjs.freeValue(ctx, op.callback);
 
@@ -100,6 +103,8 @@ fn jsClearTimeout(ctx: ?*qjs.c.JSContext, _: qjs.c.JSValueConst, argc: c_int, ar
 fn onFire(userdata: ?*anyopaque) void {
     const op: *TimerOp = @ptrCast(@alignCast(userdata orelse return));
     _ = timers.fetchRemove(op.id);
+    var context_scope = trace.ContextScope.enter(op.context);
+    defer context_scope.exit();
 
     const result = qjs.call(op.ctx, op.callback, qjs.undefinedValue(op.ctx), &.{});
     if (qjs.isException(result)) {
