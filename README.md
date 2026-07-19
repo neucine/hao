@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/hao-horizontal.png" alt="Hao JS" width="360">
+</p>
+
 # Hao JS
 
 Hao JS is an embeddable JavaScript and TypeScript runtime for native
