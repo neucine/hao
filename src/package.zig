@@ -180,14 +180,10 @@ fn splitPackageSpecifier(specifier: []const u8) struct { []const u8, []const u8 
     if (specifier.len == 0) return .{ specifier, "" };
 
     if (specifier[0] == '@') {
-        var slash_count: usize = 0;
-        for (specifier, 0..) |ch, idx| {
-            if (ch == '/') {
-                slash_count += 1;
-                if (slash_count == 2) {
-                    return .{ specifier[0..idx], specifier[idx + 1 ..] };
-                }
-            }
+        const scope_end = std.mem.indexOfScalar(u8, specifier, '/') orelse return .{ specifier, "" };
+        const name_start = scope_end + 1;
+        for (specifier[name_start..], name_start..) |ch, idx| {
+            if (ch == ':' or ch == '/') return .{ specifier[0..idx], specifier[idx + 1 ..] };
         }
         return .{ specifier, "" };
     }
@@ -207,32 +203,26 @@ fn resolveEntry(package_root: []const u8, subpath: []const u8, allocator: std.me
     defer allocator.free(package_json_path);
 
     const package_json = readPackageJson(allocator, package_json_path) catch |err| switch (err) {
-        error.FileNotFound => null,
+        error.FileNotFound => return error.PackageManifestNotFound,
         else => return err,
     };
-    defer if (package_json) |json| allocator.free(json);
+    defer allocator.free(package_json);
 
     return resolvePackageSubpath(package_root, package_json, subpath, allocator);
 }
 
 fn resolvePackageSubpath(
     package_root: []const u8,
-    package_json: ?[]const u8,
+    package_json: []const u8,
     subpath: []const u8,
     allocator: std.mem.Allocator,
 ) ![]u8 {
-    const json = package_json orelse {
-        const entry = if (subpath.len == 0) "index" else subpath;
-        return resolvePathWithExtensions(package_root, entry, allocator);
-    };
-
-    const parsed = std.json.parseFromSlice(std.json.Value, allocator, json, .{}) catch return error.InvalidPackageJson;
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, package_json, .{}) catch return error.InvalidPackageJson;
     defer parsed.deinit();
     const root = parsed.value;
 
-    if (jsonStringAt(root, &.{"type"})) |pkg_type| {
-        if (std.mem.eql(u8, pkg_type, "commonjs")) return error.UnsupportedCommonJS;
-    }
+    const pkg_type = jsonStringAt(root, &.{"type"}) orelse return error.UnsupportedPackageManifest;
+    if (!std.mem.eql(u8, pkg_type, "module")) return error.UnsupportedCommonJS;
 
     if (subpath.len != 0) {
         const export_key = try std.fmt.allocPrint(allocator, "./{s}", .{subpath});
@@ -243,7 +233,7 @@ fn resolvePackageSubpath(
         if (jsonStringAt(root, &.{ "exports", export_key })) |entry| {
             return resolvePathWithExtensions(package_root, entry, allocator);
         }
-        return resolvePathWithExtensions(package_root, subpath, allocator);
+        return error.PackageExportNotFound;
     }
 
     if (jsonStringAt(root, &.{ "exports", ".", "import" })) |entry| {
@@ -259,7 +249,7 @@ fn resolvePackageSubpath(
         return resolvePathWithExtensions(package_root, entry, allocator);
     }
 
-    return resolvePathWithExtensions(package_root, "index", allocator);
+    return error.PackageExportNotFound;
 }
 
 fn resolvePathWithExtensions(package_root: []const u8, entry: []const u8, allocator: std.mem.Allocator) ![]u8 {
@@ -285,7 +275,7 @@ fn jsonStringAt(root: std.json.Value, path: []const []const u8) ?[]const u8 {
     var current = root;
     for (path) |segment| {
         switch (current) {
-            .object => |object| current = object.get(segment) orelse return null,
+            .object => |object| current = object.get(segment) orelse escapedJsonKeyGet(object, segment) orelse return null,
             else => return null,
         }
     }
@@ -293,6 +283,14 @@ fn jsonStringAt(root: std.json.Value, path: []const []const u8) ?[]const u8 {
         .string => |value| value,
         else => null,
     };
+}
+
+fn escapedJsonKeyGet(object: std.json.ObjectMap, segment: []const u8) ?std.json.Value {
+    if (std.mem.eql(u8, segment, ".")) {
+        if (object.get("\\u002e")) |value| return value;
+        if (object.get("\\u002E")) |value| return value;
+    }
+    return null;
 }
 
 test "registry stores source modules by specifier" {
@@ -392,7 +390,7 @@ test "package resolver accepts colon native subpaths" {
     const root = ".zig-cache/hao-tests/package-colon-native";
     try fs.makePath(std.testing.allocator, root ++ "/node_modules/foo");
     try fs.writeFile(root ++ "/main.ts", "import 'foo:native';");
-    try fs.writeFile(root ++ "/node_modules/foo/package.json", "{\"type\":\"module\"}");
+    try fs.writeFile(root ++ "/node_modules/foo/package.json", "{\"type\":\"module\",\"exports\":{\"./native\":\"./native.dylib\"}}");
     try fs.writeFile(root ++ "/node_modules/foo/native.dylib", "");
 
     const resolved = try resolveImport(root ++ "/main.ts", "foo:native", std.testing.allocator);
@@ -436,4 +434,56 @@ test "package resolver reads escaped package json strings" {
     defer resolved.deinit(std.testing.allocator);
 
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "index.js"));
+}
+
+test "package resolver requires package json manifest" {
+    const root = ".zig-cache/hao-tests/package-manifest-required";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo';");
+    try fs.writeFile(root ++ "/node_modules/demo/index.js", "export const value = 1;");
+
+    try std.testing.expectError(
+        error.PackageManifestNotFound,
+        resolveImport(root ++ "/main.ts", "demo", std.testing.allocator),
+    );
+}
+
+test "package resolver requires esm package type" {
+    const root = ".zig-cache/hao-tests/package-esm-required";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo';");
+    try fs.writeFile(root ++ "/node_modules/demo/package.json", "{\"exports\":\"./index.js\"}");
+    try fs.writeFile(root ++ "/node_modules/demo/index.js", "export const value = 1;");
+
+    try std.testing.expectError(
+        error.UnsupportedPackageManifest,
+        resolveImport(root ++ "/main.ts", "demo", std.testing.allocator),
+    );
+}
+
+test "package resolver rejects unexported package subpaths" {
+    const root = ".zig-cache/hao-tests/package-subpath-export-required";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo/hidden';");
+    try fs.writeFile(root ++ "/node_modules/demo/package.json", "{\"type\":\"module\",\"exports\":\"./index.js\"}");
+    try fs.writeFile(root ++ "/node_modules/demo/hidden.js", "export const value = 1;");
+
+    try std.testing.expectError(
+        error.PackageExportNotFound,
+        resolveImport(root ++ "/main.ts", "demo/hidden", std.testing.allocator),
+    );
+}
+
+test "package resolver splits scoped colon subpaths" {
+    const root = ".zig-cache/hao-tests/package-scoped-colon";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/@scope/foo");
+    try fs.writeFile(root ++ "/main.ts", "import '@scope/foo:native';");
+    try fs.writeFile(root ++ "/node_modules/@scope/foo/package.json", "{\"type\":\"module\",\"exports\":{\"./native\":\"./native.dylib\"}}");
+    try fs.writeFile(root ++ "/node_modules/@scope/foo/native.dylib", "");
+
+    const resolved = try resolveImport(root ++ "/main.ts", "@scope/foo:native", std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expectEqualStrings("@scope/foo", resolved.package_name);
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }

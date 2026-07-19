@@ -27,6 +27,25 @@ Current modules include:
 Host projects should use their own prefixes, such as `affon:` or `myapp:`, for
 their product modules.
 
+## Third-Party Packages
+
+Hao loads third-party packages from `node_modules` using package manifests. A
+package must include `package.json`, declare `"type": "module"`, and expose
+entry points through `exports` or `main`.
+
+```json
+{
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./native": "./native.dylib"
+  }
+}
+```
+
+CommonJS packages and unexported package subpaths are rejected by the module
+loader.
+
 ## Guides
 
 - [Embedding Hao](docs/embedding.md)
