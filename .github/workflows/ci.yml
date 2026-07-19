@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: neucine/zig-libs
-          ref: 5af63d6c395eb8d2956643fc342eb9e2e806f433
+          ref: 5af63d6203b0c0dcb2f2bdfbd24f59c13fe2a16a
           path: zig-libs
 
       - name: Setup Zig
