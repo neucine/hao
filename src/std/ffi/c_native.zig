@@ -1,7 +1,8 @@
 const std = @import("std");
 const errors = @import("../../errors.zig");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
+// QuickJS access is kept behind the public JS ABI.
+
 const runtime_allocator = @import("../../runtime_allocator.zig");
 const parser = @import("c_abi/parser.zig");
 const lower = @import("c_abi/lower.zig");
@@ -62,57 +63,57 @@ pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
     return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &module_function_ptrs));
 }
 
-fn borrowedArgs(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, comptime max_args: usize) ?[max_args]qjs.c.JSValueConst {
+fn borrowedArgs(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, comptime max_args: usize) ?[max_args]js_abi.JSValueConst {
     if (argc > max_args) return null;
-    var out: [max_args]qjs.c.JSValueConst = undefined;
+    var out: [max_args]js_abi.JSValueConst = undefined;
     for (0..@as(usize, @intCast(@max(argc, 0)))) |index| {
         out[index] = js_abi.borrowValue(ctx, argv[index]) orelse return null;
     }
     return out;
 }
 
-fn pushResult(ctx: *js_abi.Context, result: qjs.c.JSValue) js_abi.Value {
+fn pushResult(ctx: *js_abi.Context, result: js_abi.JSValue) js_abi.Value {
     return js_abi.adoptValue(ctx, result);
 }
 
 fn js_prepareNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     var args = borrowedArgs(ctx, argc, argv, 3) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
     const qjs_ctx = js_abi.borrowContext(ctx);
-    return pushResult(ctx, qjs_prepareNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+    return pushResult(ctx, qjs_prepareNative(qjs_ctx, js_abi.jsUndefined(qjs_ctx), argc, &args));
 }
 
 fn js_openNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     var args = borrowedArgs(ctx, argc, argv, 3) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
     const qjs_ctx = js_abi.borrowContext(ctx);
-    return pushResult(ctx, qjs_openNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+    return pushResult(ctx, qjs_openNative(qjs_ctx, js_abi.jsUndefined(qjs_ctx), argc, &args));
 }
 
 fn js_callNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     var args = borrowedArgs(ctx, argc, argv, 3) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
     const qjs_ctx = js_abi.borrowContext(ctx);
-    return pushResult(ctx, qjs_callNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+    return pushResult(ctx, qjs_callNative(qjs_ctx, js_abi.jsUndefined(qjs_ctx), argc, &args));
 }
 
 fn js_closeNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     var args = borrowedArgs(ctx, argc, argv, 1) orelse return ctx.api.throw_error(ctx, "invalid ffi.c arguments");
     const qjs_ctx = js_abi.borrowContext(ctx);
-    return pushResult(ctx, qjs_closeNative(qjs_ctx, qjs.undefinedValue(qjs_ctx), argc, &args));
+    return pushResult(ctx, qjs_closeNative(qjs_ctx, js_abi.jsUndefined(qjs_ctx), argc, &args));
 }
 
 fn qjs_prepareNative(
-    ctx: ?*qjs.c.JSContext,
-    _: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    _: js_abi.JSValueConst,
     argc: c_int,
-    argv: [*c]qjs.c.JSValueConst,
-) callconv(.c) qjs.c.JSValue {
+    argv: [*c]js_abi.JSValueConst,
+) callconv(.c) js_abi.JSValue {
     if (argc < 2) return errors.jsError(ctx, .invalid_arg, "prepareNative requires library name and declarations", null, null, null);
 
-    const library_name = qjs.valueToStringAlloc(ctx, argv[0], alloc) catch {
+    const library_name = js_abi.jsStringAlloc(ctx, argv[0], alloc) catch {
         return errors.jsError(ctx, .invalid_arg, "prepareNative: invalid library name", null, null, null);
     };
     defer alloc.free(library_name);
 
-    const declarations = qjs.valueToStringAlloc(ctx, argv[1], alloc) catch {
+    const declarations = js_abi.jsStringAlloc(ctx, argv[1], alloc) catch {
         return errors.jsError(ctx, .invalid_arg, "prepareNative: invalid declarations", null, null, null);
     };
     defer alloc.free(declarations);
@@ -125,7 +126,7 @@ fn qjs_prepareNative(
     };
     defer parsed.unit.deinit(alloc);
 
-    const options = parseLowerOptions(ctx, if (argc >= 3) argv[2] else qjs.nullValue(ctx)) catch |err| {
+    const options = parseLowerOptions(ctx, if (argc >= 3) argv[2] else js_abi.jsNull(ctx)) catch |err| {
         return switch (err) {
             error.OutOfMemory => errors.jsError(ctx, .out_of_memory, "prepareNative: out of memory", err, null, null),
             else => errors.jsError(ctx, .invalid_arg, "prepareNative: invalid options", err, null, null),
@@ -147,19 +148,19 @@ fn qjs_prepareNative(
 }
 
 fn qjs_openNative(
-    ctx: ?*qjs.c.JSContext,
-    _: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    _: js_abi.JSValueConst,
     argc: c_int,
-    argv: [*c]qjs.c.JSValueConst,
-) callconv(.c) qjs.c.JSValue {
+    argv: [*c]js_abi.JSValueConst,
+) callconv(.c) js_abi.JSValue {
     if (argc < 2) return errors.jsError(ctx, .invalid_arg, "openNative requires library name and declarations", null, null, null);
 
-    const library_name = qjs.valueToStringAlloc(ctx, argv[0], alloc) catch {
+    const library_name = js_abi.jsStringAlloc(ctx, argv[0], alloc) catch {
         return errors.jsError(ctx, .invalid_arg, "openNative: invalid library name", null, null, null);
     };
     defer alloc.free(library_name);
 
-    const declarations = qjs.valueToStringAlloc(ctx, argv[1], alloc) catch {
+    const declarations = js_abi.jsStringAlloc(ctx, argv[1], alloc) catch {
         return errors.jsError(ctx, .invalid_arg, "openNative: invalid declarations", null, null, null);
     };
     defer alloc.free(declarations);
@@ -172,7 +173,7 @@ fn qjs_openNative(
     };
     defer parsed.unit.deinit(alloc);
 
-    const options = parseLowerOptions(ctx, if (argc >= 3) argv[2] else qjs.nullValue(ctx)) catch |err| {
+    const options = parseLowerOptions(ctx, if (argc >= 3) argv[2] else js_abi.jsNull(ctx)) catch |err| {
         return switch (err) {
             error.OutOfMemory => errors.jsError(ctx, .out_of_memory, "openNative: out of memory", err, null, null),
             else => errors.jsError(ctx, .invalid_arg, "openNative: invalid options", err, null, null),
@@ -223,21 +224,21 @@ fn qjs_openNative(
 }
 
 fn qjs_callNative(
-    ctx: ?*qjs.c.JSContext,
-    _: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    _: js_abi.JSValueConst,
     argc: c_int,
-    argv: [*c]qjs.c.JSValueConst,
-) callconv(.c) qjs.c.JSValue {
+    argv: [*c]js_abi.JSValueConst,
+) callconv(.c) js_abi.JSValue {
     if (argc < 3) return errors.jsError(ctx, .invalid_arg, "callNative requires handle, symbol, and args", null, null, null);
-    const handle_id = parseHandleId(ctx, argv[0]) orelse return qjs.exceptionValue();
+    const handle_id = parseHandleId(ctx, argv[0]) orelse return js_abi.jsExceptionValue();
     const lib_slot = libraries.getPtr(handle_id) orelse return errors.jsError(ctx, .invalid_arg, "C: invalid library handle", null, null, null);
     const lib = lib_slot.*;
     if (lib.closed) return errors.jsError(ctx, .invalid_arg, "C: library has been closed", null, null, null);
 
-    const symbol = qjs.valueToStringAlloc(ctx, argv[1], alloc) catch return errors.jsError(ctx, .invalid_arg, "C: symbol name must be a string", null, null, null);
+    const symbol = js_abi.jsStringAlloc(ctx, argv[1], alloc) catch return errors.jsError(ctx, .invalid_arg, "C: symbol name must be a string", null, null, null);
     defer alloc.free(symbol);
     const binding = lib.bindings.get(symbol) orelse return errors.jsError(ctx, .invalid_arg, "C: unknown symbol", null, null, null);
-    if (!qjs.isArray(ctx, argv[2])) return errors.jsError(ctx, .invalid_arg, "C: arguments must be an array", null, null, null);
+    if (!js_abi.jsIsArray(ctx, argv[2])) return errors.jsError(ctx, .invalid_arg, "C: arguments must be an array", null, null, null);
 
     const func = &lib.owned_spec.spec.functions[binding.func_index];
     const visible_arg_count = expectedVisibleArgCount(func);
@@ -269,21 +270,21 @@ fn qjs_callNative(
             const visible_index = visibleArgIndexForParam(func, buffer_policy.pointer_param) orelse {
                 return errors.jsError(ctx, .internal, "C: failed to resolve buffer argument position", null, null, null);
             };
-            const buffer_value = qjs.c.JS_GetPropertyUint32(ctx, argv[2], @intCast(visible_index));
-            defer qjs.freeValue(ctx, buffer_value);
-            const elem_count = marshalBufferLengthArg(ctx, buffer_value, buffer_policy) orelse return qjs.exceptionValue();
+            const buffer_value = js_abi.jsGetArrayElement(ctx, argv[2], @intCast(visible_index));
+            defer js_abi.jsFreeValue(ctx, buffer_value);
+            const elem_count = marshalBufferLengthArg(ctx, buffer_value, buffer_policy) orelse return js_abi.jsExceptionValue();
             pack.int_args[i] = elem_count;
             continue;
         }
-        const value = qjs.c.JS_GetPropertyUint32(ctx, argv[2], @intCast(user_index));
-        defer qjs.freeValue(ctx, value);
+        const value = js_abi.jsGetArrayElement(ctx, argv[2], @intCast(user_index));
+        defer js_abi.jsFreeValue(ctx, value);
         if (findBufferPolicyByPointerParam(func.buffer_policies, param.name)) |buffer_policy| {
-            if (marshalBufferPointerArg(ctx, value, buffer_policy, &pack, i) < 0) return qjs.exceptionValue();
+            if (marshalBufferPointerArg(ctx, value, buffer_policy, &pack, i) < 0) return js_abi.jsExceptionValue();
         } else {
             const pod_result = struct_runtime.marshalPodStructPointerArg(ctx, value, lib.owned_spec.spec, param.ty, &pack.int_args, i, &temp_structs);
-            if (pod_result < 0) return qjs.exceptionValue();
+            if (pod_result < 0) return js_abi.jsExceptionValue();
             if (pod_result > 0) {
-                if (marshalArg(ctx, value, binding.arg_types[i], &pack, i, &temp_strings) < 0) return qjs.exceptionValue();
+                if (marshalArg(ctx, value, binding.arg_types[i], &pack, i, &temp_strings) < 0) return js_abi.jsExceptionValue();
             }
         }
         user_index += 1;
@@ -304,11 +305,11 @@ fn qjs_callNative(
     }
 
     for (temp_structs.items) |state| {
-        if (struct_runtime.applyPodStructOutputs(ctx, state) < 0) return qjs.exceptionValue();
+        if (struct_runtime.applyPodStructOutputs(ctx, state) < 0) return js_abi.jsExceptionValue();
     }
 
     return switch (func.return_policy) {
-        .out => qjs.c.JS_NewInt64(ctx, @intCast(out_ptr_value)),
+        .out => js_abi.jsInt64(ctx, @intCast(out_ptr_value)),
         .handle => marshalReturn(ctx, result, binding.return_type),
         .direct => marshalReturn(ctx, result, binding.return_type),
         else => errors.jsError(ctx, .invalid_arg, "C: unsupported return policy in runtime path", null, null, null),
@@ -316,101 +317,101 @@ fn qjs_callNative(
 }
 
 fn qjs_closeNative(
-    ctx: ?*qjs.c.JSContext,
-    _: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    _: js_abi.JSValueConst,
     argc: c_int,
-    argv: [*c]qjs.c.JSValueConst,
-) callconv(.c) qjs.c.JSValue {
+    argv: [*c]js_abi.JSValueConst,
+) callconv(.c) js_abi.JSValue {
     if (argc < 1) return errors.jsError(ctx, .invalid_arg, "closeNative requires a handle", null, null, null);
-    const handle_id = parseHandleId(ctx, argv[0]) orelse return qjs.exceptionValue();
-    const lib = libraries.fetchRemove(handle_id) orelse return qjs.undefinedValue(ctx);
+    const handle_id = parseHandleId(ctx, argv[0]) orelse return js_abi.jsExceptionValue();
+    const lib = libraries.fetchRemove(handle_id) orelse return js_abi.jsUndefined(ctx);
     lib.value.deinit();
-    return qjs.undefinedValue(ctx);
+    return js_abi.jsUndefined(ctx);
 }
 
-fn makePreparedObject(ctx: ?*qjs.c.JSContext, spec: metadata.LibrarySpec) !qjs.c.JSValue {
-    const out = qjs.newObject(ctx);
-    errdefer qjs.freeValue(ctx, out);
+fn makePreparedObject(ctx: js_abi.JSContext, spec: metadata.LibrarySpec) !js_abi.JSValue {
+    const out = js_abi.jsNewObject(ctx);
+    errdefer js_abi.jsFreeValue(ctx, out);
 
-    const descriptor = qjs.newObject(ctx);
-    errdefer qjs.freeValue(ctx, descriptor);
+    const descriptor = js_abi.jsNewObject(ctx);
+    errdefer js_abi.jsFreeValue(ctx, descriptor);
     const policies = try makePoliciesObject(ctx, spec);
-    errdefer qjs.freeValue(ctx, policies);
+    errdefer js_abi.jsFreeValue(ctx, policies);
 
     for (spec.functions) |func| {
         const fn_desc = try makeFunctionDescriptor(ctx, func);
-        errdefer qjs.freeValue(ctx, fn_desc);
+        errdefer js_abi.jsFreeValue(ctx, fn_desc);
         const key = try alloc.dupeZ(u8, func.name);
         defer alloc.free(key);
-        try qjs.setProperty(ctx, descriptor, key, fn_desc);
+        try js_abi.jsSetPropertyChecked(ctx, descriptor, key, fn_desc);
     }
 
-    try qjs.setProperty(ctx, out, "descriptor", descriptor);
-    try qjs.setProperty(ctx, out, "policies", policies);
+    try js_abi.jsSetPropertyChecked(ctx, out, "descriptor", descriptor);
+    try js_abi.jsSetPropertyChecked(ctx, out, "policies", policies);
     return out;
 }
 
-fn makePoliciesObject(ctx: ?*qjs.c.JSContext, spec: metadata.LibrarySpec) !qjs.c.JSValue {
-    const out = qjs.newObject(ctx);
-    errdefer qjs.freeValue(ctx, out);
+fn makePoliciesObject(ctx: js_abi.JSContext, spec: metadata.LibrarySpec) !js_abi.JSValue {
+    const out = js_abi.jsNewObject(ctx);
+    errdefer js_abi.jsFreeValue(ctx, out);
 
-    const handles = qjs.newObject(ctx);
-    errdefer qjs.freeValue(ctx, handles);
+    const handles = js_abi.jsNewObject(ctx);
+    errdefer js_abi.jsFreeValue(ctx, handles);
     for (spec.handle_policies) |policy| {
-        const handle_obj = qjs.newObject(ctx);
-        errdefer qjs.freeValue(ctx, handle_obj);
+        const handle_obj = js_abi.jsNewObject(ctx);
+        errdefer js_abi.jsFreeValue(ctx, handle_obj);
         if (policy.close_symbol) |close_symbol| {
-            try qjs.setProperty(ctx, handle_obj, "close", qjs.createString(ctx, close_symbol));
+            try js_abi.jsSetPropertyChecked(ctx, handle_obj, "close", js_abi.jsString(ctx, close_symbol));
         }
         const key = try alloc.dupeZ(u8, policy.type_name);
         defer alloc.free(key);
-        try qjs.setProperty(ctx, handles, key, handle_obj);
+        try js_abi.jsSetPropertyChecked(ctx, handles, key, handle_obj);
     }
 
-    const functions = qjs.newObject(ctx);
-    errdefer qjs.freeValue(ctx, functions);
+    const functions = js_abi.jsNewObject(ctx);
+    errdefer js_abi.jsFreeValue(ctx, functions);
     for (spec.functions) |func| {
         if (inferHandleReturnType(spec, func)) |handle_type| {
-            const fn_policy = qjs.newObject(ctx);
-            errdefer qjs.freeValue(ctx, fn_policy);
-            const returns = qjs.newObject(ctx);
-            errdefer qjs.freeValue(ctx, returns);
-            try qjs.setProperty(ctx, returns, "kind", qjs.createString(ctx, "handle"));
-            try qjs.setProperty(ctx, returns, "type", qjs.createString(ctx, handle_type));
-            try qjs.setProperty(ctx, fn_policy, "returns", returns);
+            const fn_policy = js_abi.jsNewObject(ctx);
+            errdefer js_abi.jsFreeValue(ctx, fn_policy);
+            const returns = js_abi.jsNewObject(ctx);
+            errdefer js_abi.jsFreeValue(ctx, returns);
+            try js_abi.jsSetPropertyChecked(ctx, returns, "kind", js_abi.jsString(ctx, "handle"));
+            try js_abi.jsSetPropertyChecked(ctx, returns, "type", js_abi.jsString(ctx, handle_type));
+            try js_abi.jsSetPropertyChecked(ctx, fn_policy, "returns", returns);
             const key = try alloc.dupeZ(u8, func.name);
             defer alloc.free(key);
-            try qjs.setProperty(ctx, functions, key, fn_policy);
+            try js_abi.jsSetPropertyChecked(ctx, functions, key, fn_policy);
         }
     }
 
-    try qjs.setProperty(ctx, out, "handles", handles);
-    try qjs.setProperty(ctx, out, "functions", functions);
+    try js_abi.jsSetPropertyChecked(ctx, out, "handles", handles);
+    try js_abi.jsSetPropertyChecked(ctx, out, "functions", functions);
     return out;
 }
 
-fn makeFunctionDescriptor(ctx: ?*qjs.c.JSContext, func: metadata.FunctionSpec) !qjs.c.JSValue {
+fn makeFunctionDescriptor(ctx: js_abi.JSContext, func: metadata.FunctionSpec) !js_abi.JSValue {
     if (!(func.return_policy == .direct or func.return_policy == .handle or func.return_policy == .out)) return error.UnsupportedFeature;
     if (func.error_policy != null) return error.UnsupportedFeature;
     if (func.buffer_policies.len != 0) return error.UnsupportedFeature;
 
-    const obj = qjs.newObject(ctx);
-    errdefer qjs.freeValue(ctx, obj);
+    const obj = js_abi.jsNewObject(ctx);
+    errdefer js_abi.jsFreeValue(ctx, obj);
 
-    const args_array = qjs.c.JS_NewArray(ctx);
-    errdefer qjs.freeValue(ctx, args_array);
+    const args_array = js_abi.jsNewArray(ctx);
+    errdefer js_abi.jsFreeValue(ctx, args_array);
 
     for (func.params, 0..) |param, i| {
         const ffi_type = try mapTypeRef(param.ty);
         const ffi_text = @tagName(ffi_type);
-        if (qjs.c.JS_SetPropertyUint32(ctx, args_array, @intCast(i), qjs.createString(ctx, ffi_text)) < 0) {
+        if (js_abi.jsSetArrayIndex(ctx, args_array, @intCast(i), js_abi.jsString(ctx, ffi_text)) < 0) {
             return error.JavaScriptError;
         }
     }
 
     const return_ffi_type = try mapTypeRef(func.return_type);
-    try qjs.setProperty(ctx, obj, "args", args_array);
-    try qjs.setProperty(ctx, obj, "returns", qjs.createString(ctx, @tagName(return_ffi_type)));
+    try js_abi.jsSetPropertyChecked(ctx, obj, "args", args_array);
+    try js_abi.jsSetPropertyChecked(ctx, obj, "returns", js_abi.jsString(ctx, @tagName(return_ffi_type)));
     return obj;
 }
 
@@ -451,23 +452,23 @@ fn validateBindingsSupported(spec: metadata.LibrarySpec) !void {
     }
 }
 
-fn makeOpenObject(ctx: ?*qjs.c.JSContext, handle_id: u32, spec: metadata.LibrarySpec) !qjs.c.JSValue {
-    const out = qjs.newObject(ctx);
-    errdefer qjs.freeValue(ctx, out);
+fn makeOpenObject(ctx: js_abi.JSContext, handle_id: u32, spec: metadata.LibrarySpec) !js_abi.JSValue {
+    const out = js_abi.jsNewObject(ctx);
+    errdefer js_abi.jsFreeValue(ctx, out);
 
-    try qjs.setProperty(ctx, out, "handle", qjs.c.JS_NewInt64(ctx, @intCast(handle_id)));
-    const symbols = qjs.c.JS_NewArray(ctx);
-    errdefer qjs.freeValue(ctx, symbols);
+    try js_abi.jsSetPropertyChecked(ctx, out, "handle", js_abi.jsInt64(ctx, @intCast(handle_id)));
+    const symbols = js_abi.jsNewArray(ctx);
+    errdefer js_abi.jsFreeValue(ctx, symbols);
     for (spec.functions, 0..) |func, i| {
-        if (qjs.c.JS_SetPropertyUint32(ctx, symbols, @intCast(i), qjs.createString(ctx, func.name)) < 0) {
+        if (js_abi.jsSetArrayIndex(ctx, symbols, @intCast(i), js_abi.jsString(ctx, func.name)) < 0) {
             return error.JavaScriptError;
         }
     }
     const policies = try makePoliciesObject(ctx, spec);
-    errdefer qjs.freeValue(ctx, policies);
+    errdefer js_abi.jsFreeValue(ctx, policies);
 
-    try qjs.setProperty(ctx, out, "symbols", symbols);
-    try qjs.setProperty(ctx, out, "policies", policies);
+    try js_abi.jsSetPropertyChecked(ctx, out, "symbols", symbols);
+    try js_abi.jsSetPropertyChecked(ctx, out, "policies", policies);
     return out;
 }
 
@@ -583,8 +584,8 @@ const ParsedLowerOptions = struct {
     }
 };
 
-fn parseLowerOptions(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) !ParsedLowerOptions {
-    if (qjs.isNull(value) or qjs.isUndefined(value)) {
+fn parseLowerOptions(ctx: js_abi.JSContext, value: js_abi.JSValueConst) !ParsedLowerOptions {
+    if (js_abi.jsIsNull(value) or js_abi.jsIsUndefined(value)) {
         const function_options = try alloc.dupe(lower.FunctionOptions, &.{});
         errdefer alloc.free(function_options);
         const handle_options = try alloc.dupe(lower.HandleOptions, &.{});
@@ -603,7 +604,7 @@ fn parseLowerOptions(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) !ParsedL
             .search_paths = search_paths,
         };
     }
-    if (!qjs.isObject(value)) return error.InvalidArgument;
+    if (!js_abi.jsIsObject(value)) return error.InvalidArgument;
 
     const function_options = try parseFunctionOptions(ctx, value);
     errdefer freeParsedFunctionOptions(function_options);
@@ -629,11 +630,11 @@ fn parseLowerOptions(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) !ParsedL
     };
 }
 
-fn parseFunctionOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst) ![]const lower.FunctionOptions {
-    const functions_val = qjs.getProperty(ctx, options_obj, "functions");
-    defer qjs.freeValue(ctx, functions_val);
-    if (qjs.isUndefined(functions_val) or qjs.isNull(functions_val)) return try alloc.dupe(lower.FunctionOptions, &.{});
-    if (!qjs.isObject(functions_val)) return error.InvalidArgument;
+fn parseFunctionOptions(ctx: js_abi.JSContext, options_obj: js_abi.JSValueConst) ![]const lower.FunctionOptions {
+    const functions_val = js_abi.jsGetProperty(ctx, options_obj, "functions");
+    defer js_abi.jsFreeValue(ctx, functions_val);
+    if (js_abi.jsIsUndefined(functions_val) or js_abi.jsIsNull(functions_val)) return try alloc.dupe(lower.FunctionOptions, &.{});
+    if (!js_abi.jsIsObject(functions_val)) return error.InvalidArgument;
 
     const keys = try ownKeys(ctx, functions_val);
     defer freeOwnedStrings(keys);
@@ -644,35 +645,35 @@ fn parseFunctionOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst)
 
     for (keys) |fn_name| {
         const fn_obj = getPropertyOwned(ctx, functions_val, fn_name);
-        defer qjs.freeValue(ctx, fn_obj);
-        if (!qjs.isObject(fn_obj)) return error.InvalidArgument;
+        defer js_abi.jsFreeValue(ctx, fn_obj);
+        if (!js_abi.jsIsObject(fn_obj)) return error.InvalidArgument;
 
-        const returns_obj = qjs.getProperty(ctx, fn_obj, "returns");
-        defer qjs.freeValue(ctx, returns_obj);
-        const errors_obj = qjs.getProperty(ctx, fn_obj, "errors");
-        defer qjs.freeValue(ctx, errors_obj);
-        const buffers_obj = qjs.getProperty(ctx, fn_obj, "buffers");
-        defer qjs.freeValue(ctx, buffers_obj);
+        const returns_obj = js_abi.jsGetProperty(ctx, fn_obj, "returns");
+        defer js_abi.jsFreeValue(ctx, returns_obj);
+        const errors_obj = js_abi.jsGetProperty(ctx, fn_obj, "errors");
+        defer js_abi.jsFreeValue(ctx, errors_obj);
+        const buffers_obj = js_abi.jsGetProperty(ctx, fn_obj, "buffers");
+        defer js_abi.jsFreeValue(ctx, buffers_obj);
 
         var return_policy: ?lower.ReturnPolicyOption = null;
-        if (!qjs.isUndefined(returns_obj) and !qjs.isNull(returns_obj)) {
-            if (!qjs.isObject(returns_obj)) return error.InvalidArgument;
-            const out_val = qjs.getProperty(ctx, returns_obj, "out");
-            defer qjs.freeValue(ctx, out_val);
-            if (!qjs.isUndefined(out_val) and !qjs.isNull(out_val)) {
-                const out_name = qjs.valueToStringAlloc(ctx, out_val, alloc) catch return error.InvalidArgument;
+        if (!js_abi.jsIsUndefined(returns_obj) and !js_abi.jsIsNull(returns_obj)) {
+            if (!js_abi.jsIsObject(returns_obj)) return error.InvalidArgument;
+            const out_val = js_abi.jsGetProperty(ctx, returns_obj, "out");
+            defer js_abi.jsFreeValue(ctx, out_val);
+            if (!js_abi.jsIsUndefined(out_val) and !js_abi.jsIsNull(out_val)) {
+                const out_name = js_abi.jsStringAlloc(ctx, out_val, alloc) catch return error.InvalidArgument;
                 return_policy = .{ .out = out_name };
             }
 
-            const kind_val = qjs.getProperty(ctx, returns_obj, "kind");
-            defer qjs.freeValue(ctx, kind_val);
-            if (!qjs.isUndefined(kind_val) and !qjs.isNull(kind_val)) {
-                const kind = qjs.valueToStringAlloc(ctx, kind_val, alloc) catch return error.InvalidArgument;
+            const kind_val = js_abi.jsGetProperty(ctx, returns_obj, "kind");
+            defer js_abi.jsFreeValue(ctx, kind_val);
+            if (!js_abi.jsIsUndefined(kind_val) and !js_abi.jsIsNull(kind_val)) {
+                const kind = js_abi.jsStringAlloc(ctx, kind_val, alloc) catch return error.InvalidArgument;
                 defer alloc.free(kind);
                 if (std.mem.eql(u8, kind, "handle")) {
-                    const type_val = qjs.getProperty(ctx, returns_obj, "type");
-                    defer qjs.freeValue(ctx, type_val);
-                    const type_name = qjs.valueToStringAlloc(ctx, type_val, alloc) catch return error.InvalidArgument;
+                    const type_val = js_abi.jsGetProperty(ctx, returns_obj, "type");
+                    defer js_abi.jsFreeValue(ctx, type_val);
+                    const type_name = js_abi.jsStringAlloc(ctx, type_val, alloc) catch return error.InvalidArgument;
                     if (return_policy != null) freeReturnPolicyOption(alloc, return_policy.?);
                     return_policy = .{ .handle = .{ .type_name = type_name } };
                 } else {
@@ -682,29 +683,29 @@ fn parseFunctionOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst)
         }
 
         var error_policy: ?lower.ErrorPolicyOption = null;
-        if (!qjs.isUndefined(errors_obj) and !qjs.isNull(errors_obj)) {
-            if (!qjs.isObject(errors_obj)) return error.InvalidArgument;
-            const kind_val = qjs.getProperty(ctx, errors_obj, "kind");
-            defer qjs.freeValue(ctx, kind_val);
-            const kind = qjs.valueToStringAlloc(ctx, kind_val, alloc) catch return error.InvalidArgument;
+        if (!js_abi.jsIsUndefined(errors_obj) and !js_abi.jsIsNull(errors_obj)) {
+            if (!js_abi.jsIsObject(errors_obj)) return error.InvalidArgument;
+            const kind_val = js_abi.jsGetProperty(ctx, errors_obj, "kind");
+            defer js_abi.jsFreeValue(ctx, kind_val);
+            const kind = js_abi.jsStringAlloc(ctx, kind_val, alloc) catch return error.InvalidArgument;
             defer alloc.free(kind);
 
-            const code_val = qjs.getProperty(ctx, errors_obj, "code");
-            defer qjs.freeValue(ctx, code_val);
-            const code = qjs.valueToStringAlloc(ctx, code_val, alloc) catch return error.InvalidArgument;
+            const code_val = js_abi.jsGetProperty(ctx, errors_obj, "code");
+            defer js_abi.jsFreeValue(ctx, code_val);
+            const code = js_abi.jsStringAlloc(ctx, code_val, alloc) catch return error.InvalidArgument;
 
-            const message_val = qjs.getProperty(ctx, errors_obj, "message");
-            defer qjs.freeValue(ctx, message_val);
-            const message = if (!qjs.isUndefined(message_val) and !qjs.isNull(message_val))
+            const message_val = js_abi.jsGetProperty(ctx, errors_obj, "message");
+            defer js_abi.jsFreeValue(ctx, message_val);
+            const message = if (!js_abi.jsIsUndefined(message_val) and !js_abi.jsIsNull(message_val))
                 try parseMessageSourceOption(ctx, message_val)
             else
                 null;
 
             if (std.mem.eql(u8, kind, "status")) {
-                const ok_val = qjs.getProperty(ctx, errors_obj, "ok");
-                defer qjs.freeValue(ctx, ok_val);
+                const ok_val = js_abi.jsGetProperty(ctx, errors_obj, "ok");
+                defer js_abi.jsFreeValue(ctx, ok_val);
                 var ok: i64 = 0;
-                if (qjs.c.JS_ToInt64(ctx, &ok, ok_val) < 0) return error.InvalidArgument;
+                if (js_abi.jsToInt64(ctx, &ok, ok_val) < 0) return error.InvalidArgument;
                 error_policy = .{ .status = .{
                     .ok = ok,
                     .code = code,
@@ -716,10 +717,10 @@ fn parseFunctionOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst)
                     .message = message,
                 } };
             } else if (std.mem.eql(u8, kind, "sentinel")) {
-                const value_val = qjs.getProperty(ctx, errors_obj, "value");
-                defer qjs.freeValue(ctx, value_val);
+                const value_val = js_abi.jsGetProperty(ctx, errors_obj, "value");
+                defer js_abi.jsFreeValue(ctx, value_val);
                 var sentinel_value: i64 = 0;
-                if (qjs.c.JS_ToInt64(ctx, &sentinel_value, value_val) < 0) return error.InvalidArgument;
+                if (js_abi.jsToInt64(ctx, &sentinel_value, value_val) < 0) return error.InvalidArgument;
                 error_policy = .{ .sentinel = .{
                     .value = sentinel_value,
                     .code = code,
@@ -740,8 +741,8 @@ fn parseFunctionOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst)
             }
             alloc.free(buffer_policies);
         }
-        if (!qjs.isUndefined(buffers_obj) and !qjs.isNull(buffers_obj)) {
-            if (!qjs.isObject(buffers_obj)) return error.InvalidArgument;
+        if (!js_abi.jsIsUndefined(buffers_obj) and !js_abi.jsIsNull(buffers_obj)) {
+            if (!js_abi.jsIsObject(buffers_obj)) return error.InvalidArgument;
             const buffer_keys = try ownKeys(ctx, buffers_obj);
             defer freeOwnedStrings(buffer_keys);
 
@@ -750,25 +751,25 @@ fn parseFunctionOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst)
 
             for (buffer_keys) |pointer_name| {
                 const buffer_obj = getPropertyOwned(ctx, buffers_obj, pointer_name);
-                defer qjs.freeValue(ctx, buffer_obj);
-                if (!qjs.isObject(buffer_obj)) return error.InvalidArgument;
+                defer js_abi.jsFreeValue(ctx, buffer_obj);
+                if (!js_abi.jsIsObject(buffer_obj)) return error.InvalidArgument;
 
-                const length_val = qjs.getProperty(ctx, buffer_obj, "length");
-                defer qjs.freeValue(ctx, length_val);
-                const length_param = qjs.valueToStringAlloc(ctx, length_val, alloc) catch return error.InvalidArgument;
+                const length_val = js_abi.jsGetProperty(ctx, buffer_obj, "length");
+                defer js_abi.jsFreeValue(ctx, length_val);
+                const length_param = js_abi.jsStringAlloc(ctx, length_val, alloc) catch return error.InvalidArgument;
 
-                const element_val = qjs.getProperty(ctx, buffer_obj, "element");
-                defer qjs.freeValue(ctx, element_val);
-                const element_text = qjs.valueToStringAlloc(ctx, element_val, alloc) catch {
+                const element_val = js_abi.jsGetProperty(ctx, buffer_obj, "element");
+                defer js_abi.jsFreeValue(ctx, element_val);
+                const element_text = js_abi.jsStringAlloc(ctx, element_val, alloc) catch {
                     alloc.free(length_param);
                     return error.InvalidArgument;
                 };
                 defer alloc.free(element_text);
 
-                const direction_val = qjs.getProperty(ctx, buffer_obj, "direction");
-                defer qjs.freeValue(ctx, direction_val);
-                const direction = if (!qjs.isUndefined(direction_val) and !qjs.isNull(direction_val)) blk: {
-                    const direction_text = qjs.valueToStringAlloc(ctx, direction_val, alloc) catch {
+                const direction_val = js_abi.jsGetProperty(ctx, buffer_obj, "direction");
+                defer js_abi.jsFreeValue(ctx, direction_val);
+                const direction = if (!js_abi.jsIsUndefined(direction_val) and !js_abi.jsIsNull(direction_val)) blk: {
+                    const direction_text = js_abi.jsStringAlloc(ctx, direction_val, alloc) catch {
                         alloc.free(length_param);
                         return error.InvalidArgument;
                     };
@@ -805,11 +806,11 @@ fn parseFunctionOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst)
     return out.toOwnedSlice(alloc);
 }
 
-fn parseHandleOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst) ![]const lower.HandleOptions {
-    const handles_val = qjs.getProperty(ctx, options_obj, "handles");
-    defer qjs.freeValue(ctx, handles_val);
-    if (qjs.isUndefined(handles_val) or qjs.isNull(handles_val)) return try alloc.dupe(lower.HandleOptions, &.{});
-    if (!qjs.isObject(handles_val)) return error.InvalidArgument;
+fn parseHandleOptions(ctx: js_abi.JSContext, options_obj: js_abi.JSValueConst) ![]const lower.HandleOptions {
+    const handles_val = js_abi.jsGetProperty(ctx, options_obj, "handles");
+    defer js_abi.jsFreeValue(ctx, handles_val);
+    if (js_abi.jsIsUndefined(handles_val) or js_abi.jsIsNull(handles_val)) return try alloc.dupe(lower.HandleOptions, &.{});
+    if (!js_abi.jsIsObject(handles_val)) return error.InvalidArgument;
 
     const keys = try ownKeys(ctx, handles_val);
     defer freeOwnedStrings(keys);
@@ -820,13 +821,13 @@ fn parseHandleOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst) !
 
     for (keys) |type_name| {
         const handle_obj = getPropertyOwned(ctx, handles_val, type_name);
-        defer qjs.freeValue(ctx, handle_obj);
-        if (!qjs.isObject(handle_obj)) return error.InvalidArgument;
+        defer js_abi.jsFreeValue(ctx, handle_obj);
+        if (!js_abi.jsIsObject(handle_obj)) return error.InvalidArgument;
 
-        const close_val = qjs.getProperty(ctx, handle_obj, "close");
-        defer qjs.freeValue(ctx, close_val);
-        const close_symbol = if (!qjs.isUndefined(close_val) and !qjs.isNull(close_val))
-            qjs.valueToStringAlloc(ctx, close_val, alloc) catch return error.InvalidArgument
+        const close_val = js_abi.jsGetProperty(ctx, handle_obj, "close");
+        defer js_abi.jsFreeValue(ctx, close_val);
+        const close_symbol = if (!js_abi.jsIsUndefined(close_val) and !js_abi.jsIsNull(close_val))
+            js_abi.jsStringAlloc(ctx, close_val, alloc) catch return error.InvalidArgument
         else
             null;
 
@@ -840,21 +841,21 @@ fn parseHandleOptions(ctx: ?*qjs.c.JSContext, options_obj: qjs.c.JSValueConst) !
 }
 
 fn parseSearchOptions(
-    ctx: ?*qjs.c.JSContext,
-    options_obj: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    options_obj: js_abi.JSValueConst,
 ) !struct { metadata.SearchStrategy, []const []const u8 } {
-    const search_val = qjs.getProperty(ctx, options_obj, "search");
-    defer qjs.freeValue(ctx, search_val);
-    if (qjs.isUndefined(search_val) or qjs.isNull(search_val)) {
+    const search_val = js_abi.jsGetProperty(ctx, options_obj, "search");
+    defer js_abi.jsFreeValue(ctx, search_val);
+    if (js_abi.jsIsUndefined(search_val) or js_abi.jsIsNull(search_val)) {
         return .{ .runtime_default, try alloc.dupe([]const u8, &.{}) };
     }
-    if (!qjs.isObject(search_val)) return error.InvalidArgument;
+    if (!js_abi.jsIsObject(search_val)) return error.InvalidArgument;
 
     var strategy: metadata.SearchStrategy = .runtime_default;
-    const strategy_val = qjs.getProperty(ctx, search_val, "strategy");
-    defer qjs.freeValue(ctx, strategy_val);
-    if (!qjs.isUndefined(strategy_val) and !qjs.isNull(strategy_val)) {
-        const strategy_text = qjs.valueToStringAlloc(ctx, strategy_val, alloc) catch return error.InvalidArgument;
+    const strategy_val = js_abi.jsGetProperty(ctx, search_val, "strategy");
+    defer js_abi.jsFreeValue(ctx, strategy_val);
+    if (!js_abi.jsIsUndefined(strategy_val) and !js_abi.jsIsNull(strategy_val)) {
+        const strategy_text = js_abi.jsStringAlloc(ctx, strategy_val, alloc) catch return error.InvalidArgument;
         defer alloc.free(strategy_text);
         if (std.mem.eql(u8, strategy_text, "runtime-default")) {
             strategy = .runtime_default;
@@ -867,41 +868,41 @@ fn parseSearchOptions(
         }
     }
 
-    const paths_val = qjs.getProperty(ctx, search_val, "paths");
-    defer qjs.freeValue(ctx, paths_val);
-    if (qjs.isUndefined(paths_val) or qjs.isNull(paths_val)) {
+    const paths_val = js_abi.jsGetProperty(ctx, search_val, "paths");
+    defer js_abi.jsFreeValue(ctx, paths_val);
+    if (js_abi.jsIsUndefined(paths_val) or js_abi.jsIsNull(paths_val)) {
         return .{ strategy, try alloc.dupe([]const u8, &.{}) };
     }
-    if (!qjs.isArray(ctx, paths_val)) return error.InvalidArgument;
+    if (!js_abi.jsIsArray(ctx, paths_val)) return error.InvalidArgument;
 
     const len = getArrayLength(ctx, paths_val);
     const out = try alloc.alloc([]const u8, len);
     errdefer alloc.free(out);
     for (0..len) |i| {
-        const path_val = qjs.c.JS_GetPropertyUint32(ctx, paths_val, @intCast(i));
-        defer qjs.freeValue(ctx, path_val);
-        out[i] = qjs.valueToStringAlloc(ctx, path_val, alloc) catch return error.InvalidArgument;
+        const path_val = js_abi.jsGetArrayElement(ctx, paths_val, @intCast(i));
+        defer js_abi.jsFreeValue(ctx, path_val);
+        out[i] = js_abi.jsStringAlloc(ctx, path_val, alloc) catch return error.InvalidArgument;
     }
     return .{ strategy, out };
 }
 
-fn ownKeys(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ![][]u8 {
-    const keys_fn = qjs.eval(ctx, "Object.keys", "<std:ffi/c>", qjs.EvalFlags.global);
-    defer qjs.freeValue(ctx, keys_fn);
-    if (qjs.isException(keys_fn) or !qjs.isFunction(ctx, keys_fn)) return error.InvalidArgument;
+fn ownKeys(ctx: js_abi.JSContext, value: js_abi.JSValueConst) ![][]u8 {
+    const keys_fn = js_abi.jsEvalGlobal(ctx, "Object.keys", "<std:ffi/c>");
+    defer js_abi.jsFreeValue(ctx, keys_fn);
+    if (js_abi.jsIsException(keys_fn) or !js_abi.jsIsFunction(ctx, keys_fn)) return error.InvalidArgument;
 
-    const args = [_]qjs.c.JSValueConst{value};
-    const keys = qjs.call(ctx, keys_fn, qjs.undefinedValue(ctx), &args);
-    defer qjs.freeValue(ctx, keys);
-    if (qjs.isException(keys) or !qjs.isObject(keys)) return error.InvalidArgument;
+    const args = [_]js_abi.JSValueConst{value};
+    const keys = js_abi.jsCall(ctx, keys_fn, js_abi.jsUndefined(ctx), &args);
+    defer js_abi.jsFreeValue(ctx, keys);
+    if (js_abi.jsIsException(keys) or !js_abi.jsIsObject(keys)) return error.InvalidArgument;
 
     const len = getArrayLength(ctx, keys);
     const out = try alloc.alloc([]u8, len);
     errdefer alloc.free(out);
     for (0..len) |i| {
-        const key_val = qjs.c.JS_GetPropertyUint32(ctx, keys, @intCast(i));
-        defer qjs.freeValue(ctx, key_val);
-        out[i] = qjs.valueToStringAlloc(ctx, key_val, alloc) catch return error.InvalidArgument;
+        const key_val = js_abi.jsGetArrayElement(ctx, keys, @intCast(i));
+        defer js_abi.jsFreeValue(ctx, key_val);
+        out[i] = js_abi.jsStringAlloc(ctx, key_val, alloc) catch return error.InvalidArgument;
     }
     return out;
 }
@@ -911,17 +912,17 @@ fn freeOwnedStrings(items: [][]u8) void {
     alloc.free(items);
 }
 
-fn getPropertyOwned(ctx: ?*qjs.c.JSContext, object: qjs.c.JSValueConst, key: []const u8) qjs.c.JSValue {
-    const z = alloc.dupeZ(u8, key) catch return qjs.undefinedValue(ctx);
+fn getPropertyOwned(ctx: js_abi.JSContext, object: js_abi.JSValueConst, key: []const u8) js_abi.JSValue {
+    const z = alloc.dupeZ(u8, key) catch return js_abi.jsUndefined(ctx);
     defer alloc.free(z);
-    return qjs.getProperty(ctx, object, z);
+    return js_abi.jsGetProperty(ctx, object, z);
 }
 
-fn getArrayLength(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) usize {
-    const len_val = qjs.getProperty(ctx, value, "length");
-    defer qjs.freeValue(ctx, len_val);
+fn getArrayLength(ctx: js_abi.JSContext, value: js_abi.JSValueConst) usize {
+    const len_val = js_abi.jsGetProperty(ctx, value, "length");
+    defer js_abi.jsFreeValue(ctx, len_val);
     var len_u32: u32 = 0;
-    if (qjs.c.JS_ToUint32(ctx, &len_u32, len_val) < 0) return 0;
+    if (js_abi.jsToUint32(ctx, &len_u32, len_val) < 0) return 0;
     return len_u32;
 }
 
@@ -996,18 +997,18 @@ fn resolveLibraryBasename(name: []const u8) ![]const u8 {
     return std.fmt.allocPrint(alloc, "lib{s}{s}", .{ name, ext });
 }
 
-fn parseMessageSourceOption(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) !?lower.MessageSourceOption {
-    if (qjs.isString(value)) {
-        return .{ .static = try qjs.valueToStringAlloc(ctx, value, alloc) };
+fn parseMessageSourceOption(ctx: js_abi.JSContext, value: js_abi.JSValueConst) !?lower.MessageSourceOption {
+    if (js_abi.jsIsString(value)) {
+        return .{ .static = try js_abi.jsStringAlloc(ctx, value, alloc) };
     }
-    if (!qjs.isObject(value)) return error.InvalidArgument;
-    const from_val = qjs.getProperty(ctx, value, "from");
-    defer qjs.freeValue(ctx, from_val);
-    const from = qjs.valueToStringAlloc(ctx, from_val, alloc) catch return error.InvalidArgument;
-    const arg_val = qjs.getProperty(ctx, value, "arg");
-    defer qjs.freeValue(ctx, arg_val);
-    const arg_name = if (!qjs.isUndefined(arg_val) and !qjs.isNull(arg_val))
-        qjs.valueToStringAlloc(ctx, arg_val, alloc) catch return error.InvalidArgument
+    if (!js_abi.jsIsObject(value)) return error.InvalidArgument;
+    const from_val = js_abi.jsGetProperty(ctx, value, "from");
+    defer js_abi.jsFreeValue(ctx, from_val);
+    const from = js_abi.jsStringAlloc(ctx, from_val, alloc) catch return error.InvalidArgument;
+    const arg_val = js_abi.jsGetProperty(ctx, value, "arg");
+    defer js_abi.jsFreeValue(ctx, arg_val);
+    const arg_name = if (!js_abi.jsIsUndefined(arg_val) and !js_abi.jsIsNull(arg_val))
+        js_abi.jsStringAlloc(ctx, arg_val, alloc) catch return error.InvalidArgument
     else
         null;
     return .{ .function = .{
@@ -1074,9 +1075,9 @@ fn visibleArgIndexForParam(func: *const metadata.FunctionSpec, target_name: []co
     return null;
 }
 
-fn parseHandleId(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ?u32 {
+fn parseHandleId(ctx: js_abi.JSContext, value: js_abi.JSValueConst) ?u32 {
     var out: i64 = 0;
-    if (qjs.c.JS_ToInt64(ctx, &out, value) < 0 or out <= 0) {
+    if (js_abi.jsToInt64(ctx, &out, value) < 0 or out <= 0) {
         _ = errors.jsError(ctx, .invalid_arg, "C: invalid library handle", null, null, null);
         return null;
     }
@@ -1084,18 +1085,22 @@ fn parseHandleId(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ?u32 {
 }
 
 fn marshalArg(
-    ctx: ?*qjs.c.JSContext,
-    value: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    value: js_abi.JSValueConst,
     arg_type: ffi_types.FFIType,
     pack: *trampoline.PackedArgs,
     index: usize,
     temp_strings: *std.ArrayList([]u8),
 ) c_int {
     switch (arg_type) {
-        .bool => pack.int_args[index] = if (qjs.c.JS_ToBool(ctx, value) == 1) 1 else 0,
+        .bool => {
+            var bool_value = false;
+            if (js_abi.jsToBool(ctx, &bool_value, value) < 0) return -1;
+            pack.int_args[index] = if (bool_value) 1 else 0;
+        },
         .i8, .i16, .i32, .i64 => {
             var out: i64 = 0;
-            if (qjs.c.JS_ToInt64(ctx, &out, value) < 0) return -1;
+            if (js_abi.jsToInt64(ctx, &out, value) < 0) return -1;
             pack.int_args[index] = @bitCast(out);
         },
         .u8, .u16, .u32, .u64 => {
@@ -1111,12 +1116,12 @@ fn marshalArg(
         },
         .f32, .f64 => {
             var out: f64 = 0;
-            if (qjs.c.JS_ToFloat64(ctx, &out, value) < 0) return -1;
+            if (js_abi.jsToFloat64(ctx, &out, value) < 0) return -1;
             pack.float_args[index] = out;
             pack.is_float[index] = true;
         },
         .cstring => {
-            const text = qjs.valueToStringAlloc(ctx, value, alloc) catch return -1;
+            const text = js_abi.jsStringAlloc(ctx, value, alloc) catch return -1;
             const z = alloc.dupeZ(u8, text) catch {
                 alloc.free(text);
                 return -1;
@@ -1142,8 +1147,8 @@ const TypedArrayBufferInfo = struct {
 };
 
 fn marshalBufferPointerArg(
-    ctx: ?*qjs.c.JSContext,
-    value: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    value: js_abi.JSValueConst,
     policy: metadata.BufferPolicy,
     pack: *trampoline.PackedArgs,
     index: usize,
@@ -1159,8 +1164,8 @@ fn marshalBufferPointerArg(
 }
 
 fn marshalBufferLengthArg(
-    ctx: ?*qjs.c.JSContext,
-    value: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    value: js_abi.JSValueConst,
     policy: metadata.BufferPolicy,
 ) ?usize {
     const buffer = getTypedArrayBufferInfo(ctx, value) orelse return null;
@@ -1172,19 +1177,19 @@ fn marshalBufferLengthArg(
     return buffer.byte_len / elem_size;
 }
 
-fn getTypedArrayBufferInfo(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ?TypedArrayBufferInfo {
+fn getTypedArrayBufferInfo(ctx: js_abi.JSContext, value: js_abi.JSValueConst) ?TypedArrayBufferInfo {
     var offset: usize = 0;
     var size: usize = 0;
-    const buffer = qjs.c.JS_GetTypedArrayBuffer(ctx, value, &offset, &size, null);
-    if (qjs.isException(buffer)) {
-        qjs.freeValue(ctx, buffer);
+    const buffer = js_abi.jsGetTypedArrayBuffer(ctx, value, &offset, &size);
+    if (js_abi.jsIsException(buffer)) {
+        js_abi.jsFreeValue(ctx, buffer);
         _ = errors.jsError(ctx, .invalid_arg, "C: buffer arguments must be typed arrays or ArrayBuffer-backed views", null, null, null);
         return null;
     }
-    defer qjs.freeValue(ctx, buffer);
+    defer js_abi.jsFreeValue(ctx, buffer);
 
     var buffer_size_unused: usize = 0;
-    const ptr = qjs.c.JS_GetArrayBuffer(ctx, &buffer_size_unused, buffer) orelse {
+    const ptr = js_abi.jsGetArrayBuffer(ctx, &buffer_size_unused, buffer) orelse {
         _ = errors.jsError(ctx, .invalid_arg, "C: failed to access typed-array storage", null, null, null);
         return null;
     };
@@ -1203,37 +1208,37 @@ fn bufferElementByteSize(element: metadata.BufferElementType) usize {
     };
 }
 
-fn parseUnsignedArg(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ?usize {
+fn parseUnsignedArg(ctx: js_abi.JSContext, value: js_abi.JSValueConst) ?usize {
     var out: i64 = 0;
-    if (qjs.c.JS_ToInt64(ctx, &out, value) == 0) {
+    if (js_abi.jsToInt64(ctx, &out, value) == 0) {
         if (out < 0) return null;
         return @intCast(out);
     }
 
-    const text = qjs.valueToStringAlloc(ctx, value, alloc) catch return null;
+    const text = js_abi.jsStringAlloc(ctx, value, alloc) catch return null;
     defer alloc.free(text);
     const trimmed = std.mem.trimEnd(u8, text, "n");
     if (trimmed.len == 0) return null;
     return std.fmt.parseUnsigned(usize, trimmed, 10) catch null;
 }
 
-fn marshalReturn(ctx: ?*qjs.c.JSContext, result: trampoline.CallResult, return_type: ffi_types.FFIType) qjs.c.JSValue {
+fn marshalReturn(ctx: js_abi.JSContext, result: trampoline.CallResult, return_type: ffi_types.FFIType) js_abi.JSValue {
     return switch (return_type) {
-        .void => qjs.undefinedValue(ctx),
-        .bool => qjs.boolValue(ctx, result.int_val != 0),
-        .i8 => qjs.c.JS_NewInt32(ctx, @as(i8, @truncate(@as(i64, @bitCast(result.int_val))))),
-        .i16 => qjs.c.JS_NewInt32(ctx, @as(i16, @truncate(@as(i64, @bitCast(result.int_val))))),
-        .i32 => qjs.c.JS_NewInt32(ctx, @as(i32, @truncate(@as(i64, @bitCast(result.int_val))))),
-        .i64 => qjs.c.JS_NewInt64(ctx, @as(i64, @bitCast(result.int_val))),
-        .u8 => qjs.c.JS_NewInt32(ctx, @as(u8, @truncate(result.int_val))),
-        .u16 => qjs.c.JS_NewInt32(ctx, @as(u16, @truncate(result.int_val))),
-        .u32 => qjs.c.JS_NewInt64(ctx, @as(u32, @truncate(result.int_val))),
-        .u64, .ptr, .buffer => qjs.c.JS_NewInt64(ctx, @intCast(result.int_val)),
-        .f32, .f64 => qjs.c.JS_NewFloat64(ctx, result.float_val),
+        .void => js_abi.jsUndefined(ctx),
+        .bool => js_abi.jsBool(ctx, result.int_val != 0),
+        .i8 => js_abi.jsInt32(ctx, @as(i8, @truncate(@as(i64, @bitCast(result.int_val))))),
+        .i16 => js_abi.jsInt32(ctx, @as(i16, @truncate(@as(i64, @bitCast(result.int_val))))),
+        .i32 => js_abi.jsInt32(ctx, @as(i32, @truncate(@as(i64, @bitCast(result.int_val))))),
+        .i64 => js_abi.jsInt64(ctx, @as(i64, @bitCast(result.int_val))),
+        .u8 => js_abi.jsInt32(ctx, @as(u8, @truncate(result.int_val))),
+        .u16 => js_abi.jsInt32(ctx, @as(u16, @truncate(result.int_val))),
+        .u32 => js_abi.jsInt64(ctx, @as(u32, @truncate(result.int_val))),
+        .u64, .ptr, .buffer => js_abi.jsInt64(ctx, @intCast(result.int_val)),
+        .f32, .f64 => js_abi.jsFloat64(ctx, result.float_val),
         .cstring => blk: {
-            if (result.int_val == 0) break :blk qjs.nullValue(ctx);
+            if (result.int_val == 0) break :blk js_abi.jsNull(ctx);
             const raw: [*:0]const u8 = @ptrFromInt(result.int_val);
-            break :blk qjs.createString(ctx, std.mem.span(raw));
+            break :blk js_abi.jsString(ctx, std.mem.span(raw));
         },
     };
 }
@@ -1266,7 +1271,7 @@ fn parseErrorCode(code: []const u8) errors.ErrorCode {
 }
 
 fn buildErrorMessage(
-    ctx: ?*qjs.c.JSContext,
+    ctx: js_abi.JSContext,
     lib: *const OpenCLibrary,
     func: *const metadata.FunctionSpec,
     policy: metadata.ErrorPolicy,
@@ -1286,7 +1291,7 @@ fn buildErrorMessage(
 }
 
 fn invokeMessageFunction(
-    ctx: ?*qjs.c.JSContext,
+    ctx: js_abi.JSContext,
     lib: *const OpenCLibrary,
     func: *const metadata.FunctionSpec,
     message_fn: metadata.MessageFunctionSource,

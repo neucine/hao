@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const qjs = @import("../../qjs.zig");
+const js_abi = @import("../../js/abi.zig");
+const qjs_test = @import("../../qjs.zig");
 const async_loop = @import("../../async/loop.zig");
 const errors = @import("../../errors.zig");
 const global_console = @import("../../global/console.zig");
@@ -153,34 +154,34 @@ fn selfExePathAlloc(allocator: std.mem.Allocator, io: ?std.Io) ![]u8 {
     return try allocator.dupe(u8, resolved[0..resolved.len]);
 }
 
-fn exceptionSummaryAlloc(ctx: ?*qjs.c.JSContext, exception: qjs.c.JSValueConst, allocator: std.mem.Allocator) ![]u8 {
-    if (qjs.isException(exception)) {
-        const actual = qjs.c.JS_GetException(ctx);
-        defer qjs.freeValue(ctx, actual);
+fn exceptionSummaryAlloc(ctx: js_abi.JSContext, exception: js_abi.JSValueConst, allocator: std.mem.Allocator) ![]u8 {
+    if (js_abi.jsIsException(exception)) {
+        const actual = js_abi.jsGetException(ctx);
+        defer js_abi.jsFreeValue(ctx, actual);
         return exceptionSummaryAlloc(ctx, actual, allocator);
     }
-    if (qjs.isObject(exception)) {
-        const message = qjs.getProperty(ctx, exception, "message");
-        defer qjs.freeValue(ctx, message);
-        if (!qjs.isUndefined(message) and !qjs.isNull(message)) {
-            const text = qjs.valueToStringAlloc(ctx, message, allocator) catch null;
+    if (js_abi.jsIsObject(exception)) {
+        const message = js_abi.jsGetProperty(ctx, exception, "message");
+        defer js_abi.jsFreeValue(ctx, message);
+        if (!js_abi.jsIsUndefined(message) and !js_abi.jsIsNull(message)) {
+            const text = js_abi.jsStringAlloc(ctx, message, allocator) catch null;
             if (text) |owned| {
                 if (owned.len > 0) return owned;
                 allocator.free(owned);
             }
         }
     }
-    return qjs.valueToStringAlloc(ctx, exception, allocator);
+    return js_abi.jsStringAlloc(ctx, exception, allocator);
 }
 
-fn makeFailure(ctx: ?*qjs.c.JSContext, allocator: std.mem.Allocator, phase: []const u8, exception: qjs.c.JSValueConst) !Failure {
+fn makeFailure(ctx: js_abi.JSContext, allocator: std.mem.Allocator, phase: []const u8, exception: js_abi.JSValueConst) !Failure {
     return .{
         .phase = phase,
         .message = try exceptionSummaryAlloc(ctx, exception, allocator),
     };
 }
 
-fn runTestFile(loader: *module_runtime.Loader, runtime: *qjs.Runtime, path: []const u8, allocator: std.mem.Allocator) !void {
+fn runTestFile(loader: *module_runtime.Loader, runtime: *qjs_test.Runtime, path: []const u8, allocator: std.mem.Allocator) !void {
     const abs_path = try allocator.dupe(u8, path);
     defer allocator.free(abs_path);
     registry.setCurrentFilePath(abs_path);
@@ -189,15 +190,19 @@ fn runTestFile(loader: *module_runtime.Loader, runtime: *qjs.Runtime, path: []co
     defer allocator.free(source);
     try module_runtime.evalModuleSource(loader, runtime, source, path);
 
-    if (qjs.takeUnhandledException()) |pending| {
-        defer qjs.freeValue(pending.ctx, pending.value);
-        _ = qjs.c.JS_Throw(pending.ctx, qjs.dupValue(pending.ctx, pending.value));
+    if (qjs_test.takeUnhandledException()) |pending| {
+        defer js_abi.jsFreeValue(pending.ctx, pending.value);
+        _ = js_abi.jsThrow(pending.ctx, js_abi.jsDupValue(pending.ctx, pending.value));
         return error.JavaScriptError;
     }
 
-    const probe = qjs.eval(runtime.ctx, "void 0", "<std:test-qjs-load-probe>", qjs.EvalFlags.global);
-    defer qjs.freeValue(runtime.ctx, probe);
-    if (qjs.isException(probe)) return error.JavaScriptError;
+    const probe = js_abi.jsEvalGlobal(
+        runtime.ctx,
+        "void 0",
+        "<std:test-qjs-load-probe>",
+    );
+    defer js_abi.jsFreeValue(runtime.ctx, probe);
+    if (js_abi.jsIsException(probe)) return error.JavaScriptError;
 }
 
 fn isTestFile(path: []const u8) bool {
@@ -288,33 +293,34 @@ fn collectTestPaths(paths: [][]const u8, allocator: std.mem.Allocator) !std.Arra
     return out;
 }
 
-fn isPromiseLike(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) bool {
-    if (!qjs.isObject(value)) return false;
-    const then_val = qjs.getProperty(ctx, value, "then");
-    defer qjs.freeValue(ctx, then_val);
-    return qjs.isFunction(ctx, then_val);
+fn isPromiseLike(ctx: js_abi.JSContext, value: js_abi.JSValueConst) bool {
+    if (!js_abi.jsIsObject(value)) return false;
+    const then_val = js_abi.jsGetProperty(ctx, value, "then");
+    defer js_abi.jsFreeValue(ctx, then_val);
+    return js_abi.jsIsFunction(ctx, then_val);
 }
 
-fn jsGetBool(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst, key: [:0]const u8) bool {
-    const value = qjs.getProperty(ctx, obj, key);
-    defer qjs.freeValue(ctx, value);
-    return qjs.c.JS_ToBool(ctx, value) == 1;
+fn jsGetBool(ctx: js_abi.JSContext, obj: js_abi.JSValueConst, key: [:0]const u8) bool {
+    const value = js_abi.jsGetProperty(ctx, obj, key);
+    defer js_abi.jsFreeValue(ctx, value);
+    var result = false;
+    return js_abi.jsToBool(ctx, &result, value) >= 0 and result;
 }
 
-fn awaitPromise(runtime: *qjs.Runtime, loop: *async_loop.Loop, promise_value: qjs.c.JSValueConst, allocator: std.mem.Allocator, phase: []const u8) !?Failure {
+fn awaitPromise(runtime: *qjs_test.Runtime, loop: *async_loop.Loop, promise_value: js_abi.JSValueConst, allocator: std.mem.Allocator, phase: []const u8) !?Failure {
     const ctx = runtime.ctx;
-    const global = qjs.c.JS_GetGlobalObject(ctx);
-    defer qjs.freeValue(ctx, global);
+    const global = js_abi.jsGlobalObject(ctx);
+    defer js_abi.jsFreeValue(ctx, global);
 
-    const state = qjs.newObject(ctx);
-    if (qjs.isException(state)) return Failure{ .phase = phase, .message = try allocator.dupe(u8, "failed to create async state") };
-    defer qjs.freeValue(ctx, state);
+    const state = js_abi.jsNewObject(ctx);
+    if (js_abi.jsIsException(state)) return Failure{ .phase = phase, .message = try allocator.dupe(u8, "failed to create async state") };
+    defer js_abi.jsFreeValue(ctx, state);
 
-    try qjs.setProperty(ctx, state, "settled", qjs.boolValue(ctx, false));
-    try qjs.setProperty(ctx, state, "ok", qjs.boolValue(ctx, false));
-    try qjs.setProperty(ctx, state, "error", qjs.undefinedValue(ctx));
-    try qjs.setProperty(ctx, global, "__hao_test_async_state", qjs.dupValue(ctx, state));
-    try qjs.setProperty(ctx, global, "__hao_test_async_promise", qjs.dupValue(ctx, promise_value));
+    try js_abi.jsSetPropertyChecked(ctx, state, "settled", js_abi.jsBool(ctx, false));
+    try js_abi.jsSetPropertyChecked(ctx, state, "ok", js_abi.jsBool(ctx, false));
+    try js_abi.jsSetPropertyChecked(ctx, state, "error", js_abi.jsUndefined(ctx));
+    try js_abi.jsSetPropertyChecked(ctx, global, "__hao_test_async_state", js_abi.jsDupValue(ctx, state));
+    try js_abi.jsSetPropertyChecked(ctx, global, "__hao_test_async_promise", js_abi.jsDupValue(ctx, promise_value));
 
     const bootstrap =
         \\Promise.resolve(globalThis.__hao_test_async_promise).then(
@@ -322,33 +328,37 @@ fn awaitPromise(runtime: *qjs.Runtime, loop: *async_loop.Loop, promise_value: qj
         \\  (err) => { globalThis.__hao_test_async_state.settled = true; globalThis.__hao_test_async_state.ok = false; globalThis.__hao_test_async_state.error = err; },
         \\);
     ;
-    const value = qjs.eval(ctx, bootstrap, "<std:test>", qjs.EvalFlags.global);
-    defer qjs.freeValue(ctx, value);
-    if (qjs.isException(value)) return try makeFailure(ctx, allocator, phase, value);
+    const value = js_abi.jsEvalGlobal(
+        ctx,
+        bootstrap,
+        "<std:test>",
+    );
+    defer js_abi.jsFreeValue(ctx, value);
+    if (js_abi.jsIsException(value)) return try makeFailure(ctx, allocator, phase, value);
 
     while (true) {
         if (jsGetBool(ctx, state, "settled")) {
             if (jsGetBool(ctx, state, "ok")) return null;
-            const err_val = qjs.getProperty(ctx, state, "error");
-            defer qjs.freeValue(ctx, err_val);
+            const err_val = js_abi.jsGetProperty(ctx, state, "error");
+            defer js_abi.jsFreeValue(ctx, err_val);
             return try makeFailure(ctx, allocator, phase, err_val);
         }
 
-        const ran_jobs = qjs.executePendingJobs(runtime.rt) catch |err| {
+        const ran_jobs = qjs_test.executePendingJobs(runtime.rt) catch |err| {
             if (err == error.JavaScriptError) {
-                const exception = qjs.c.JS_GetException(ctx);
-                defer qjs.freeValue(ctx, exception);
+                const exception = js_abi.jsGetException(ctx);
+                defer js_abi.jsFreeValue(ctx, exception);
                 return try makeFailure(ctx, allocator, phase, exception);
             }
             return err;
         };
-        if (qjs.takeUnhandledException()) |pending| {
-            defer qjs.freeValue(pending.ctx, pending.value);
+        if (qjs_test.takeUnhandledException()) |pending| {
+            defer js_abi.jsFreeValue(pending.ctx, pending.value);
             return try makeFailure(pending.ctx, allocator, phase, pending.value);
         }
         const ran_uv = loop.runOnce() catch return error.LibuvRunFailed;
-        if (qjs.takeUnhandledException()) |pending| {
-            defer qjs.freeValue(pending.ctx, pending.value);
+        if (qjs_test.takeUnhandledException()) |pending| {
+            defer js_abi.jsFreeValue(pending.ctx, pending.value);
             return try makeFailure(pending.ctx, allocator, phase, pending.value);
         }
         if (!ran_jobs and !ran_uv) {
@@ -361,13 +371,13 @@ fn awaitPromise(runtime: *qjs.Runtime, loop: *async_loop.Loop, promise_value: qj
     }
 }
 
-fn callFunction(runtime: *qjs.Runtime, loop: *async_loop.Loop, callback: qjs.c.JSValueConst, file_path: []const u8, allocator: std.mem.Allocator, phase: []const u8) !?Failure {
+fn callFunction(runtime: *qjs_test.Runtime, loop: *async_loop.Loop, callback: js_abi.JSValueConst, file_path: []const u8, allocator: std.mem.Allocator, phase: []const u8) !?Failure {
     bindings.setCurrentTestFilePath(file_path);
-    const result = qjs.call(runtime.ctx, callback, qjs.undefinedValue(runtime.ctx), &.{});
-    defer qjs.freeValue(runtime.ctx, result);
-    if (qjs.isException(result)) return try makeFailure(runtime.ctx, allocator, phase, result);
-    if (qjs.takeUnhandledException()) |pending| {
-        defer qjs.freeValue(pending.ctx, pending.value);
+    const result = js_abi.jsCall(runtime.ctx, callback, js_abi.jsUndefined(runtime.ctx), &.{});
+    defer js_abi.jsFreeValue(runtime.ctx, result);
+    if (js_abi.jsIsException(result)) return try makeFailure(runtime.ctx, allocator, phase, result);
+    if (qjs_test.takeUnhandledException()) |pending| {
+        defer js_abi.jsFreeValue(pending.ctx, pending.value);
         return try makeFailure(pending.ctx, allocator, phase, pending.value);
     }
     if (isPromiseLike(runtime.ctx, result)) {
@@ -378,14 +388,18 @@ fn callFunction(runtime: *qjs.Runtime, loop: *async_loop.Loop, callback: qjs.c.J
     // QJS context even when the JS callback completed successfully. Probe with
     // a no-op eval so the runner does not leak one test's caught exception into
     // the next test case.
-    const probe = qjs.eval(runtime.ctx, "void 0", "<std:test-probe>", qjs.EvalFlags.global);
-    defer qjs.freeValue(runtime.ctx, probe);
-    if (qjs.isException(probe)) {
-        const stray = qjs.c.JS_GetException(runtime.ctx);
-        defer qjs.freeValue(runtime.ctx, stray);
+    const probe = js_abi.jsEvalGlobal(
+        runtime.ctx,
+        "void 0",
+        "<std:test-probe>",
+    );
+    defer js_abi.jsFreeValue(runtime.ctx, probe);
+    if (js_abi.jsIsException(probe)) {
+        const stray = js_abi.jsGetException(runtime.ctx);
+        defer js_abi.jsFreeValue(runtime.ctx, stray);
     }
-    if (qjs.takeUnhandledException()) |pending| {
-        defer qjs.freeValue(pending.ctx, pending.value);
+    if (qjs_test.takeUnhandledException()) |pending| {
+        defer js_abi.jsFreeValue(pending.ctx, pending.value);
         return try makeFailure(pending.ctx, allocator, phase, pending.value);
     }
     return null;
@@ -556,7 +570,7 @@ fn printBlockedSuite(suite: *registry.Suite, depth: usize, opts: RunOptions) !vo
     };
 }
 
-fn runCase(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suite, case_: registry.TestCase, depth: usize, allocator: std.mem.Allocator, summary: *RunResult) !void {
+fn runCase(runtime: *qjs_test.Runtime, loop: *async_loop.Loop, suite: *registry.Suite, case_: registry.TestCase, depth: usize, allocator: std.mem.Allocator, summary: *RunResult) !void {
     var suite_chain = std.ArrayList(*registry.Suite).empty;
     defer suite_chain.deinit(allocator);
     try buildSuiteChain(suite, &suite_chain, allocator);
@@ -619,7 +633,7 @@ fn runCase(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suite
     }
 }
 
-fn runSuite(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suite, depth: usize, allocator: std.mem.Allocator, summary: *RunResult, opts: RunOptions) !void {
+fn runSuite(runtime: *qjs_test.Runtime, loop: *async_loop.Loop, suite: *registry.Suite, depth: usize, allocator: std.mem.Allocator, summary: *RunResult, opts: RunOptions) !void {
     const has_selected = suiteHasSelectedCases(suite, opts);
 
     if (suite.name.len > 0) {
@@ -745,7 +759,7 @@ pub fn runWithPackageRegistrar(
         test_paths.deinit(allocator);
     }
 
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
     defer global_timer.cleanup(allocator);
     defer js_addon.cleanup();
@@ -799,8 +813,8 @@ pub fn runWithPackageRegistrar(
             writeFailGlyph();
             writeStdout(" module ");
             writeStdout(path);
-            const exception = qjs.c.JS_GetException(runtime.ctx);
-            defer qjs.freeValue(runtime.ctx, exception);
+            const exception = js_abi.jsGetException(runtime.ctx);
+            defer js_abi.jsFreeValue(runtime.ctx, exception);
             const text = exceptionSummaryAlloc(runtime.ctx, exception, allocator) catch try allocator.dupe(u8, "[uninitialized]");
             defer allocator.free(text);
             writeStdout("\n  ");

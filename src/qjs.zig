@@ -81,6 +81,23 @@ test "runtime deinit releases pending JavaScript exceptions" {
     try std.testing.expect(isException(value));
 }
 
+test "exception formatting preserves JavaScript and native stacks" {
+    var runtime = try Runtime.init();
+    defer runtime.deinit();
+
+    const value = eval(runtime.ctx, "(() => { const error = new Error('expected failure'); error.nativeStack = 'native frame'; throw error; })()", "<exception-format-test>", EvalFlags.global);
+    defer freeValue(runtime.ctx, value);
+    try std.testing.expect(isException(value));
+
+    const exception = c.JS_GetException(runtime.ctx);
+    defer freeValue(runtime.ctx, exception);
+    const text = try formatExceptionAlloc(runtime.ctx, exception, std.testing.allocator);
+    defer std.testing.allocator.free(text);
+    try std.testing.expect(std.mem.indexOf(u8, text, "expected failure") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "Native stack:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "native frame") != null);
+}
+
 pub const MemoryUsage = struct {
     malloc_size: usize,
     malloc_limit: usize,
@@ -167,18 +184,48 @@ pub fn valueToStringAlloc(ctx: ?*c.JSContext, value: c.JSValueConst, allocator: 
 pub fn getExceptionAlloc(ctx: ?*c.JSContext, allocator: std.mem.Allocator) ![]u8 {
     const exception = c.JS_GetException(ctx);
     defer freeValue(ctx, exception);
-    if (isObject(exception)) {
-        const stack = getProperty(ctx, exception, "stack");
-        defer freeValue(ctx, stack);
-        if (!isUndefined(stack) and !isNull(stack)) {
-            return valueToStringAlloc(ctx, stack, allocator);
+    return formatExceptionAlloc(ctx, exception, allocator);
+}
+
+pub fn formatExceptionAlloc(ctx: ?*c.JSContext, exception: c.JSValueConst, allocator: std.mem.Allocator) ![]u8 {
+    if (!isObject(exception)) return valueToStringAlloc(ctx, exception, allocator);
+
+    const stack = getProperty(ctx, exception, "stack");
+    defer freeValue(ctx, stack);
+    const message = getProperty(ctx, exception, "message");
+    defer freeValue(ctx, message);
+    const native_stack = getProperty(ctx, exception, "nativeStack");
+    defer freeValue(ctx, native_stack);
+
+    const stack_text = if (!isUndefined(stack) and !isNull(stack)) valueToStringAlloc(ctx, stack, allocator) catch null else null;
+    defer if (stack_text) |text| allocator.free(text);
+    const message_text = if (!isUndefined(message) and !isNull(message)) valueToStringAlloc(ctx, message, allocator) catch null else null;
+    defer if (message_text) |text| allocator.free(text);
+    const native = if (!isUndefined(native_stack) and !isNull(native_stack)) valueToStringAlloc(ctx, native_stack, allocator) catch null else null;
+
+    const primary = if (stack_text) |stack_value| blk: {
+        if (message_text) |message_value|
+            if (std.mem.indexOf(u8, stack_value, message_value) == null)
+                break :blk std.fmt.allocPrint(allocator, "{s}\n{s}", .{ message_value, stack_value }) catch return error.OutOfMemory;
+        break :blk allocator.dupe(u8, stack_value) catch return error.OutOfMemory;
+    } else if (message_text) |message_value|
+        allocator.dupe(u8, message_value) catch return error.OutOfMemory
+    else
+        null;
+
+    if (primary) |text| {
+        if (native) |native_text| {
+            defer allocator.free(native_text);
+            const combined = std.fmt.allocPrint(allocator, "{s}\nNative stack:\n{s}", .{ text, native_text }) catch {
+                allocator.free(text);
+                return error.OutOfMemory;
+            };
+            allocator.free(text);
+            return combined;
         }
-        const message = getProperty(ctx, exception, "message");
-        defer freeValue(ctx, message);
-        if (!isUndefined(message) and !isNull(message)) {
-            return valueToStringAlloc(ctx, message, allocator);
-        }
+        return text;
     }
+    if (native) |native_text| return native_text;
     return valueToStringAlloc(ctx, exception, allocator);
 }
 
@@ -220,14 +267,6 @@ pub fn call(ctx: ?*c.JSContext, function: c.JSValueConst, this_value: c.JSValueC
     return c.JS_Call(ctx, function, this_value, @intCast(args.len), if (args.len == 0) null else @constCast(args.ptr));
 }
 
-pub fn getNativeStackAlloc(ctx: ?*c.JSContext, exception: c.JSValueConst, allocator: std.mem.Allocator) ?[]u8 {
-    if (!isObject(exception)) return null;
-    const native_stack = getProperty(ctx, exception, "nativeStack");
-    defer freeValue(ctx, native_stack);
-    if (isUndefined(native_stack) or isNull(native_stack)) return null;
-    return valueToStringAlloc(ctx, native_stack, allocator) catch null;
-}
-
 pub fn isException(value: c.JSValue) bool {
     return c.JS_IsException(value);
 }
@@ -266,10 +305,6 @@ pub fn isBool(value: c.JSValueConst) bool {
 
 pub fn isSymbol(value: c.JSValueConst) bool {
     return c.JS_IsSymbol(value);
-}
-
-pub fn runGc(rt: ?*c.JSRuntime) void {
-    c.JS_RunGC(rt);
 }
 
 pub fn computeMemoryUsage(rt: ?*c.JSRuntime) MemoryUsage {

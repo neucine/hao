@@ -98,6 +98,19 @@ fn rememberJavaScriptException(ctx: ?*qjs.c.JSContext, allocator: std.mem.Alloca
     rememberLastError(message);
 }
 
+pub fn rememberUnhandledException(ctx: ?*qjs.c.JSContext, exception: qjs.c.JSValueConst, allocator: std.mem.Allocator) void {
+    rememberJavaScriptExceptionValue(ctx, exception, allocator, "Unhandled JavaScript exception");
+}
+
+fn rememberJavaScriptExceptionValue(ctx: ?*qjs.c.JSContext, exception: qjs.c.JSValueConst, allocator: std.mem.Allocator, fallback: []const u8) void {
+    const message = qjs.formatExceptionAlloc(ctx, exception, allocator) catch {
+        rememberLastError(fallback);
+        return;
+    };
+    defer allocator.free(message);
+    rememberLastError(message);
+}
+
 pub fn evalModuleSource(
     loader: *Loader,
     runtime: *qjs.Runtime,

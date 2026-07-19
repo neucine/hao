@@ -1,6 +1,6 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
+const qjs_test = @import("../../qjs.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
 
 const c = @cImport({
@@ -176,7 +176,7 @@ fn jsRunNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) 
 }
 
 test "std process native module can be created" {
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
     const module = load(runtime.ctx, specifier.ptr);

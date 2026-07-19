@@ -1,6 +1,6 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
+const qjs_test = @import("../../qjs.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
 
 pub const specifier: [:0]const u8 = "std:util/native";
@@ -42,33 +42,33 @@ fn clampLimit(n: f64) usize {
     return @intFromFloat(n);
 }
 
-fn getNumberProp(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst, name: [:0]const u8) ?f64 {
-    const val = qjs.getProperty(ctx, obj, name);
-    defer qjs.freeValue(ctx, val);
-    if (qjs.isUndefined(val) or qjs.isNull(val) or !qjs.isNumber(val)) return null;
+fn getNumberProp(ctx: js_abi.JSContext, obj: js_abi.JSValueConst, name: [:0]const u8) ?f64 {
+    const val = js_abi.jsGetProperty(ctx, obj, name);
+    defer js_abi.jsFreeValue(ctx, val);
+    if (js_abi.jsIsUndefined(val) or js_abi.jsIsNull(val) or !js_abi.jsIsNumber(val)) return null;
     var out: f64 = 0;
-    if (qjs.c.JS_ToFloat64(ctx, &out, val) < 0) return null;
+    if (js_abi.jsToFloat64(ctx, &out, val) < 0) return null;
     return out;
 }
 
-fn mergeOptions(ctx: ?*qjs.c.JSContext, opts_val: qjs.c.JSValueConst) InspectOptions {
+fn mergeOptions(ctx: js_abi.JSContext, opts_val: js_abi.JSValueConst) InspectOptions {
     var o = defaults;
-    if (!qjs.isObject(opts_val)) return o;
+    if (!js_abi.jsIsObject(opts_val)) return o;
     if (getNumberProp(ctx, opts_val, "maxDepth")) |v| o.max_depth = clampLimit(v);
     if (getNumberProp(ctx, opts_val, "maxArrayLength")) |v| o.max_array_length = clampLimit(v);
     if (getNumberProp(ctx, opts_val, "maxStringLength")) |v| o.max_string_length = clampLimit(v);
     return o;
 }
 
-fn makeDefaultsObject(ctx: ?*qjs.c.JSContext) qjs.c.JSValue {
-    const obj = qjs.newObject(ctx);
-    if (qjs.isException(obj)) return obj;
+fn makeDefaultsObject(ctx: js_abi.JSContext) js_abi.JSValue {
+    const obj = js_abi.jsNewObject(ctx);
+    if (js_abi.jsIsException(obj)) return obj;
     const max_depth = if (defaults.max_depth == std.math.maxInt(usize)) std.math.inf(f64) else @as(f64, @floatFromInt(defaults.max_depth));
     const max_array = if (defaults.max_array_length == std.math.maxInt(usize)) std.math.inf(f64) else @as(f64, @floatFromInt(defaults.max_array_length));
     const max_string = if (defaults.max_string_length == std.math.maxInt(usize)) std.math.inf(f64) else @as(f64, @floatFromInt(defaults.max_string_length));
-    qjs.setProperty(ctx, obj, "maxDepth", qjs.c.JS_NewFloat64(ctx, max_depth)) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "maxArrayLength", qjs.c.JS_NewFloat64(ctx, max_array)) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "maxStringLength", qjs.c.JS_NewFloat64(ctx, max_string)) catch return qjs.exceptionValue();
+    if (js_abi.jsSetProperty(ctx, obj, "maxDepth", js_abi.jsFloat64(ctx, max_depth)) < 0) return js_abi.jsExceptionValue();
+    if (js_abi.jsSetProperty(ctx, obj, "maxArrayLength", js_abi.jsFloat64(ctx, max_array)) < 0) return js_abi.jsExceptionValue();
+    if (js_abi.jsSetProperty(ctx, obj, "maxStringLength", js_abi.jsFloat64(ctx, max_string)) < 0) return js_abi.jsExceptionValue();
     return obj;
 }
 
@@ -87,8 +87,8 @@ fn appendSlice(buf: *std.ArrayList(u8), s: []const u8) void {
     buf.appendSlice(alloc, s) catch {};
 }
 
-fn appendValueString(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) void {
-    const text = qjs.valueToStringAlloc(ctx, value, alloc) catch return;
+fn appendValueString(buf: *std.ArrayList(u8), ctx: js_abi.JSContext, value: js_abi.JSValueConst) void {
+    const text = js_abi.jsStringAlloc(ctx, value, alloc) catch return;
     defer alloc.free(text);
     appendSlice(buf, text);
 }
@@ -102,62 +102,62 @@ fn appendStringTruncated(buf: *std.ArrayList(u8), value: []const u8, max_len: us
     appendSlice(buf, "...");
 }
 
-fn objectHasReprMethod(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst, name: [:0]const u8) bool {
-    const repr_val = qjs.getProperty(ctx, obj, name);
-    defer qjs.freeValue(ctx, repr_val);
-    return qjs.isObject(repr_val) and qjs.isFunction(ctx, repr_val);
+fn objectHasReprMethod(ctx: js_abi.JSContext, obj: js_abi.JSValueConst, name: [:0]const u8) bool {
+    const repr_val = js_abi.jsGetProperty(ctx, obj, name);
+    defer js_abi.jsFreeValue(ctx, repr_val);
+    return js_abi.jsIsObject(repr_val) and js_abi.jsIsFunction(ctx, repr_val);
 }
 
-fn objectHasRepr(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst) bool {
+fn objectHasRepr(ctx: js_abi.JSContext, obj: js_abi.JSValueConst) bool {
     return objectHasReprMethod(ctx, obj, "repr");
 }
 
-fn formatReprData(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst, opts: InspectOptions) bool {
+fn formatReprData(buf: *std.ArrayList(u8), ctx: js_abi.JSContext, obj: js_abi.JSValueConst, opts: InspectOptions) bool {
     if (!objectHasRepr(ctx, obj)) return false;
-    const repr_fn = qjs.getProperty(ctx, obj, "repr");
-    defer qjs.freeValue(ctx, repr_fn);
-    const repr_opts = qjs.newObject(ctx);
-    if (qjs.isException(repr_opts)) return false;
-    defer qjs.freeValue(ctx, repr_opts);
-    qjs.setProperty(ctx, repr_opts, "mode", qjs.createString(ctx, "text")) catch return false;
-    const args = [_]qjs.c.JSValueConst{repr_opts};
-    const result = qjs.call(ctx, repr_fn, obj, &args);
-    defer qjs.freeValue(ctx, result);
-    if (qjs.isException(result)) return false;
-    if (qjs.isObject(result)) {
-        const data = qjs.getProperty(ctx, result, "data");
-        defer qjs.freeValue(ctx, data);
-        if (qjs.isUndefined(data) or qjs.isNull(data)) return false;
-        const text = qjs.valueToStringAlloc(ctx, data, alloc) catch return false;
+    const repr_fn = js_abi.jsGetProperty(ctx, obj, "repr");
+    defer js_abi.jsFreeValue(ctx, repr_fn);
+    const repr_opts = js_abi.jsNewObject(ctx);
+    if (js_abi.jsIsException(repr_opts)) return false;
+    defer js_abi.jsFreeValue(ctx, repr_opts);
+    if (js_abi.jsSetProperty(ctx, repr_opts, "mode", js_abi.jsString(ctx, "text")) < 0) return false;
+    const args = [_]js_abi.JSValueConst{repr_opts};
+    const result = js_abi.jsCall(ctx, repr_fn, obj, &args);
+    defer js_abi.jsFreeValue(ctx, result);
+    if (js_abi.jsIsException(result)) return false;
+    if (js_abi.jsIsObject(result)) {
+        const data = js_abi.jsGetProperty(ctx, result, "data");
+        defer js_abi.jsFreeValue(ctx, data);
+        if (js_abi.jsIsUndefined(data) or js_abi.jsIsNull(data)) return false;
+        const text = js_abi.jsStringAlloc(ctx, data, alloc) catch return false;
         defer alloc.free(text);
         appendStringTruncated(buf, text, opts.max_string_length);
         return true;
     }
-    const text = qjs.valueToStringAlloc(ctx, result, alloc) catch return false;
+    const text = js_abi.jsStringAlloc(ctx, result, alloc) catch return false;
     defer alloc.free(text);
     appendStringTruncated(buf, text, opts.max_string_length);
     return true;
 }
 
-fn looksLikeHaoArrayLike(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst) bool {
-    const dtype = qjs.getProperty(ctx, obj, "dtype");
-    defer qjs.freeValue(ctx, dtype);
-    if (qjs.isUndefined(dtype) or qjs.isNull(dtype)) return false;
+fn looksLikeHaoArrayLike(ctx: js_abi.JSContext, obj: js_abi.JSValueConst) bool {
+    const dtype = js_abi.jsGetProperty(ctx, obj, "dtype");
+    defer js_abi.jsFreeValue(ctx, dtype);
+    if (js_abi.jsIsUndefined(dtype) or js_abi.jsIsNull(dtype)) return false;
 
-    const shape = qjs.getProperty(ctx, obj, "shape");
-    defer qjs.freeValue(ctx, shape);
-    if (qjs.isUndefined(shape) or qjs.isNull(shape)) return false;
+    const shape = js_abi.jsGetProperty(ctx, obj, "shape");
+    defer js_abi.jsFreeValue(ctx, shape);
+    if (js_abi.jsIsUndefined(shape) or js_abi.jsIsNull(shape)) return false;
 
-    const to_string = qjs.getProperty(ctx, obj, "toString");
-    defer qjs.freeValue(ctx, to_string);
-    return qjs.isFunction(ctx, to_string);
+    const to_string = js_abi.jsGetProperty(ctx, obj, "toString");
+    defer js_abi.jsFreeValue(ctx, to_string);
+    return js_abi.jsIsFunction(ctx, to_string);
 }
 
-fn formatFunction(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst) void {
-    const name_val = qjs.getProperty(ctx, obj, "name");
-    defer qjs.freeValue(ctx, name_val);
-    if (qjs.isString(name_val)) {
-        const name = qjs.valueToStringAlloc(ctx, name_val, alloc) catch {
+fn formatFunction(buf: *std.ArrayList(u8), ctx: js_abi.JSContext, obj: js_abi.JSValueConst) void {
+    const name_val = js_abi.jsGetProperty(ctx, obj, "name");
+    defer js_abi.jsFreeValue(ctx, name_val);
+    if (js_abi.jsIsString(name_val)) {
+        const name = js_abi.jsStringAlloc(ctx, name_val, alloc) catch {
             appendSlice(buf, "[Function]");
             return;
         };
@@ -179,35 +179,36 @@ fn seenContains(seen: *std.ArrayList(usize), raw: usize) bool {
     return false;
 }
 
-fn isArray(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) bool {
-    const array_ctor = qjs.eval(ctx, "Array.isArray", "<std:util>", qjs.EvalFlags.global);
-    defer qjs.freeValue(ctx, array_ctor);
-    if (qjs.isException(array_ctor) or !qjs.isFunction(ctx, array_ctor)) return false;
-    const args = [_]qjs.c.JSValueConst{value};
-    const result = qjs.call(ctx, array_ctor, qjs.undefinedValue(ctx), &args);
-    defer qjs.freeValue(ctx, result);
-    return qjs.c.JS_ToBool(ctx, result) == 1;
+fn isArray(ctx: js_abi.JSContext, value: js_abi.JSValueConst) bool {
+    const array_ctor = js_abi.jsEvalGlobal(ctx, "Array.isArray", "<std:util>");
+    defer js_abi.jsFreeValue(ctx, array_ctor);
+    if (js_abi.jsIsException(array_ctor) or !js_abi.jsIsFunction(ctx, array_ctor)) return false;
+    const args = [_]js_abi.JSValueConst{value};
+    const result = js_abi.jsCall(ctx, array_ctor, js_abi.jsUndefined(ctx), &args);
+    defer js_abi.jsFreeValue(ctx, result);
+    var is_array: bool = false;
+    return js_abi.jsToBool(ctx, &is_array, result) == 0 and is_array;
 }
 
-fn getPropertyOwned(ctx: ?*qjs.c.JSContext, object: qjs.c.JSValueConst, key: []const u8) qjs.c.JSValue {
-    const z = alloc.dupeZ(u8, key) catch return qjs.undefinedValue(ctx);
+fn getPropertyOwned(ctx: js_abi.JSContext, object: js_abi.JSValueConst, key: []const u8) js_abi.JSValue {
+    const z = alloc.dupeZ(u8, key) catch return js_abi.jsUndefined(ctx);
     defer alloc.free(z);
-    return qjs.getProperty(ctx, object, z);
+    return js_abi.jsGetProperty(ctx, object, z);
 }
 
-fn formatArray(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst, opts: InspectOptions, depth: usize, seen: *std.ArrayList(usize)) void {
+fn formatArray(buf: *std.ArrayList(u8), ctx: js_abi.JSContext, value: js_abi.JSValueConst, opts: InspectOptions, depth: usize, seen: *std.ArrayList(usize)) void {
     appendSlice(buf, "[ ");
-    const len_val = qjs.getProperty(ctx, value, "length");
-    defer qjs.freeValue(ctx, len_val);
+    const len_val = js_abi.jsGetProperty(ctx, value, "length");
+    defer js_abi.jsFreeValue(ctx, len_val);
     var len_i32: i32 = 0;
-    if (qjs.c.JS_ToInt32(ctx, &len_i32, len_val) < 0 or len_i32 < 0) len_i32 = 0;
+    if (js_abi.jsToInt32(ctx, &len_i32, len_val) < 0 or len_i32 < 0) len_i32 = 0;
     const len: usize = @intCast(len_i32);
     const limit = if (opts.max_array_length == std.math.maxInt(usize)) len else @min(len, opts.max_array_length);
     var i: usize = 0;
     while (i < limit) : (i += 1) {
         if (i > 0) appendSlice(buf, ", ");
-        const item = qjs.c.JS_GetPropertyUint32(ctx, value, @intCast(i));
-        defer qjs.freeValue(ctx, item);
+        const item = js_abi.jsGetArrayElement(ctx, value, @intCast(i));
+        defer js_abi.jsFreeValue(ctx, item);
         formatValue(buf, ctx, item, opts, depth + 1, seen);
     }
     if (len > limit) {
@@ -220,41 +221,41 @@ fn formatArray(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSV
     appendSlice(buf, " ]");
 }
 
-fn formatObject(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst, opts: InspectOptions, depth: usize, seen: *std.ArrayList(usize)) void {
+fn formatObject(buf: *std.ArrayList(u8), ctx: js_abi.JSContext, value: js_abi.JSValueConst, opts: InspectOptions, depth: usize, seen: *std.ArrayList(usize)) void {
     appendSlice(buf, "{ ");
-    const keys_fn = qjs.eval(ctx, "Object.keys", "<std:util>", qjs.EvalFlags.global);
-    defer qjs.freeValue(ctx, keys_fn);
-    if (qjs.isException(keys_fn) or !qjs.isFunction(ctx, keys_fn)) {
+    const keys_fn = js_abi.jsEvalGlobal(ctx, "Object.keys", "<std:util>");
+    defer js_abi.jsFreeValue(ctx, keys_fn);
+    if (js_abi.jsIsException(keys_fn) or !js_abi.jsIsFunction(ctx, keys_fn)) {
         appendSlice(buf, "}");
         return;
     }
 
-    const key_args = [_]qjs.c.JSValueConst{value};
-    const keys = qjs.call(ctx, keys_fn, qjs.undefinedValue(ctx), &key_args);
-    defer qjs.freeValue(ctx, keys);
-    if (qjs.isException(keys) or !qjs.isObject(keys)) {
+    const key_args = [_]js_abi.JSValueConst{value};
+    const keys = js_abi.jsCall(ctx, keys_fn, js_abi.jsUndefined(ctx), &key_args);
+    defer js_abi.jsFreeValue(ctx, keys);
+    if (js_abi.jsIsException(keys) or !js_abi.jsIsObject(keys)) {
         appendSlice(buf, "}");
         return;
     }
 
-    const len_val = qjs.getProperty(ctx, keys, "length");
-    defer qjs.freeValue(ctx, len_val);
+    const len_val = js_abi.jsGetProperty(ctx, keys, "length");
+    defer js_abi.jsFreeValue(ctx, len_val);
     var len_i32: i32 = 0;
-    if (qjs.c.JS_ToInt32(ctx, &len_i32, len_val) < 0 or len_i32 < 0) len_i32 = 0;
+    if (js_abi.jsToInt32(ctx, &len_i32, len_val) < 0 or len_i32 < 0) len_i32 = 0;
     const count: usize = @intCast(len_i32);
     const limit = if (opts.max_array_length == std.math.maxInt(usize)) count else @min(count, opts.max_array_length);
 
     var i: usize = 0;
     while (i < limit) : (i += 1) {
         if (i > 0) appendSlice(buf, ", ");
-        const key_val = qjs.c.JS_GetPropertyUint32(ctx, keys, @intCast(i));
-        defer qjs.freeValue(ctx, key_val);
-        const key = qjs.valueToStringAlloc(ctx, key_val, alloc) catch continue;
+        const key_val = js_abi.jsGetArrayElement(ctx, keys, @intCast(i));
+        defer js_abi.jsFreeValue(ctx, key_val);
+        const key = js_abi.jsStringAlloc(ctx, key_val, alloc) catch continue;
         defer alloc.free(key);
         appendSlice(buf, key);
         appendSlice(buf, ": ");
         const prop_val = getPropertyOwned(ctx, value, key);
-        defer qjs.freeValue(ctx, prop_val);
+        defer js_abi.jsFreeValue(ctx, prop_val);
         formatValue(buf, ctx, prop_val, opts, depth + 1, seen);
     }
     if (count > limit) {
@@ -267,26 +268,26 @@ fn formatObject(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JS
     appendSlice(buf, " }");
 }
 
-fn formatValue(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst, opts: InspectOptions, depth: usize, seen: *std.ArrayList(usize)) void {
-    if (qjs.isString(value)) {
-        const text = qjs.valueToStringAlloc(ctx, value, alloc) catch return;
+fn formatValue(buf: *std.ArrayList(u8), ctx: js_abi.JSContext, value: js_abi.JSValueConst, opts: InspectOptions, depth: usize, seen: *std.ArrayList(usize)) void {
+    if (js_abi.jsIsString(value)) {
+        const text = js_abi.jsStringAlloc(ctx, value, alloc) catch return;
         defer alloc.free(text);
         appendStringTruncated(buf, text, opts.max_string_length);
         return;
     }
-    if (qjs.isNull(value)) {
+    if (js_abi.jsIsNull(value)) {
         appendSlice(buf, "null");
         return;
     }
-    if (qjs.isUndefined(value)) {
+    if (js_abi.jsIsUndefined(value)) {
         appendSlice(buf, "undefined");
         return;
     }
-    if (qjs.isBool(value) or qjs.isNumber(value) or qjs.isSymbol(value)) {
+    if (js_abi.jsIsBool(value) or js_abi.jsIsNumber(value) or js_abi.jsIsSymbol(value)) {
         appendValueString(buf, ctx, value);
         return;
     }
-    if (!qjs.isObject(value)) {
+    if (!js_abi.jsIsObject(value)) {
         appendValueString(buf, ctx, value);
         return;
     }
@@ -300,12 +301,12 @@ fn formatValue(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSV
         appendValueString(buf, ctx, value);
         return;
     }
-    if (qjs.isFunction(ctx, value)) {
+    if (js_abi.jsIsFunction(ctx, value)) {
         formatFunction(buf, ctx, value);
         return;
     }
 
-    const raw = @intFromPtr(qjs.c.JS_VALUE_GET_PTR(value));
+    const raw = js_abi.jsValueIdentity(value);
     if (seenContains(seen, raw)) {
         appendSlice(buf, "[Circular]");
         return;
@@ -321,9 +322,9 @@ fn formatValue(buf: *std.ArrayList(u8), ctx: ?*qjs.c.JSContext, value: qjs.c.JSV
 }
 
 pub fn inspectAlloc(
-    ctx: ?*qjs.c.JSContext,
-    value: qjs.c.JSValueConst,
-    opts_value: ?qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    value: js_abi.JSValueConst,
+    opts_value: ?js_abi.JSValueConst,
     allocator: std.mem.Allocator,
 ) ![]u8 {
     const opts = if (opts_value) |opts_val| mergeOptions(ctx, opts_val) else defaults;
@@ -360,7 +361,7 @@ fn js_getInspectOptions(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Valu
 }
 
 test "util qjs module exports can be created" {
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
     const module = load(runtime.ctx, specifier);
@@ -371,22 +372,21 @@ test "inspect formats arrays and objects" {
     defaults = .{};
     defer defaults = .{};
 
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
-    const value = qjs.eval(
+    const value = js_abi.jsEvalGlobal(
         runtime.ctx,
         "globalThis.__hao_inspect_value = { xs: [1, 2, 3], ok: true };",
         "<inspect-value>",
-        qjs.EvalFlags.global,
     );
-    defer qjs.freeValue(runtime.ctx, value);
-    try std.testing.expect(!qjs.isException(value));
+    defer js_abi.jsFreeValue(runtime.ctx, value);
+    try std.testing.expect(!js_abi.jsIsException(value));
 
-    const global = qjs.c.JS_GetGlobalObject(runtime.ctx);
-    defer qjs.freeValue(runtime.ctx, global);
-    const obj = qjs.getProperty(runtime.ctx, global, "__hao_inspect_value");
-    defer qjs.freeValue(runtime.ctx, obj);
+    const global = js_abi.jsGlobalObject(runtime.ctx);
+    defer js_abi.jsFreeValue(runtime.ctx, global);
+    const obj = js_abi.jsGetProperty(runtime.ctx, global, "__hao_inspect_value");
+    defer js_abi.jsFreeValue(runtime.ctx, obj);
 
     const text = try inspectAlloc(runtime.ctx, obj, null, std.testing.allocator);
     defer std.testing.allocator.free(text);
@@ -397,22 +397,21 @@ test "inspect uses generic repr() data when present" {
     defaults = .{};
     defer defaults = .{};
 
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
-    const value = qjs.eval(
+    const value = js_abi.jsEvalGlobal(
         runtime.ctx,
         "globalThis.__hao_repr_obj = { repr() { return { mime: 'image/svg+xml', data: '<svg><circle /></svg>' }; } };",
         "<inspect-repr>",
-        qjs.EvalFlags.global,
     );
-    defer qjs.freeValue(runtime.ctx, value);
-    try std.testing.expect(!qjs.isException(value));
+    defer js_abi.jsFreeValue(runtime.ctx, value);
+    try std.testing.expect(!js_abi.jsIsException(value));
 
-    const global = qjs.c.JS_GetGlobalObject(runtime.ctx);
-    defer qjs.freeValue(runtime.ctx, global);
-    const obj = qjs.getProperty(runtime.ctx, global, "__hao_repr_obj");
-    defer qjs.freeValue(runtime.ctx, obj);
+    const global = js_abi.jsGlobalObject(runtime.ctx);
+    defer js_abi.jsFreeValue(runtime.ctx, global);
+    const obj = js_abi.jsGetProperty(runtime.ctx, global, "__hao_repr_obj");
+    defer js_abi.jsFreeValue(runtime.ctx, obj);
 
     const text = try inspectAlloc(runtime.ctx, obj, null, std.testing.allocator);
     defer std.testing.allocator.free(text);

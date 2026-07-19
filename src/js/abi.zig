@@ -2,6 +2,7 @@ const std = @import("std");
 const qjs = @import("../qjs.zig");
 const runtime_allocator = @import("../runtime_allocator.zig");
 const telemetry_metrics = @import("../telemetry/metrics.zig");
+const diagnostic = @import("zig_libs").diagnostic;
 
 pub const abi_version: u32 = 3;
 pub const register_symbol_name = "js_register_modules";
@@ -12,6 +13,7 @@ pub const Value = usize;
 pub const JSValue = qjs.c.JSValue;
 pub const JSValueConst = qjs.c.JSValueConst;
 pub const JSContext = ?*qjs.c.JSContext;
+pub const MemoryUsage = qjs.MemoryUsage;
 pub const JSCallback = *const fn (JSContext, JSValueConst, c_int, [*c]JSValueConst) callconv(.c) JSValue;
 pub const JSGetter = *const fn (JSContext, JSValueConst) callconv(.c) JSValue;
 
@@ -321,6 +323,10 @@ pub fn jsSetProperty(ctx: JSContext, object: JSValueConst, key: [*:0]const u8, v
     );
 }
 
+pub fn jsSetPropertyChecked(ctx: JSContext, object: JSValueConst, key: [*:0]const u8, value: JSValue) !void {
+    if (jsSetProperty(ctx, object, key, value) < 0) return error.JavaScriptError;
+}
+
 pub fn jsSetHiddenProperty(ctx: JSContext, object: JSValueConst, key: [*:0]const u8, value: JSValue) c_int {
     return qjs.c.JS_DefinePropertyValueStr(
         ctx,
@@ -331,7 +337,7 @@ pub fn jsSetHiddenProperty(ctx: JSContext, object: JSValueConst, key: [*:0]const
     );
 }
 
-pub fn jsSetArrayElement(ctx: JSContext, array: JSValueConst, index: u32, value: JSValue) c_int {
+pub fn jsSetArrayIndex(ctx: JSContext, array: JSValueConst, index: u32, value: JSValue) c_int {
     return qjs.c.JS_DefinePropertyValueUint32(
         ctx,
         array,
@@ -380,8 +386,20 @@ pub fn jsDupValue(ctx: JSContext, value: JSValueConst) JSValue {
 }
 
 pub fn jsThrowError(ctx: JSContext, message: [*:0]const u8) JSValue {
-    _ = qjs.c.JS_ThrowInternalError(ctx, "%s", message);
+    const alloc = runtime_allocator.allocator();
+    const combined = formatDiagnosticMessage(std.mem.span(message), alloc) catch {
+        _ = qjs.c.JS_ThrowInternalError(ctx, "%s", message);
+        return qjs.exceptionValue();
+    };
+    defer if (combined) |value| alloc.free(value);
+    _ = qjs.c.JS_ThrowInternalError(ctx, "%s", (combined orelse std.mem.span(message)).ptr);
     return qjs.exceptionValue();
+}
+
+fn formatDiagnosticMessage(message: []const u8, allocator: std.mem.Allocator) !?[:0]u8 {
+    const detail = diagnostic.currentDiagnostic() orelse return null;
+    if (detail.isEmpty()) return null;
+    return try std.fmt.allocPrintSentinel(allocator, "{s}: {s}", .{ message, detail.slice() }, 0);
 }
 
 pub fn jsThrowConstructedError(ctx: JSContext, constructor_name: [:0]const u8, code: []const u8, message: []const u8) JSValue {
@@ -390,7 +408,11 @@ pub fn jsThrowConstructedError(ctx: JSContext, constructor_name: [:0]const u8, c
     const ctor = qjs.getProperty(ctx, global, constructor_name);
     defer qjs.freeValue(ctx, ctor);
     if (!qjs.isFunction(ctx, ctor)) return jsThrowError(ctx, "error constructor unavailable");
-    var args = [_]JSValue{ qjs.createString(ctx, code), qjs.createString(ctx, message) };
+    const alloc = runtime_allocator.allocator();
+    const combined = formatDiagnosticMessage(message, alloc) catch return jsThrowError(ctx, "failed to format native error");
+    defer if (combined) |value| alloc.free(value);
+    const final_message = combined orelse message;
+    var args = [_]JSValue{ qjs.createString(ctx, code), qjs.createString(ctx, final_message) };
     defer qjs.freeValue(ctx, args[0]);
     defer qjs.freeValue(ctx, args[1]);
     const value = qjs.c.JS_CallConstructor(ctx, ctor, args.len, @ptrCast(&args));
@@ -403,12 +425,25 @@ pub fn jsThrowTypeError(ctx: JSContext, message: [*:0]const u8) JSValue {
     return qjs.exceptionValue();
 }
 
+pub fn jsThrowInternalError(ctx: JSContext, message: [*:0]const u8) JSValue {
+    _ = qjs.c.JS_ThrowInternalError(ctx, "%s", message);
+    return qjs.exceptionValue();
+}
+
+pub fn jsThrowOutOfMemory(ctx: JSContext) JSValue {
+    return qjs.c.JS_ThrowOutOfMemory(ctx);
+}
+
 pub fn jsNewArray(ctx: JSContext) JSValue {
     return qjs.c.JS_NewArray(ctx);
 }
 
 pub fn jsInt32(ctx: JSContext, value: i32) JSValue {
     return qjs.c.JS_NewInt32(ctx, value);
+}
+
+pub fn jsInt64(ctx: JSContext, value: i64) JSValue {
+    return qjs.c.JS_NewInt64(ctx, value);
 }
 
 pub fn jsString(ctx: JSContext, value: []const u8) JSValue {
@@ -423,12 +458,73 @@ pub fn jsIsNumber(value: JSValueConst) bool {
     return qjs.isNumber(value);
 }
 
+pub fn jsIsBool(value: JSValueConst) bool {
+    return qjs.isBool(value);
+}
+
+pub fn jsIsSymbol(value: JSValueConst) bool {
+    return qjs.isSymbol(value);
+}
+
+pub fn jsIsObject(value: JSValueConst) bool {
+    return qjs.isObject(value);
+}
+
+pub fn jsIsFunction(ctx: JSContext, value: JSValueConst) bool {
+    return qjs.isFunction(ctx, value);
+}
+
+pub fn jsIsArray(ctx: JSContext, value: JSValueConst) bool {
+    return qjs.isArray(ctx, value);
+}
+
 pub fn jsGetProperty(ctx: JSContext, object: JSValueConst, key: [:0]const u8) JSValue {
     return qjs.getProperty(ctx, object, key);
 }
 
 pub fn jsGetArrayElement(ctx: JSContext, array: JSValueConst, index: u32) JSValue {
     return qjs.c.JS_GetPropertyUint32(ctx, array, index);
+}
+
+pub fn jsSetArrayElement(ctx: JSContext, array: JSValueConst, index: u32, value: JSValue) c_int {
+    return qjs.c.JS_SetPropertyUint32(ctx, array, index, value);
+}
+
+pub fn jsNewPromiseCapability(ctx: JSContext, resolving_funcs: *[2]JSValue) JSValue {
+    return qjs.c.JS_NewPromiseCapability(ctx, resolving_funcs);
+}
+
+pub fn jsGetException(ctx: JSContext) JSValue {
+    return qjs.c.JS_GetException(ctx);
+}
+
+pub fn jsThrow(ctx: JSContext, value: JSValue) JSValue {
+    return qjs.c.JS_Throw(ctx, value);
+}
+
+pub fn jsToInt64(ctx: JSContext, out: *i64, value: JSValueConst) c_int {
+    return qjs.c.JS_ToInt64(ctx, out, value);
+}
+
+pub fn jsToUint32(ctx: JSContext, out: *u32, value: JSValueConst) c_int {
+    return qjs.c.JS_ToUint32(ctx, out, value);
+}
+
+pub fn jsGetTypedArrayBuffer(
+    ctx: JSContext,
+    value: JSValueConst,
+    byte_offset: *usize,
+    byte_length: *usize,
+) JSValue {
+    return qjs.c.JS_GetTypedArrayBuffer(ctx, value, byte_offset, byte_length, null);
+}
+
+pub fn jsGetArrayBuffer(ctx: JSContext, byte_length: *usize, value: JSValueConst) ?[*]u8 {
+    return qjs.c.JS_GetArrayBuffer(ctx, byte_length, value);
+}
+
+pub fn jsNewUint8ArrayCopy(ctx: JSContext, data: ?[*]const u8, length: usize) JSValue {
+    return qjs.c.JS_NewUint8ArrayCopy(ctx, data, length);
 }
 
 pub fn jsNewObject(ctx: JSContext) JSValue {
@@ -479,10 +575,6 @@ pub fn jsStringEquals(ctx: JSContext, value: JSValueConst, expected: [:0]const u
     return std.mem.eql(u8, text[0..length], expected);
 }
 
-pub fn jsIsArray(ctx: JSContext, value: JSValueConst) bool {
-    return qjs.isArray(ctx, value);
-}
-
 pub fn jsIsString(value: JSValueConst) bool {
     return qjs.isString(value);
 }
@@ -493,6 +585,22 @@ pub fn jsToInt32(ctx: JSContext, out: *i32, value: JSValueConst) c_int {
 
 pub fn jsToFloat64(ctx: JSContext, out: *f64, value: JSValueConst) c_int {
     return qjs.c.JS_ToFloat64(ctx, out, value);
+}
+
+pub fn jsEvalGlobal(ctx: JSContext, source: []const u8, source_name: []const u8) JSValue {
+    return qjs.eval(ctx, source, source_name, qjs.EvalFlags.global);
+}
+
+pub fn jsGlobalObject(ctx: JSContext) JSValue {
+    return qjs.c.JS_GetGlobalObject(ctx);
+}
+
+pub fn jsValueIdentity(value: JSValueConst) usize {
+    return @intFromPtr(qjs.c.JS_VALUE_GET_PTR(value));
+}
+
+pub fn jsComputeMemoryUsage(ctx: JSContext) MemoryUsage {
+    return qjs.computeMemoryUsage(qjs.c.JS_GetRuntime(ctx));
 }
 
 const JSFunctionTable = struct {
@@ -561,6 +669,10 @@ fn callJSFunction(
     var ptr_value: i64 = 0;
     if (qjs.c.JS_ToInt64(ctx, &ptr_value, func_data[0]) < 0) return qjs.exceptionValue();
     const function: *const JSFunction = @ptrFromInt(@as(usize, @bitCast(ptr_value)));
+
+    var diagnostic_value: diagnostic.Diagnostic = .{};
+    var diagnostic_scope = diagnostic.DiagnosticScope.enter(&diagnostic_value);
+    defer diagnostic_scope.exit();
     return function.callback(ctx, this_value, argc, argv);
 }
 
@@ -842,7 +954,15 @@ fn contextThrowTypeError(context: *Context, message: [*:0]const u8) callconv(.c)
 
 fn contextThrowError(context: *Context, message: [*:0]const u8) callconv(.c) Value {
     const data = contextData(context);
-    _ = qjs.c.JS_ThrowInternalError(data.frame.ctx, "%s", message);
+    const alloc = data.allocator;
+    const combined = formatDiagnosticMessage(std.mem.span(message), alloc) catch {
+        _ = qjs.c.JS_ThrowInternalError(data.frame.ctx, "%s", message);
+        return data.frame.pushRawException();
+    };
+    defer if (combined) |value| alloc.free(value);
+    const fallback: []const u8 = std.mem.span(message);
+    const final_message: []const u8 = combined orelse fallback;
+    _ = qjs.c.JS_ThrowInternalError(data.frame.ctx, "%s", final_message.ptr);
     return data.frame.pushRawException();
 }
 
@@ -961,6 +1081,9 @@ fn callNativeFunction(
     defer if (argc_usize > handles_buf.len) alloc.free(handles);
     for (handles, 0..) |*handle, idx| handle.* = idx + 1;
 
+    var diagnostic_value: diagnostic.Diagnostic = .{};
+    var diagnostic_scope = diagnostic.DiagnosticScope.enter(&diagnostic_value);
+    defer diagnostic_scope.exit();
     const returned = function.callback(&context, argc, handles.ptr);
     const value = frame.toJsValueConst(returned) orelse {
         frame.deinit(alloc);
@@ -1034,4 +1157,35 @@ test "native abi exposes metric helpers to callbacks" {
     try std.testing.expectEqualStrings("addon.test", view[0].scope);
     try std.testing.expectEqualStrings("calls", view[0].name);
     try std.testing.expectEqual(@as(f64, 1), view[0].value);
+}
+
+test "native abi throw helper includes the current diagnostic" {
+    runtime_allocator.init(std.testing.allocator);
+    defer runtime_allocator.init(std.heap.page_allocator);
+
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const function = Function{
+        .name = "fail",
+        .callback = struct {
+            fn call(ctx: *Context, _: c_int, _: [*c]const Value) callconv(.c) Value {
+                const detail_error = diagnostic.withError(error.InvalidArgument, "shape mismatch: {d}", .{7});
+                if (detail_error != error.InvalidArgument) unreachable;
+                return ctx.api.throw_error(ctx, "operation failed");
+            }
+        }.call,
+        .length = 0,
+    };
+    var func_data = [_]qjs.c.JSValue{qjs.c.JS_NewInt64(runtime.ctx, @bitCast(@intFromPtr(&function)))};
+    var argv: [1]qjs.c.JSValueConst = undefined;
+    _ = callNativeFunction(runtime.ctx, qjs.undefinedValue(runtime.ctx), 0, &argv, 1, &func_data);
+    const exception = qjs.c.JS_GetException(runtime.ctx);
+    defer qjs.freeValue(runtime.ctx, exception);
+    const message_value = qjs.getProperty(runtime.ctx, exception, "message");
+    defer qjs.freeValue(runtime.ctx, message_value);
+    const alloc = runtime_allocator.allocator();
+    const message = try qjs.valueToStringAlloc(runtime.ctx, message_value, alloc);
+    defer alloc.free(message);
+    try std.testing.expectEqualStrings("operation failed: shape mismatch: 7", message);
 }

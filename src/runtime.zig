@@ -11,6 +11,8 @@ const js_addon = @import("js/addon.zig");
 const packages = @import("package.zig");
 const runtime_allocator = @import("runtime_allocator.zig");
 const telemetry_metrics = @import("telemetry/metrics.zig");
+const telemetry_store = @import("telemetry/store.zig");
+const telemetry_interface = @import("telemetry/interface.zig");
 const hao_std = @import("std.zig");
 const http_native = @import("std/http/native.zig");
 const process_native = @import("std/process/native.zig");
@@ -32,6 +34,7 @@ const CoreEnvironment = struct {
     pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !CoreEnvironment {
         runtime_allocator.init(allocator);
         telemetry_metrics.init(allocator);
+        @import("zig_libs").telemetry.install(telemetry_interface.host());
         var runtime = try qjs.Runtime.init();
         errdefer runtime.deinit();
 
@@ -59,6 +62,9 @@ const CoreEnvironment = struct {
         self.loop.deinit();
         self.native_cache.deinit();
         self.runtime.deinit();
+        telemetry_metrics.clear();
+        telemetry_store.clear();
+        @import("zig_libs").telemetry.install(.{});
         self.* = undefined;
     }
 
@@ -104,11 +110,13 @@ const CoreEnvironment = struct {
         while (true) {
             const ran_jobs = try qjs.executePendingJobs(self.runtime.rt);
             if (qjs.takeUnhandledException()) |pending| {
+                module.rememberUnhandledException(pending.ctx, pending.value, self.allocator);
                 defer qjs.freeValue(pending.ctx, pending.value);
                 return error.JavaScriptError;
             }
             const ran_uv = try self.loop.runUntilIdle();
             if (qjs.takeUnhandledException()) |pending| {
+                module.rememberUnhandledException(pending.ctx, pending.value, self.allocator);
                 defer qjs.freeValue(pending.ctx, pending.value);
                 return error.JavaScriptError;
             }
@@ -171,6 +179,8 @@ pub const RuntimeEnvironment = struct {
         self.loop.deinit();
         self.native_cache.deinit();
         self.runtime.deinit();
+        telemetry_metrics.clear();
+        telemetry_store.clear();
         self.* = undefined;
     }
 
@@ -241,11 +251,13 @@ pub const RuntimeEnvironment = struct {
         while (true) {
             const ran_jobs = try qjs.executePendingJobs(self.runtime.rt);
             if (qjs.takeUnhandledException()) |pending| {
+                module.rememberUnhandledException(pending.ctx, pending.value, self.allocator);
                 defer qjs.freeValue(pending.ctx, pending.value);
                 return error.JavaScriptError;
             }
             const ran_uv = try self.loop.runUntilIdle();
             if (qjs.takeUnhandledException()) |pending| {
+                module.rememberUnhandledException(pending.ctx, pending.value, self.allocator);
                 defer qjs.freeValue(pending.ctx, pending.value);
                 return error.JavaScriptError;
             }

@@ -1,6 +1,6 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
+const qjs_test = @import("../../qjs.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
 const metrics = @import("../../telemetry/metrics.zig");
 const store = @import("../../telemetry/store.zig");
@@ -21,6 +21,7 @@ const functions = [_]js_abi.Function{
     .{ .name = "snapshotMetricsNative", .callback = js_snapshotMetricsNative, .length = 0 },
     .{ .name = "clearMetricsNative", .callback = js_clearMetricsNative, .length = 0 },
     .{ .name = "startTraceNative", .callback = js_startTraceNative, .length = 1 },
+    .{ .name = "startRootTraceNative", .callback = js_startRootTraceNative, .length = 1 },
     .{ .name = "enterTraceNative", .callback = js_enterTraceNative, .length = 1 },
     .{ .name = "exitTraceNative", .callback = js_exitTraceNative, .length = 1 },
     .{ .name = "endTraceNative", .callback = js_endTraceNative, .length = 2 },
@@ -38,6 +39,7 @@ const function_ptrs = [_]*const js_abi.Function{
     &functions[8],
     &functions[9],
     &functions[10],
+    &functions[11],
 };
 
 pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
@@ -88,7 +90,7 @@ fn readNumber(ctx: *js_abi.Context, value: js_abi.Value) !f64 {
 const RuntimeMemoryMetric = struct {
     name: []const u8,
     unit: []const u8,
-    read: *const fn (qjs.MemoryUsage) usize,
+    read: *const fn (js_abi.MemoryUsage) usize,
 };
 
 const runtime_memory_metrics = [_]RuntimeMemoryMetric{
@@ -132,95 +134,95 @@ const runtime_allocator_metrics = [_]RuntimeAllocatorMetric{
     .{ .name = "runtime_free_count", .unit = "count", .read = allocatorFreeCount },
 };
 
-fn memoryMallocSize(usage: qjs.MemoryUsage) usize {
+fn memoryMallocSize(usage: js_abi.MemoryUsage) usize {
     return usage.malloc_size;
 }
 
-fn memoryMallocLimit(usage: qjs.MemoryUsage) usize {
+fn memoryMallocLimit(usage: js_abi.MemoryUsage) usize {
     return usage.malloc_limit;
 }
 
-fn memoryUsedSize(usage: qjs.MemoryUsage) usize {
+fn memoryUsedSize(usage: js_abi.MemoryUsage) usize {
     return usage.memory_used_size;
 }
 
-fn memoryMallocCount(usage: qjs.MemoryUsage) usize {
+fn memoryMallocCount(usage: js_abi.MemoryUsage) usize {
     return usage.malloc_count;
 }
 
-fn memoryUsedCount(usage: qjs.MemoryUsage) usize {
+fn memoryUsedCount(usage: js_abi.MemoryUsage) usize {
     return usage.memory_used_count;
 }
 
-fn memoryAtomCount(usage: qjs.MemoryUsage) usize {
+fn memoryAtomCount(usage: js_abi.MemoryUsage) usize {
     return usage.atom_count;
 }
 
-fn memoryAtomSize(usage: qjs.MemoryUsage) usize {
+fn memoryAtomSize(usage: js_abi.MemoryUsage) usize {
     return usage.atom_size;
 }
 
-fn memoryStrCount(usage: qjs.MemoryUsage) usize {
+fn memoryStrCount(usage: js_abi.MemoryUsage) usize {
     return usage.str_count;
 }
 
-fn memoryStrSize(usage: qjs.MemoryUsage) usize {
+fn memoryStrSize(usage: js_abi.MemoryUsage) usize {
     return usage.str_size;
 }
 
-fn memoryObjCount(usage: qjs.MemoryUsage) usize {
+fn memoryObjCount(usage: js_abi.MemoryUsage) usize {
     return usage.obj_count;
 }
 
-fn memoryObjSize(usage: qjs.MemoryUsage) usize {
+fn memoryObjSize(usage: js_abi.MemoryUsage) usize {
     return usage.obj_size;
 }
 
-fn memoryPropCount(usage: qjs.MemoryUsage) usize {
+fn memoryPropCount(usage: js_abi.MemoryUsage) usize {
     return usage.prop_count;
 }
 
-fn memoryPropSize(usage: qjs.MemoryUsage) usize {
+fn memoryPropSize(usage: js_abi.MemoryUsage) usize {
     return usage.prop_size;
 }
 
-fn memoryShapeCount(usage: qjs.MemoryUsage) usize {
+fn memoryShapeCount(usage: js_abi.MemoryUsage) usize {
     return usage.shape_count;
 }
 
-fn memoryShapeSize(usage: qjs.MemoryUsage) usize {
+fn memoryShapeSize(usage: js_abi.MemoryUsage) usize {
     return usage.shape_size;
 }
 
-fn memoryJsFuncCount(usage: qjs.MemoryUsage) usize {
+fn memoryJsFuncCount(usage: js_abi.MemoryUsage) usize {
     return usage.js_func_count;
 }
 
-fn memoryJsFuncSize(usage: qjs.MemoryUsage) usize {
+fn memoryJsFuncSize(usage: js_abi.MemoryUsage) usize {
     return usage.js_func_size;
 }
 
-fn memoryJsFuncCodeSize(usage: qjs.MemoryUsage) usize {
+fn memoryJsFuncCodeSize(usage: js_abi.MemoryUsage) usize {
     return usage.js_func_code_size;
 }
 
-fn memoryArrayCount(usage: qjs.MemoryUsage) usize {
+fn memoryArrayCount(usage: js_abi.MemoryUsage) usize {
     return usage.array_count;
 }
 
-fn memoryFastArrayCount(usage: qjs.MemoryUsage) usize {
+fn memoryFastArrayCount(usage: js_abi.MemoryUsage) usize {
     return usage.fast_array_count;
 }
 
-fn memoryFastArrayElements(usage: qjs.MemoryUsage) usize {
+fn memoryFastArrayElements(usage: js_abi.MemoryUsage) usize {
     return usage.fast_array_elements;
 }
 
-fn memoryBinaryObjectCount(usage: qjs.MemoryUsage) usize {
+fn memoryBinaryObjectCount(usage: js_abi.MemoryUsage) usize {
     return usage.binary_object_count;
 }
 
-fn memoryBinaryObjectSize(usage: qjs.MemoryUsage) usize {
+fn memoryBinaryObjectSize(usage: js_abi.MemoryUsage) usize {
     return usage.binary_object_size;
 }
 
@@ -250,8 +252,7 @@ fn allocatorFreeCount(stats: runtime_allocator.Stats) f64 {
 
 fn refreshRuntimeMemoryMetrics(ctx: *js_abi.Context) !void {
     const js_ctx = js_abi.borrowContext(ctx) orelse return error.JavaScriptError;
-    const rt = qjs.c.JS_GetRuntime(js_ctx);
-    const usage = qjs.computeMemoryUsage(rt);
+    const usage = js_abi.jsComputeMemoryUsage(js_ctx);
     for (runtime_memory_metrics) |metric| {
         const id = try metrics.register(.{
             .scope = "runtime.memory",
@@ -377,6 +378,13 @@ fn js_startTraceNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi
     return ctx.api.int32_value(ctx, @intCast(id));
 }
 
+fn js_startRootTraceNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
+    if (argc < 1) return throwType(ctx, "startRootTrace requires a name");
+    const name = stringFromValue(ctx, argv[0]) orelse return throwType(ctx, "trace name must be a string");
+    const id = store.startRootSpan(name) catch return throwInternal(ctx, "failed to start root trace span");
+    return ctx.api.int32_value(ctx, @intCast(id));
+}
+
 fn js_enterTraceNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     if (argc < 1) return throwType(ctx, "enterTrace requires a span id");
     const id = readId(ctx, argv[0]) catch return throwType(ctx, "trace span id must be a non-negative integer");
@@ -406,7 +414,7 @@ fn js_endTraceNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.V
 test "telemetry native module can be created" {
     runtime_allocator.init(std.heap.page_allocator);
 
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
     const module = load(runtime.ctx, specifier.ptr);

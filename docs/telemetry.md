@@ -13,48 +13,38 @@ A trace is the stream of span and event records connected by `trace_id` and
 
 The runtime-independent trace core is available from `hao.telemetry.trace`.
 It owns bounded record storage, span identity, parent relationships, attribute
-copying, and sampling decisions.
+copying, and sampling decisions. Hao connects that buffer to the TypeScript
+telemetry module and the in-process telemetry console.
 
-The TypeScript and addon bindings are not connected yet. The examples below
-describe the intended contract for those layers.
+The TypeScript surface currently exposes root spans, child spans, scoped trace
+callbacks, and span status. Attribute and event helpers remain reserved until
+their public shape is settled.
 
 ## TypeScript
 
-The planned TypeScript API will use the current context when starting a span:
+The TypeScript API uses the current context when starting a span:
 
 ```ts
 import { startSpan } from "std:telemetry"
 
-const span = startSpan("http.request", {
-  kind: "server",
-  attributes: {
-    "http.method": "GET",
-    "http.route": "/users",
-  },
-})
+const span = startSpan("http.request")
 
 try {
-  span.addEvent("request.headers.received", {
-    "http.content_length": 128,
-  })
   await handleRequest()
-  span.setStatus("ok")
 } catch (error) {
-  span.setStatus("error")
-  span.addEvent("exception", { message: String(error) })
   throw error
 } finally {
   span.end()
 }
 ```
 
-Attributes describe the span's operation. Event attributes describe one
-occurrence at one timestamp. Names should remain stable; dynamic values belong
-in attributes.
+At the core level, attributes describe the span's operation and event
+attributes describe one occurrence at one timestamp. The TypeScript surface does
+not expose them yet; names should remain stable when it does.
 
-Async context must be captured when a Promise continuation, timer, or native
-callback is registered, then restored while that callback runs. This is still
-runtime integration work and is not implemented by the core buffer.
+The `trace` helper captures the active span across its Promise continuation.
+Timer and selected native callbacks restore the captured context in Hao. Broader
+async propagation and the addon-facing context API are still runtime work.
 
 ## Native Addons And Threads
 
@@ -100,11 +90,11 @@ execution or a native worker. Sampling is decided at the trace root and
 inherited by child spans and events, so one trace is not accidentally split by
 independent event sampling.
 
-Each retained record has a monotonic sequence number. A future telemetry
-consumer can request records after a cursor and receive a `missed` indication
-when the ring has already overwritten part of the requested history. This
-allows the browser console to poll incrementally, deduplicate records, and mark
-large or incomplete traces honestly.
+Each retained record has a monotonic sequence number. The telemetry console can
+request records after a cursor and receive a `missed` indication when the ring
+has already overwritten part of the requested history. This allows the browser
+console to poll incrementally, deduplicate records, and mark large or
+incomplete traces honestly.
 
 The host will eventually choose the sampling and export policy. The core does
 not write logs, export spans, or impose an OpenTelemetry transport.

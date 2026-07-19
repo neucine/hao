@@ -1,7 +1,9 @@
 const std = @import("std");
 const async_loop = @import("../../async/loop.zig");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
+const qjs_test = @import("../../qjs.zig");
+// QuickJS access is kept behind the public JS ABI.
+
 const runtime_allocator = @import("../../runtime_allocator.zig");
 const trace = @import("../../telemetry/trace.zig");
 const uv = @import("../../async/uv.zig").c;
@@ -64,9 +66,9 @@ const HttpRequestResult = union(enum) {
 
 const HttpRequestOp = struct {
     req: uv.uv_work_t,
-    ctx: ?*qjs.c.JSContext,
-    resolve: qjs.c.JSValue,
-    reject: qjs.c.JSValue,
+    ctx: js_abi.JSContext,
+    resolve: js_abi.JSValue,
+    reject: js_abi.JSValue,
     request: HttpRequestOptions,
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -74,8 +76,8 @@ const HttpRequestOp = struct {
     result: HttpRequestResult = .pending,
 
     fn destroy(self: *HttpRequestOp) void {
-        qjs.freeValue(self.ctx, self.resolve);
-        qjs.freeValue(self.ctx, self.reject);
+        js_abi.jsFreeValue(self.ctx, self.resolve);
+        js_abi.jsFreeValue(self.ctx, self.reject);
         self.request.deinit();
         switch (self.result) {
             .success => |*response| response.deinit(),
@@ -106,18 +108,18 @@ pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
     return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
-fn throwType(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {
-    return qjs.c.JS_ThrowTypeError(ctx, message.ptr);
+fn throwType(ctx: js_abi.JSContext, message: [:0]const u8) js_abi.JSValue {
+    return js_abi.jsThrowTypeError(ctx, message.ptr);
 }
 
-fn throwInternal(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {
-    return qjs.c.JS_ThrowInternalError(ctx, message.ptr);
+fn throwInternal(ctx: js_abi.JSContext, message: [:0]const u8) js_abi.JSValue {
+    return js_abi.jsThrowInternalError(ctx, message.ptr);
 }
 
-fn throwError(ctx: ?*qjs.c.JSContext, message: []const u8) qjs.c.JSValue {
-    const message_z = alloc.dupeZ(u8, message) catch return qjs.c.JS_ThrowOutOfMemory(ctx);
+fn throwError(ctx: js_abi.JSContext, message: []const u8) js_abi.JSValue {
+    const message_z = alloc.dupeZ(u8, message) catch return js_abi.jsThrowOutOfMemory(ctx);
     defer alloc.free(message_z);
-    return qjs.c.JS_ThrowInternalError(ctx, message_z.ptr);
+    return js_abi.jsThrowInternalError(ctx, message_z.ptr);
 }
 
 fn jsRequest(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
@@ -145,34 +147,34 @@ fn jsRequest(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) ca
     return js_abi.adoptValue(ctx, makeResponseObject(qjs_ctx, &response));
 }
 
-fn jsRequestAsync(ctx: ?*qjs.c.JSContext, options: qjs.c.JSValueConst, io: std.Io) qjs.c.JSValue {
+fn jsRequestAsync(ctx: js_abi.JSContext, options: js_abi.JSValueConst, io: std.Io) js_abi.JSValue {
     const loop = async_loop.current() orelse return throwInternal(ctx, "http.request requires an attached async loop");
 
     const request = parseRequestOptions(ctx, options) catch {
         return throwType(ctx, "http.request options are invalid");
     };
 
-    var funcs: [2]qjs.c.JSValue = undefined;
-    const promise = qjs.c.JS_NewPromiseCapability(ctx, &funcs);
-    if (qjs.isException(promise)) {
+    var funcs: [2]js_abi.JSValue = undefined;
+    const promise = js_abi.jsNewPromiseCapability(ctx, &funcs);
+    if (js_abi.jsIsException(promise)) {
         var request_copy = request;
         request_copy.deinit();
         return promise;
     }
-    defer qjs.freeValue(ctx, funcs[0]);
-    defer qjs.freeValue(ctx, funcs[1]);
+    defer js_abi.jsFreeValue(ctx, funcs[0]);
+    defer js_abi.jsFreeValue(ctx, funcs[1]);
 
     const op = loop.allocator.create(HttpRequestOp) catch {
         var request_copy = request;
         request_copy.deinit();
-        qjs.freeValue(ctx, promise);
-        return qjs.c.JS_ThrowOutOfMemory(ctx);
+        js_abi.jsFreeValue(ctx, promise);
+        return js_abi.jsThrowOutOfMemory(ctx);
     };
     op.* = .{
         .req = std.mem.zeroes(uv.uv_work_t),
         .ctx = ctx,
-        .resolve = qjs.dupValue(ctx, funcs[0]),
-        .reject = qjs.dupValue(ctx, funcs[1]),
+        .resolve = js_abi.jsDupValue(ctx, funcs[0]),
+        .reject = js_abi.jsDupValue(ctx, funcs[1]),
         .request = request,
         .io = io,
         .allocator = loop.allocator,
@@ -182,14 +184,14 @@ fn jsRequestAsync(ctx: ?*qjs.c.JSContext, options: qjs.c.JSValueConst, io: std.I
 
     if (uv.uv_queue_work(loop.loop, &op.req, onRequestWork, onRequestDone) != 0) {
         op.destroy();
-        qjs.freeValue(ctx, promise);
+        js_abi.jsFreeValue(ctx, promise);
         return throwInternal(ctx, "http.request error");
     }
 
     return promise;
 }
 
-fn parseRequestOptions(ctx: ?*qjs.c.JSContext, options: qjs.c.JSValueConst) !HttpRequestOptions {
+fn parseRequestOptions(ctx: js_abi.JSContext, options: js_abi.JSValueConst) !HttpRequestOptions {
     const url = try getOptionalStringPropAlloc(ctx, options, "url") orelse return error.MissingArgument;
     errdefer alloc.free(url);
 
@@ -218,11 +220,11 @@ fn parseMethod(name: []const u8) !http.Method {
     return std.meta.stringToEnum(http.Method, name) orelse error.InvalidArgument;
 }
 
-fn getOptionalStringPropAlloc(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst, key: [:0]const u8) !?[]u8 {
-    const value = qjs.getProperty(ctx, obj, key);
-    defer qjs.freeValue(ctx, value);
-    if (qjs.isUndefined(value) or qjs.isNull(value)) return null;
-    return try qjs.valueToStringAlloc(ctx, value, alloc);
+fn getOptionalStringPropAlloc(ctx: js_abi.JSContext, obj: js_abi.JSValueConst, key: [:0]const u8) !?[]u8 {
+    const value = js_abi.jsGetProperty(ctx, obj, key);
+    defer js_abi.jsFreeValue(ctx, value);
+    if (js_abi.jsIsUndefined(value) or js_abi.jsIsNull(value)) return null;
+    return try js_abi.jsStringAlloc(ctx, value, alloc);
 }
 
 fn freeHeaders(headers: []HeaderPair) void {
@@ -233,16 +235,16 @@ fn freeHeaders(headers: []HeaderPair) void {
     alloc.free(headers);
 }
 
-fn parseHeaders(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst) ![]HeaderPair {
-    const value = qjs.getProperty(ctx, obj, "headers");
-    defer qjs.freeValue(ctx, value);
-    if (qjs.isUndefined(value) or qjs.isNull(value)) return alloc.alloc(HeaderPair, 0);
-    if (!qjs.isObject(value)) return error.InvalidArgument;
+fn parseHeaders(ctx: js_abi.JSContext, obj: js_abi.JSValueConst) ![]HeaderPair {
+    const value = js_abi.jsGetProperty(ctx, obj, "headers");
+    defer js_abi.jsFreeValue(ctx, value);
+    if (js_abi.jsIsUndefined(value) or js_abi.jsIsNull(value)) return alloc.alloc(HeaderPair, 0);
+    if (!js_abi.jsIsObject(value)) return error.InvalidArgument;
 
-    const length_value = qjs.getProperty(ctx, value, "length");
-    defer qjs.freeValue(ctx, length_value);
+    const length_value = js_abi.jsGetProperty(ctx, value, "length");
+    defer js_abi.jsFreeValue(ctx, length_value);
     var length: i32 = 0;
-    if (qjs.c.JS_ToInt32(ctx, &length, length_value) < 0 or length < 0) return error.InvalidArgument;
+    if (js_abi.jsToInt32(ctx, &length, length_value) < 0 or length < 0) return error.InvalidArgument;
 
     const out = try alloc.alloc(HeaderPair, @intCast(length));
     errdefer alloc.free(out);
@@ -255,40 +257,40 @@ fn parseHeaders(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst) ![]HeaderPair {
     }
 
     for (out, 0..) |*item, i| {
-        const pair_value = qjs.c.JS_GetPropertyUint32(ctx, value, @intCast(i));
-        defer qjs.freeValue(ctx, pair_value);
-        if (!qjs.isObject(pair_value)) return error.InvalidArgument;
+        const pair_value = js_abi.jsGetArrayElement(ctx, value, @intCast(i));
+        defer js_abi.jsFreeValue(ctx, pair_value);
+        if (!js_abi.jsIsObject(pair_value)) return error.InvalidArgument;
 
-        const name_value = qjs.c.JS_GetPropertyUint32(ctx, pair_value, 0);
-        defer qjs.freeValue(ctx, name_value);
-        const header_value = qjs.c.JS_GetPropertyUint32(ctx, pair_value, 1);
-        defer qjs.freeValue(ctx, header_value);
+        const name_value = js_abi.jsGetArrayElement(ctx, pair_value, 0);
+        defer js_abi.jsFreeValue(ctx, name_value);
+        const header_value = js_abi.jsGetArrayElement(ctx, pair_value, 1);
+        defer js_abi.jsFreeValue(ctx, header_value);
 
         item.* = .{
-            .name = try qjs.valueToStringAlloc(ctx, name_value, alloc),
-            .value = try qjs.valueToStringAlloc(ctx, header_value, alloc),
+            .name = try js_abi.jsStringAlloc(ctx, name_value, alloc),
+            .value = try js_abi.jsStringAlloc(ctx, header_value, alloc),
         };
         built += 1;
     }
     return out;
 }
 
-fn parseOptionalBodyBytes(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst) !?[]u8 {
-    const value = qjs.getProperty(ctx, obj, "bodyBytes");
-    defer qjs.freeValue(ctx, value);
-    if (qjs.isUndefined(value) or qjs.isNull(value)) return null;
+fn parseOptionalBodyBytes(ctx: js_abi.JSContext, obj: js_abi.JSValueConst) !?[]u8 {
+    const value = js_abi.jsGetProperty(ctx, obj, "bodyBytes");
+    defer js_abi.jsFreeValue(ctx, value);
+    if (js_abi.jsIsUndefined(value) or js_abi.jsIsNull(value)) return null;
 
     var offset: usize = 0;
     var size: usize = 0;
-    const buffer = qjs.c.JS_GetTypedArrayBuffer(ctx, value, &offset, &size, null);
-    if (qjs.isException(buffer)) {
-        qjs.freeValue(ctx, buffer);
+    const buffer = js_abi.jsGetTypedArrayBuffer(ctx, value, &offset, &size);
+    if (js_abi.jsIsException(buffer)) {
+        js_abi.jsFreeValue(ctx, buffer);
         return error.InvalidArgument;
     }
-    defer qjs.freeValue(ctx, buffer);
+    defer js_abi.jsFreeValue(ctx, buffer);
 
     var buffer_size: usize = 0;
-    const ptr = qjs.c.JS_GetArrayBuffer(ctx, &buffer_size, buffer) orelse return error.InvalidArgument;
+    const ptr = js_abi.jsGetArrayBuffer(ctx, &buffer_size, buffer) orelse return error.InvalidArgument;
     const bytes: [*]const u8 = @ptrCast(ptr);
     if (offset > buffer_size or size > buffer_size - offset) return error.InvalidArgument;
     return try alloc.dupe(u8, bytes[offset .. offset + size]);
@@ -387,62 +389,62 @@ fn onRequestDone(req: ?*uv.uv_work_t, _: c_int) callconv(.c) void {
     var context_scope = trace.ContextScope.enter(op.context);
     defer context_scope.exit();
 
-    const undef = qjs.undefinedValue(op.ctx);
+    const undef = js_abi.jsUndefined(op.ctx);
     switch (op.result) {
         .success => |*response| {
             const value = makeResponseObject(op.ctx, response);
-            if (qjs.isException(value)) return;
-            defer qjs.freeValue(op.ctx, value);
-            const args = [_]qjs.c.JSValueConst{value};
-            const resolve_result = qjs.call(op.ctx, op.resolve, undef, &args);
-            qjs.freeValue(op.ctx, resolve_result);
+            if (js_abi.jsIsException(value)) return;
+            defer js_abi.jsFreeValue(op.ctx, value);
+            const args = [_]js_abi.JSValueConst{value};
+            const resolve_result = js_abi.jsCall(op.ctx, op.resolve, undef, &args);
+            js_abi.jsFreeValue(op.ctx, resolve_result);
         },
         .failure => |message| {
             const err = throwError(op.ctx, message);
-            if (qjs.isException(err)) {
-                const exception = qjs.c.JS_GetException(op.ctx);
-                defer qjs.freeValue(op.ctx, exception);
-                const args = [_]qjs.c.JSValueConst{exception};
-                const reject_result = qjs.call(op.ctx, op.reject, undef, &args);
-                qjs.freeValue(op.ctx, reject_result);
+            if (js_abi.jsIsException(err)) {
+                const exception = js_abi.jsGetException(op.ctx);
+                defer js_abi.jsFreeValue(op.ctx, exception);
+                const args = [_]js_abi.JSValueConst{exception};
+                const reject_result = js_abi.jsCall(op.ctx, op.reject, undef, &args);
+                js_abi.jsFreeValue(op.ctx, reject_result);
             }
         },
         .pending => {},
     }
 }
 
-fn appendHeaderValue(ctx: ?*qjs.c.JSContext, headers_obj: qjs.c.JSValueConst, name: []const u8, value: []const u8) !void {
+fn appendHeaderValue(ctx: js_abi.JSContext, headers_obj: js_abi.JSValueConst, name: []const u8, value: []const u8) !void {
     const key = try alloc.dupeZ(u8, name);
     defer alloc.free(key);
 
-    const existing = qjs.getProperty(ctx, headers_obj, key);
-    defer qjs.freeValue(ctx, existing);
-    if (qjs.isUndefined(existing)) {
-        try qjs.setProperty(ctx, headers_obj, key, qjs.createString(ctx, value));
+    const existing = js_abi.jsGetProperty(ctx, headers_obj, key);
+    defer js_abi.jsFreeValue(ctx, existing);
+    if (js_abi.jsIsUndefined(existing)) {
+        try js_abi.jsSetPropertyChecked(ctx, headers_obj, key, js_abi.jsString(ctx, value));
         return;
     }
 
-    if (!qjs.isArray(ctx, existing)) {
-        const array = qjs.c.JS_NewArray(ctx);
-        if (qjs.isException(array)) return error.JavaScriptError;
-        errdefer qjs.freeValue(ctx, array);
-        if (qjs.c.JS_SetPropertyUint32(ctx, array, 0, qjs.dupValue(ctx, existing)) < 0) return error.JavaScriptError;
-        if (qjs.c.JS_SetPropertyUint32(ctx, array, 1, qjs.createString(ctx, value)) < 0) return error.JavaScriptError;
-        try qjs.setProperty(ctx, headers_obj, key, array);
+    if (!js_abi.jsIsArray(ctx, existing)) {
+        const array = js_abi.jsNewArray(ctx);
+        if (js_abi.jsIsException(array)) return error.JavaScriptError;
+        errdefer js_abi.jsFreeValue(ctx, array);
+        if (js_abi.jsSetArrayIndex(ctx, array, 0, js_abi.jsDupValue(ctx, existing)) < 0) return error.JavaScriptError;
+        if (js_abi.jsSetArrayIndex(ctx, array, 1, js_abi.jsString(ctx, value)) < 0) return error.JavaScriptError;
+        try js_abi.jsSetPropertyChecked(ctx, headers_obj, key, array);
         return;
     }
 
-    const length_value = qjs.getProperty(ctx, existing, "length");
-    defer qjs.freeValue(ctx, length_value);
+    const length_value = js_abi.jsGetProperty(ctx, existing, "length");
+    defer js_abi.jsFreeValue(ctx, length_value);
     var length: i32 = 0;
-    if (qjs.c.JS_ToInt32(ctx, &length, length_value) < 0 or length < 0) return error.JavaScriptError;
-    if (qjs.c.JS_SetPropertyUint32(ctx, existing, @intCast(length), qjs.createString(ctx, value)) < 0) return error.JavaScriptError;
+    if (js_abi.jsToInt32(ctx, &length, length_value) < 0 or length < 0) return error.JavaScriptError;
+    if (js_abi.jsSetArrayIndex(ctx, existing, @intCast(length), js_abi.jsString(ctx, value)) < 0) return error.JavaScriptError;
 }
 
-fn responseHeadersObject(ctx: ?*qjs.c.JSContext, headers: []const HeaderPair) !qjs.c.JSValue {
-    const obj = qjs.newObject(ctx);
-    if (qjs.isException(obj)) return error.JavaScriptError;
-    errdefer qjs.freeValue(ctx, obj);
+fn responseHeadersObject(ctx: js_abi.JSContext, headers: []const HeaderPair) !js_abi.JSValue {
+    const obj = js_abi.jsNewObject(ctx);
+    if (js_abi.jsIsException(obj)) return error.JavaScriptError;
+    errdefer js_abi.jsFreeValue(ctx, obj);
 
     for (headers) |header| {
         try appendHeaderValue(ctx, obj, header.name, header.value);
@@ -450,36 +452,36 @@ fn responseHeadersObject(ctx: ?*qjs.c.JSContext, headers: []const HeaderPair) !q
     return obj;
 }
 
-fn makeResponseObject(ctx: ?*qjs.c.JSContext, response: *HttpResponseData) qjs.c.JSValue {
-    const obj = qjs.newObject(ctx);
-    if (qjs.isException(obj)) return obj;
-    errdefer qjs.freeValue(ctx, obj);
+fn makeResponseObject(ctx: js_abi.JSContext, response: *HttpResponseData) js_abi.JSValue {
+    const obj = js_abi.jsNewObject(ctx);
+    if (js_abi.jsIsException(obj)) return obj;
+    errdefer js_abi.jsFreeValue(ctx, obj);
 
-    qjs.setProperty(ctx, obj, "status", qjs.c.JS_NewInt32(ctx, @intCast(@intFromEnum(response.status)))) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "statusText", qjs.createString(ctx, response.reason)) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "ok", qjs.boolValue(ctx, @intFromEnum(response.status) >= 200 and @intFromEnum(response.status) < 300)) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "url", qjs.createString(ctx, response.final_url)) catch return qjs.exceptionValue();
-    qjs.setProperty(ctx, obj, "bodyText", qjs.createString(ctx, response.body_bytes)) catch return qjs.exceptionValue();
+    js_abi.jsSetPropertyChecked(ctx, obj, "status", js_abi.jsInt32(ctx, @intCast(@intFromEnum(response.status)))) catch return js_abi.jsExceptionValue();
+    js_abi.jsSetPropertyChecked(ctx, obj, "statusText", js_abi.jsString(ctx, response.reason)) catch return js_abi.jsExceptionValue();
+    js_abi.jsSetPropertyChecked(ctx, obj, "ok", js_abi.jsBool(ctx, @intFromEnum(response.status) >= 200 and @intFromEnum(response.status) < 300)) catch return js_abi.jsExceptionValue();
+    js_abi.jsSetPropertyChecked(ctx, obj, "url", js_abi.jsString(ctx, response.final_url)) catch return js_abi.jsExceptionValue();
+    js_abi.jsSetPropertyChecked(ctx, obj, "bodyText", js_abi.jsString(ctx, response.body_bytes)) catch return js_abi.jsExceptionValue();
 
-    const headers = responseHeadersObject(ctx, response.headers) catch return qjs.exceptionValue();
+    const headers = responseHeadersObject(ctx, response.headers) catch return js_abi.jsExceptionValue();
     trySetOwned(ctx, obj, "headers", headers);
 
     const body_bytes: [*]const u8 = if (response.body_bytes.len == 0) undefined else response.body_bytes.ptr;
-    const bytes_value = qjs.c.JS_NewUint8ArrayCopy(ctx, if (response.body_bytes.len == 0) null else body_bytes, response.body_bytes.len);
-    if (qjs.isException(bytes_value)) return qjs.exceptionValue();
+    const bytes_value = js_abi.jsNewUint8ArrayCopy(ctx, if (response.body_bytes.len == 0) null else body_bytes, response.body_bytes.len);
+    if (js_abi.jsIsException(bytes_value)) return js_abi.jsExceptionValue();
     trySetOwned(ctx, obj, "bodyBytes", bytes_value);
 
     return obj;
 }
 
-fn trySetOwned(ctx: ?*qjs.c.JSContext, obj: qjs.c.JSValueConst, key: [:0]const u8, value: qjs.c.JSValue) void {
-    qjs.setProperty(ctx, obj, key, value) catch {
-        qjs.freeValue(ctx, value);
+fn trySetOwned(ctx: js_abi.JSContext, obj: js_abi.JSValueConst, key: [:0]const u8, value: js_abi.JSValue) void {
+    js_abi.jsSetPropertyChecked(ctx, obj, key, value) catch {
+        js_abi.jsFreeValue(ctx, value);
     };
 }
 
 test "std http native module can be created" {
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
     const module = load(runtime.ctx, specifier.ptr);

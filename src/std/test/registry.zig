@@ -1,5 +1,5 @@
 const std = @import("std");
-const qjs = @import("../../qjs.zig");
+const js_abi = @import("../../js/abi.zig");
 
 pub const HookKind = enum {
     before_all,
@@ -16,13 +16,13 @@ pub const TestMode = enum {
 
 pub const TestCase = struct {
     name: []const u8,
-    callback: qjs.c.JSValue,
+    callback: js_abi.JSValue,
     mode: TestMode,
     file_path: []const u8,
 };
 
 pub const Hook = struct {
-    callback: qjs.c.JSValue,
+    callback: js_abi.JSValue,
     file_path: []const u8,
 };
 
@@ -82,33 +82,33 @@ pub fn ensureInit(alloc: std.mem.Allocator) !void {
     try init(alloc);
 }
 
-fn deinitSuite(ctx: ?*qjs.c.JSContext, suite: *Suite) void {
+fn deinitSuite(ctx: js_abi.JSContext, suite: *Suite) void {
     const alloc = allocator();
     for (suite.children.items) |child| deinitSuite(ctx, child);
     suite.entries.deinit(alloc);
     suite.children.deinit(alloc);
 
     for (suite.cases.items) |case_| {
-        qjs.freeValue(ctx, case_.callback);
+        js_abi.jsFreeValue(ctx, case_.callback);
         alloc.free(case_.name);
         alloc.free(case_.file_path);
     }
     suite.cases.deinit(alloc);
 
     for (suite.before_all.items) |hook| {
-        qjs.freeValue(ctx, hook.callback);
+        js_abi.jsFreeValue(ctx, hook.callback);
         alloc.free(hook.file_path);
     }
     for (suite.after_all.items) |hook| {
-        qjs.freeValue(ctx, hook.callback);
+        js_abi.jsFreeValue(ctx, hook.callback);
         alloc.free(hook.file_path);
     }
     for (suite.before_each.items) |hook| {
-        qjs.freeValue(ctx, hook.callback);
+        js_abi.jsFreeValue(ctx, hook.callback);
         alloc.free(hook.file_path);
     }
     for (suite.after_each.items) |hook| {
-        qjs.freeValue(ctx, hook.callback);
+        js_abi.jsFreeValue(ctx, hook.callback);
         alloc.free(hook.file_path);
     }
     suite.before_all.deinit(alloc);
@@ -120,7 +120,7 @@ fn deinitSuite(ctx: ?*qjs.c.JSContext, suite: *Suite) void {
     alloc.destroy(suite);
 }
 
-pub fn deinit(ctx: ?*qjs.c.JSContext) void {
+pub fn deinit(ctx: js_abi.JSContext) void {
     if (root_suite_ptr) |root_suite| deinitSuite(ctx, root_suite);
     root_suite_ptr = null;
     current_suite_ptr = null;
@@ -149,21 +149,21 @@ pub fn popSuite() !void {
     current_suite_ptr = current.parent orelse return error.InvalidState;
 }
 
-pub fn registerTest(ctx: ?*qjs.c.JSContext, name: []const u8, callback: qjs.c.JSValueConst, mode: TestMode) !void {
+pub fn registerTest(ctx: js_abi.JSContext, name: []const u8, callback: js_abi.JSValueConst, mode: TestMode) !void {
     const current = current_suite_ptr orelse return error.InvalidState;
     try current.cases.append(allocator(), .{
         .name = try allocator().dupe(u8, name),
-        .callback = qjs.dupValue(ctx, callback),
+        .callback = js_abi.jsDupValue(ctx, callback),
         .mode = mode,
         .file_path = try allocator().dupe(u8, current_file_path),
     });
     try current.entries.append(allocator(), .{ .case_index = current.cases.items.len - 1 });
 }
 
-pub fn registerHook(ctx: ?*qjs.c.JSContext, kind: HookKind, callback: qjs.c.JSValueConst) !void {
+pub fn registerHook(ctx: js_abi.JSContext, kind: HookKind, callback: js_abi.JSValueConst) !void {
     const current = current_suite_ptr orelse return error.InvalidState;
     const hook: Hook = .{
-        .callback = qjs.dupValue(ctx, callback),
+        .callback = js_abi.jsDupValue(ctx, callback),
         .file_path = try allocator().dupe(u8, current_file_path),
     };
     switch (kind) {

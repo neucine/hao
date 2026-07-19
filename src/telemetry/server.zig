@@ -51,6 +51,11 @@ const State = struct {
     thread: ?std.Thread = null,
 };
 
+const ConnectionTask = struct {
+    io: std.Io,
+    connection: net.Stream,
+};
+
 pub fn start(allocator: std.mem.Allocator, io: ?std.Io) !Handle {
     if (!config.config.telemetry.console_enabled or !net_available) return .{};
     const active_io = io orelse return .{};
@@ -86,8 +91,26 @@ fn run(state: *State) void {
             if (state.stop.load(.acquire)) break;
             continue;
         };
-        handleConnection(state.io, connection) catch {};
+        const task = std.heap.page_allocator.create(ConnectionTask) catch {
+            connection.close(state.io);
+            continue;
+        };
+        task.* = .{
+            .io = state.io,
+            .connection = connection,
+        };
+        const thread = std.Thread.spawn(.{}, runConnection, .{task}) catch {
+            task.connection.close(task.io);
+            std.heap.page_allocator.destroy(task);
+            continue;
+        };
+        thread.detach();
     }
+}
+
+fn runConnection(task: *ConnectionTask) void {
+    defer std.heap.page_allocator.destroy(task);
+    handleConnection(task.io, task.connection) catch {};
 }
 
 fn handleConnection(io: std.Io, connection: net.Stream) !void {

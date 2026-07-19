@@ -23,7 +23,6 @@ dependency used by Affon and other hosts.
 
 ## Tracing
 
-- Connect the runtime-independent trace buffer to `std:telemetry`.
 - Add async context propagation across promises, timers, and native callbacks.
 - Define the host consumer/export policy before exposing tracing through the
   addon ABI.

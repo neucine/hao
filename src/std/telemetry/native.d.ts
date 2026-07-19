@@ -28,4 +28,9 @@ declare module "std:telemetry/native" {
   export function metricValueNative(id: number): number;
   export function snapshotMetricsNative(): MetricSnapshot[];
   export function clearMetricsNative(): void;
+  export function startTraceNative(name: string): number;
+  export function startRootTraceNative(name: string): number;
+  export function enterTraceNative(id: number): number;
+  export function exitTraceNative(scopeId: number): void;
+  export function endTraceNative(id: number, status?: "ok" | "err" | "unset"): void;
 }

@@ -1,6 +1,5 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
 const runtime = @import("runtime.zig");
 
@@ -22,16 +21,16 @@ pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
     return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
-fn borrowedArgs(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, comptime max_args: usize) ?[max_args]qjs.c.JSValueConst {
+fn borrowedArgs(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, comptime max_args: usize) ?[max_args]js_abi.JSValueConst {
     if (argc > max_args) return null;
-    var out: [max_args]qjs.c.JSValueConst = undefined;
+    var out: [max_args]js_abi.JSValueConst = undefined;
     for (0..@as(usize, @intCast(@max(argc, 0)))) |index| {
         out[index] = js_abi.borrowValue(ctx, argv[index]) orelse return null;
     }
     return out;
 }
 
-fn pushResult(ctx: *js_abi.Context, result: qjs.c.JSValue) js_abi.Value {
+fn pushResult(ctx: *js_abi.Context, result: js_abi.JSValue) js_abi.Value {
     return js_abi.adoptValue(ctx, result);
 }
 

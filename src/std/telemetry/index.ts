@@ -6,6 +6,7 @@ import {
   setMetricNative,
   snapshotMetricsNative,
   startTraceNative,
+  startRootTraceNative,
   enterTraceNative,
   exitTraceNative,
   endTraceNative,
@@ -33,6 +34,10 @@ export interface Histogram {
   readonly id: number;
   observe(value: number): void;
   count(): number;
+}
+
+export interface TraceHandle {
+  end(status?: "ok" | "err" | "unset"): void;
 }
 
 function define(definition: MetricDefinition): number {
@@ -85,6 +90,27 @@ export function metrics(): MetricSnapshot[] {
   return snapshotMetricsNative();
 }
 
+function startHandle(id: number): TraceHandle {
+  return {
+    end(status = "ok") {
+      const scopeId = enterTraceNative(id);
+      try {
+        endTraceNative(id, status);
+      } finally {
+        exitTraceNative(scopeId);
+      }
+    },
+  };
+}
+
+export function startTrace(name: string): TraceHandle {
+  return startHandle(startRootTraceNative(name));
+}
+
+export function startSpan(name: string): TraceHandle {
+  return startHandle(startTraceNative(name));
+}
+
 export function trace<T>(name: string, callback: () => T): T | Promise<T> {
   const spanId = startTraceNative(name);
   const invoke = () => {
@@ -128,4 +154,4 @@ export function trace<T>(name: string, callback: () => T): T | Promise<T> {
   }
 }
 
-export default { counter, gauge, histogram, metrics, trace };
+export default { counter, gauge, histogram, metrics, trace, startTrace, startSpan };

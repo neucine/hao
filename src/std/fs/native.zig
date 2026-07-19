@@ -1,7 +1,7 @@
 const std = @import("std");
 const fs = @import("../../fs.zig");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
+const qjs_test = @import("../../qjs.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
 
 pub const specifier: [:0]const u8 = "std:fs/native";
@@ -63,7 +63,7 @@ fn jsStatSync(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) c
 }
 
 test "std fs native module can be created" {
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
     const module = load(runtime.ctx, specifier.ptr);

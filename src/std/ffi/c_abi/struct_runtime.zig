@@ -1,6 +1,7 @@
 const std = @import("std");
 const errors = @import("../../../errors.zig");
-const qjs = @import("../../../qjs.zig");
+const js_abi = @import("../../../js/abi.zig");
+const qjs_test = @import("../../../qjs.zig");
 const runtime_allocator = @import("../../../runtime_allocator.zig");
 const metadata = @import("metadata.zig");
 
@@ -9,7 +10,7 @@ const alloc = runtime_allocator.allocator();
 pub const TempStructArg = struct {
     spec: metadata.LibrarySpec,
     decl: *const metadata.PodStructDecl,
-    js_value: qjs.c.JSValue,
+    js_value: js_abi.JSValue,
     storage: []align(8) u8,
 };
 
@@ -43,8 +44,8 @@ pub fn podStructPointerDecl(spec: metadata.LibrarySpec, ty: metadata.TypeRef) ?*
 }
 
 pub fn marshalPodStructPointerArg(
-    ctx: ?*qjs.c.JSContext,
-    value: qjs.c.JSValueConst,
+    ctx: js_abi.JSContext,
+    value: js_abi.JSValueConst,
     spec: metadata.LibrarySpec,
     ty: metadata.TypeRef,
     int_args: []usize,
@@ -52,7 +53,7 @@ pub fn marshalPodStructPointerArg(
     temp_structs: *std.ArrayList(TempStructArg),
 ) c_int {
     const pod = podStructPointerDecl(spec, ty) orelse return 1;
-    if (!qjs.isObject(value) or qjs.isNull(value)) return 1;
+    if (!js_abi.jsIsObject(value) or js_abi.jsIsNull(value)) return 1;
 
     const layout = computePodStructLayout(spec, pod) catch {
         _ = errors.jsError(ctx, .invalid_arg, "C: unsupported POD struct layout for runtime marshaling", null, null, null);
@@ -68,14 +69,14 @@ pub fn marshalPodStructPointerArg(
 
     if (writePodStructFromObject(ctx, spec, pod, storage, value) < 0) return -1;
 
-    const duped = qjs.dupValue(ctx, value);
+    const duped = js_abi.jsDupValue(ctx, value);
     temp_structs.append(alloc, .{
         .spec = spec,
         .decl = pod,
         .js_value = duped,
         .storage = storage,
     }) catch {
-        qjs.freeValue(ctx, duped);
+        js_abi.jsFreeValue(ctx, duped);
         _ = errors.jsError(ctx, .out_of_memory, "C: failed to retain POD struct state", error.OutOfMemory, null, null);
         return -1;
     };
@@ -84,7 +85,7 @@ pub fn marshalPodStructPointerArg(
     return 0;
 }
 
-pub fn applyPodStructOutputs(ctx: ?*qjs.c.JSContext, state: TempStructArg) c_int {
+pub fn applyPodStructOutputs(ctx: js_abi.JSContext, state: TempStructArg) c_int {
     for (state.decl.fields) |field| {
         const offset = podStructFieldOffset(state.spec, state.decl, field.name) orelse {
             _ = errors.jsError(ctx, .internal, "C: missing POD struct field offset", null, null, null);
@@ -92,13 +93,13 @@ pub fn applyPodStructOutputs(ctx: ?*qjs.c.JSContext, state: TempStructArg) c_int
         };
         const js_value = readPodStructField(ctx, state.spec, field.ty, state.storage, offset) catch return -1;
         const key = alloc.dupeZ(u8, field.name) catch {
-            qjs.freeValue(ctx, js_value);
+            js_abi.jsFreeValue(ctx, js_value);
             _ = errors.jsError(ctx, .out_of_memory, "C: failed to allocate POD struct field key", error.OutOfMemory, null, null);
             return -1;
         };
         defer alloc.free(key);
-        qjs.setProperty(ctx, state.js_value, key, js_value) catch {
-            qjs.freeValue(ctx, js_value);
+        js_abi.jsSetPropertyChecked(ctx, state.js_value, key, js_value) catch {
+            js_abi.jsFreeValue(ctx, js_value);
             _ = errors.jsError(ctx, .internal, "C: failed to write POD struct field back to JS object", null, null, @errorReturnTrace());
             return -1;
         };
@@ -106,9 +107,9 @@ pub fn applyPodStructOutputs(ctx: ?*qjs.c.JSContext, state: TempStructArg) c_int
     return 0;
 }
 
-pub fn freeTempStructs(ctx: ?*qjs.c.JSContext, temp_structs: *std.ArrayList(TempStructArg)) void {
+pub fn freeTempStructs(ctx: js_abi.JSContext, temp_structs: *std.ArrayList(TempStructArg)) void {
     for (temp_structs.items) |state| {
-        qjs.freeValue(ctx, state.js_value);
+        js_abi.jsFreeValue(ctx, state.js_value);
         alloc.free(state.storage);
     }
     temp_structs.deinit(alloc);
@@ -164,22 +165,22 @@ fn layoutForTypeRef(spec: metadata.LibrarySpec, ty: metadata.TypeRef) LayoutErro
 }
 
 fn writePodStructFromObject(
-    ctx: ?*qjs.c.JSContext,
+    ctx: js_abi.JSContext,
     spec: metadata.LibrarySpec,
     pod: *const metadata.PodStructDecl,
     storage: []align(8) u8,
-    value: qjs.c.JSValueConst,
+    value: js_abi.JSValueConst,
 ) c_int {
     return writePodStructFromObjectAtOffset(ctx, spec, pod, storage, 0, value);
 }
 
 fn writePodStructFromObjectAtOffset(
-    ctx: ?*qjs.c.JSContext,
+    ctx: js_abi.JSContext,
     spec: metadata.LibrarySpec,
     pod: *const metadata.PodStructDecl,
     storage: []align(8) u8,
     base_offset: usize,
-    value: qjs.c.JSValueConst,
+    value: js_abi.JSValueConst,
 ) c_int {
     for (pod.fields) |field| {
         const offset = podStructFieldOffset(spec, pod, field.name) orelse {
@@ -191,9 +192,9 @@ fn writePodStructFromObjectAtOffset(
             return -1;
         };
         defer alloc.free(key);
-        const field_value = qjs.getProperty(ctx, value, key);
-        defer qjs.freeValue(ctx, field_value);
-        if (qjs.isUndefined(field_value)) {
+        const field_value = js_abi.jsGetProperty(ctx, value, key);
+        defer js_abi.jsFreeValue(ctx, field_value);
+        if (js_abi.jsIsUndefined(field_value)) {
             _ = errors.jsError(ctx, .invalid_arg, "C: missing POD struct field", null, null, null);
             return -1;
         }
@@ -203,17 +204,19 @@ fn writePodStructFromObjectAtOffset(
 }
 
 fn writePodStructField(
-    ctx: ?*qjs.c.JSContext,
+    ctx: js_abi.JSContext,
     spec: metadata.LibrarySpec,
     ty: metadata.TypeRef,
     storage: []align(8) u8,
     offset: usize,
-    value: qjs.c.JSValueConst,
+    value: js_abi.JSValueConst,
 ) c_int {
     return switch (ty) {
         .primitive => |primitive| switch (primitive) {
             .bool => blk: {
-                storage[offset] = if (qjs.c.JS_ToBool(ctx, value) == 1) 1 else 0;
+                var bool_value = false;
+                if (js_abi.jsToBool(ctx, &bool_value, value) < 0) return -1;
+                storage[offset] = if (bool_value) 1 else 0;
                 break :blk 0;
             },
             .char, .uint8_t => blk: {
@@ -223,13 +226,13 @@ fn writePodStructField(
             },
             .int8_t => blk: {
                 var out: i64 = 0;
-                if (qjs.c.JS_ToInt64(ctx, &out, value) < 0) return -1;
+                if (js_abi.jsToInt64(ctx, &out, value) < 0) return -1;
                 storage[offset] = @bitCast(@as(i8, @truncate(out)));
                 break :blk 0;
             },
             .int16_t => blk: {
                 var out: i64 = 0;
-                if (qjs.c.JS_ToInt64(ctx, &out, value) < 0) return -1;
+                if (js_abi.jsToInt64(ctx, &out, value) < 0) return -1;
                 std.mem.writeInt(i16, storage[offset..][0..2], @truncate(out), .little);
                 break :blk 0;
             },
@@ -240,7 +243,7 @@ fn writePodStructField(
             },
             .int32_t => blk: {
                 var out: i64 = 0;
-                if (qjs.c.JS_ToInt64(ctx, &out, value) < 0) return -1;
+                if (js_abi.jsToInt64(ctx, &out, value) < 0) return -1;
                 std.mem.writeInt(i32, storage[offset..][0..4], @truncate(out), .little);
                 break :blk 0;
             },
@@ -251,7 +254,7 @@ fn writePodStructField(
             },
             .int64_t => blk: {
                 var out: i64 = 0;
-                if (qjs.c.JS_ToInt64(ctx, &out, value) < 0) return -1;
+                if (js_abi.jsToInt64(ctx, &out, value) < 0) return -1;
                 std.mem.writeInt(i64, storage[offset..][0..8], out, .little);
                 break :blk 0;
             },
@@ -262,14 +265,14 @@ fn writePodStructField(
             },
             .float => blk: {
                 var out: f64 = 0;
-                if (qjs.c.JS_ToFloat64(ctx, &out, value) < 0) return -1;
+                if (js_abi.jsToFloat64(ctx, &out, value) < 0) return -1;
                 const casted: f32 = @floatCast(out);
                 std.mem.writeInt(u32, storage[offset..][0..4], @bitCast(casted), .little);
                 break :blk 0;
             },
             .double => blk: {
                 var out: f64 = 0;
-                if (qjs.c.JS_ToFloat64(ctx, &out, value) < 0) return -1;
+                if (js_abi.jsToFloat64(ctx, &out, value) < 0) return -1;
                 std.mem.writeInt(u64, storage[offset..][0..8], @bitCast(out), .little);
                 break :blk 0;
             },
@@ -285,7 +288,7 @@ fn writePodStructField(
             };
             switch (decl.*) {
                 .pod_struct => |*pod| {
-                    if (!qjs.isObject(value) or qjs.isNull(value)) {
+                    if (!js_abi.jsIsObject(value) or js_abi.jsIsNull(value)) {
                         _ = errors.jsError(ctx, .invalid_arg, "C: nested POD struct fields require JS objects", null, null, null);
                         return -1;
                     }
@@ -305,39 +308,39 @@ fn writePodStructField(
 }
 
 fn readPodStructField(
-    ctx: ?*qjs.c.JSContext,
+    ctx: js_abi.JSContext,
     spec: metadata.LibrarySpec,
     ty: metadata.TypeRef,
     storage: []align(8) u8,
     offset: usize,
-) !qjs.c.JSValue {
+) !js_abi.JSValue {
     return switch (ty) {
         .primitive => |primitive| switch (primitive) {
-            .bool => qjs.boolValue(ctx, storage[offset] != 0),
-            .char, .uint8_t => qjs.c.JS_NewInt32(ctx, storage[offset]),
-            .int8_t => qjs.c.JS_NewInt32(ctx, @as(i8, @bitCast(storage[offset]))),
-            .int16_t => qjs.c.JS_NewInt32(ctx, std.mem.readInt(i16, storage[offset..][0..2], .little)),
-            .uint16_t => qjs.c.JS_NewInt32(ctx, std.mem.readInt(u16, storage[offset..][0..2], .little)),
-            .int32_t => qjs.c.JS_NewInt32(ctx, std.mem.readInt(i32, storage[offset..][0..4], .little)),
-            .uint32_t => qjs.c.JS_NewInt64(ctx, std.mem.readInt(u32, storage[offset..][0..4], .little)),
-            .int64_t => qjs.c.JS_NewInt64(ctx, std.mem.readInt(i64, storage[offset..][0..8], .little)),
-            .uint64_t, .size_t => qjs.c.JS_NewInt64(ctx, @intCast(std.mem.readInt(u64, storage[offset..][0..8], .little))),
-            .float => qjs.c.JS_NewFloat64(ctx, @as(f32, @bitCast(std.mem.readInt(u32, storage[offset..][0..4], .little)))),
-            .double => qjs.c.JS_NewFloat64(ctx, @bitCast(std.mem.readInt(u64, storage[offset..][0..8], .little))),
+            .bool => js_abi.jsBool(ctx, storage[offset] != 0),
+            .char, .uint8_t => js_abi.jsInt32(ctx, storage[offset]),
+            .int8_t => js_abi.jsInt32(ctx, @as(i8, @bitCast(storage[offset]))),
+            .int16_t => js_abi.jsInt32(ctx, std.mem.readInt(i16, storage[offset..][0..2], .little)),
+            .uint16_t => js_abi.jsInt32(ctx, std.mem.readInt(u16, storage[offset..][0..2], .little)),
+            .int32_t => js_abi.jsInt32(ctx, std.mem.readInt(i32, storage[offset..][0..4], .little)),
+            .uint32_t => js_abi.jsInt64(ctx, std.mem.readInt(u32, storage[offset..][0..4], .little)),
+            .int64_t => js_abi.jsInt64(ctx, std.mem.readInt(i64, storage[offset..][0..8], .little)),
+            .uint64_t, .size_t => js_abi.jsInt64(ctx, @intCast(std.mem.readInt(u64, storage[offset..][0..8], .little))),
+            .float => js_abi.jsFloat64(ctx, @as(f32, @bitCast(std.mem.readInt(u32, storage[offset..][0..4], .little)))),
+            .double => js_abi.jsFloat64(ctx, @bitCast(std.mem.readInt(u64, storage[offset..][0..8], .little))),
             .void => return error.UnsupportedFeature,
         },
         .named => |name| blk: {
             const decl = metadata.findTypeDecl(spec, name) orelse return error.UnsupportedFeature;
             switch (decl.*) {
                 .pod_struct => |*pod| {
-                    const obj = qjs.newObject(ctx);
-                    errdefer qjs.freeValue(ctx, obj);
+                    const obj = js_abi.jsNewObject(ctx);
+                    errdefer js_abi.jsFreeValue(ctx, obj);
                     for (pod.fields) |field| {
                         const field_offset = podStructFieldOffset(spec, pod, field.name) orelse return error.UnsupportedFeature;
                         const js_value = try readPodStructField(ctx, spec, field.ty, storage, offset + field_offset);
                         const key = try alloc.dupeZ(u8, field.name);
                         defer alloc.free(key);
-                        try qjs.setProperty(ctx, obj, key, js_value);
+                        try js_abi.jsSetPropertyChecked(ctx, obj, key, js_value);
                     }
                     break :blk obj;
                 },
@@ -348,14 +351,14 @@ fn readPodStructField(
     };
 }
 
-fn parseUnsignedArg(ctx: ?*qjs.c.JSContext, value: qjs.c.JSValueConst) ?usize {
+fn parseUnsignedArg(ctx: js_abi.JSContext, value: js_abi.JSValueConst) ?usize {
     var out: i64 = 0;
-    if (qjs.c.JS_ToInt64(ctx, &out, value) == 0) {
+    if (js_abi.jsToInt64(ctx, &out, value) == 0) {
         if (out < 0) return null;
         return @intCast(out);
     }
 
-    const text = qjs.valueToStringAlloc(ctx, value, alloc) catch return null;
+    const text = js_abi.jsStringAlloc(ctx, value, alloc) catch return null;
     defer alloc.free(text);
     const trimmed = std.mem.trimEnd(u8, text, "n");
     if (trimmed.len == 0) return null;
@@ -387,12 +390,16 @@ test "nested POD struct pointer marshaling stages and copies back through JS obj
         .functions = &.{},
     };
 
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
-    const value = qjs.eval(runtime.ctx, "({ inner: { x: 1, y: 2 }, scale: 3 })", "<test>", qjs.EvalFlags.global);
-    defer qjs.freeValue(runtime.ctx, value);
-    try std.testing.expect(!qjs.isException(value));
+    const value = js_abi.jsEvalGlobal(
+        runtime.ctx,
+        "({ inner: { x: 1, y: 2 }, scale: 3 })",
+        "<test>",
+    );
+    defer js_abi.jsFreeValue(runtime.ctx, value);
+    try std.testing.expect(!js_abi.jsIsException(value));
 
     var int_args = [_]usize{0};
     var temp_structs = std.ArrayList(TempStructArg).empty;
@@ -414,21 +421,21 @@ test "nested POD struct pointer marshaling stages and copies back through JS obj
 
     try std.testing.expectEqual(@as(c_int, 0), applyPodStructOutputs(runtime.ctx, temp_structs.items[0]));
 
-    const inner = qjs.getProperty(runtime.ctx, value, "inner");
-    defer qjs.freeValue(runtime.ctx, inner);
-    const x = qjs.getProperty(runtime.ctx, inner, "x");
-    defer qjs.freeValue(runtime.ctx, x);
-    const y = qjs.getProperty(runtime.ctx, inner, "y");
-    defer qjs.freeValue(runtime.ctx, y);
-    const scale = qjs.getProperty(runtime.ctx, value, "scale");
-    defer qjs.freeValue(runtime.ctx, scale);
+    const inner = js_abi.jsGetProperty(runtime.ctx, value, "inner");
+    defer js_abi.jsFreeValue(runtime.ctx, inner);
+    const x = js_abi.jsGetProperty(runtime.ctx, inner, "x");
+    defer js_abi.jsFreeValue(runtime.ctx, x);
+    const y = js_abi.jsGetProperty(runtime.ctx, inner, "y");
+    defer js_abi.jsFreeValue(runtime.ctx, y);
+    const scale = js_abi.jsGetProperty(runtime.ctx, value, "scale");
+    defer js_abi.jsFreeValue(runtime.ctx, scale);
 
     var x_num: i64 = 0;
     var y_num: i64 = 0;
     var scale_num: f64 = 0;
-    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToInt64(runtime.ctx, &x_num, x));
-    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToInt64(runtime.ctx, &y_num, y));
-    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(runtime.ctx, &scale_num, scale));
+    try std.testing.expectEqual(@as(c_int, 0), js_abi.jsToInt64(runtime.ctx, &x_num, x));
+    try std.testing.expectEqual(@as(c_int, 0), js_abi.jsToInt64(runtime.ctx, &y_num, y));
+    try std.testing.expectEqual(@as(c_int, 0), js_abi.jsToFloat64(runtime.ctx, &scale_num, scale));
     try std.testing.expectEqual(@as(i64, 10), x_num);
     try std.testing.expectEqual(@as(i64, 20), y_num);
     try std.testing.expectEqual(@as(f64, 6.5), scale_num);

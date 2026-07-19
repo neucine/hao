@@ -2,6 +2,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const qjs = @import("qjs.zig");
 const runtime_allocator = @import("runtime_allocator.zig");
+const shared = @import("zig_libs").diagnostic;
 
 pub const ErrorCode = enum {
     invalid_arg,
@@ -21,71 +22,22 @@ pub const ErrorCode = enum {
     thread_pool_unavailable,
 };
 
-pub const Diagnostic = struct {
-    const max_len = 1024;
-    const truncation_marker = "... (message truncated)";
-
-    message: [max_len]u8 = undefined,
-    message_len: usize = 0,
-
-    pub fn set(self: *Diagnostic, comptime fmt: []const u8, args: anytype) void {
-        const result = std.fmt.bufPrint(&self.message, fmt, args) catch {
-            const safe = max_len - truncation_marker.len;
-            @memcpy(self.message[safe..], truncation_marker);
-            self.message_len = max_len;
-            return;
-        };
-        self.message_len = result.len;
-    }
-
-    pub fn slice(self: *const Diagnostic) []const u8 {
-        return self.message[0..self.message_len];
-    }
-
-    pub fn isEmpty(self: *const Diagnostic) bool {
-        return self.message_len == 0;
-    }
-};
-
-threadlocal var current_diagnostic_ptr: ?*Diagnostic = null;
+pub const Diagnostic = shared.Diagnostic;
+pub const DiagnosticScope = shared.DiagnosticScope;
 
 fn runtimeAllocator() std.mem.Allocator {
     return runtime_allocator.allocator();
 }
 
-pub const DiagnosticScope = struct {
-    previous: ?*Diagnostic,
-
-    pub fn enter(diag: *Diagnostic) DiagnosticScope {
-        const scope: DiagnosticScope = .{ .previous = current_diagnostic_ptr };
-        current_diagnostic_ptr = diag;
-        return scope;
-    }
-
-    pub fn exit(self: *DiagnosticScope) void {
-        current_diagnostic_ptr = self.previous;
-        self.* = undefined;
-    }
-};
-
 pub fn currentDiagnostic() ?*Diagnostic {
-    return current_diagnostic_ptr;
+    return shared.currentDiagnostic();
 }
 
 pub fn setCurrentDiagnostic(diag: ?*Diagnostic) ?*Diagnostic {
-    const previous = current_diagnostic_ptr;
-    current_diagnostic_ptr = diag;
-    return previous;
+    return shared.setCurrentDiagnostic(diag);
 }
 
-pub fn nativeError(err: anyerror, diag: ?*Diagnostic, comptime fmt: []const u8, args: anytype) anyerror {
-    if (diag) |d| d.set(fmt, args);
-    return err;
-}
-
-pub fn nativeErrorWithCurrent(err: anyerror, comptime fmt: []const u8, args: anytype) anyerror {
-    return nativeError(err, current_diagnostic_ptr, fmt, args);
-}
+pub const withError = shared.withError;
 
 pub fn registerRuntimeError(ctx: ?*qjs.c.JSContext, allocator: std.mem.Allocator) !void {
     const source =
@@ -327,7 +279,7 @@ test "DiagnosticScope restores previous diagnostic" {
     try std.testing.expect(currentDiagnostic() == &first);
 }
 
-test "nativeErrorWithCurrent writes into active diagnostic" {
+test "withError writes into active diagnostic" {
     var diag: Diagnostic = .{};
     const previous = setCurrentDiagnostic(null);
     defer _ = setCurrentDiagnostic(previous);
@@ -335,7 +287,7 @@ test "nativeErrorWithCurrent writes into active diagnostic" {
     var scope = DiagnosticScope.enter(&diag);
     defer scope.exit();
 
-    const err = nativeErrorWithCurrent(error.ShapeMismatch, "shape mismatch: {d} vs {d}", .{ 2, 3 });
+    const err = withError(error.ShapeMismatch, "shape mismatch: {d} vs {d}", .{ 2, 3 });
     try std.testing.expectEqual(error.ShapeMismatch, err);
     try std.testing.expectEqualStrings("shape mismatch: 2 vs 3", diag.slice());
 }

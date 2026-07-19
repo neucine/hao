@@ -39,6 +39,18 @@ pub fn startSpan(name: []const u8) !u32 {
     return id;
 }
 
+pub fn startRootSpan(name: []const u8) !u32 {
+    const previous = trace.currentContext();
+    _ = trace.setCurrentContext(trace.Context.root);
+    defer _ = trace.setCurrentContext(previous);
+    const span = try trace_tracer.startSpan(nanoTimestamp(), name, .internal, &.{});
+    const id = next_span_id;
+    next_span_id +%= 1;
+    if (next_span_id == 0) next_span_id = 1;
+    spans.put(runtime_allocator.allocator(), id, span) catch return error.OutOfMemory;
+    return id;
+}
+
 pub fn enterSpan(id: u32) !u32 {
     const span = spans.get(id) orelse return error.UnknownSpan;
     const previous = trace.setCurrentContext(span.contextValue());

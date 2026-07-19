@@ -39,10 +39,16 @@ declare module "std:telemetry" {
     count(): number;
   }
 
+  export interface TraceHandle {
+    end(status?: "ok" | "err" | "unset"): void;
+  }
+
   export function counter(definition: MetricDefinition): Counter;
   export function gauge(definition: MetricDefinition): Gauge;
   export function histogram(definition: MetricDefinition): Histogram;
   export function metrics(): MetricSnapshot[];
+  export function startTrace(name: string): TraceHandle;
+  export function startSpan(name: string): TraceHandle;
   export function trace<T>(name: string, callback: () => T): T | Promise<T>;
 
   const telemetry: {
@@ -50,6 +56,8 @@ declare module "std:telemetry" {
     gauge: typeof gauge;
     histogram: typeof histogram;
     metrics: typeof metrics;
+    startTrace: typeof startTrace;
+    startSpan: typeof startSpan;
     trace: typeof trace;
   };
   export default telemetry;

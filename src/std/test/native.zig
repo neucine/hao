@@ -1,6 +1,6 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
-const qjs = @import("../../qjs.zig");
+const qjs_test = @import("../../qjs.zig");
 const console = @import("../../global/console.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
 const registry = @import("registry.zig");
@@ -192,7 +192,7 @@ fn countHooks(suite: *registry.Suite) usize {
 }
 
 test "test qjs module exports can be created" {
-    var runtime = try qjs.Runtime.init();
+    var runtime = try qjs_test.Runtime.init();
     defer runtime.deinit();
 
     const module = load(runtime.ctx, specifier.ptr);
