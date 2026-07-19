@@ -32,6 +32,9 @@ jobs:
           ref: 5af63d6203b0c0dcb2f2bdfbd24f59c13fe2a16a
           path: zig-libs
 
+      - name: Link shared Zig libraries
+        run: ln -s "$GITHUB_WORKSPACE/zig-libs" "$GITHUB_WORKSPACE/../zig-libs"
+
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
