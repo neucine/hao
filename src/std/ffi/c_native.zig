@@ -2,6 +2,7 @@ const std = @import("std");
 const errors = @import("../../errors.zig");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 const parser = @import("c_abi/parser.zig");
 const lower = @import("c_abi/lower.zig");
 const metadata = @import("c_abi/metadata.zig");
@@ -12,7 +13,7 @@ const Library = @import("Library.zig").Library;
 
 pub const specifier: [:0]const u8 = "std:ffi/c/native";
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 const module_functions = [_]js_abi.Function{
     .{ .name = "openNative", .callback = js_openNative, .length = 3 },
@@ -57,8 +58,8 @@ const OpenCLibrary = struct {
 var libraries: std.AutoHashMapUnmanaged(u32, *OpenCLibrary) = .empty;
 var next_library_id: u32 = 1;
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &module_function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &module_function_ptrs));
 }
 
 fn borrowedArgs(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, comptime max_args: usize) ?[max_args]qjs.c.JSValueConst {

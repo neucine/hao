@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">Hao monochrome light mark</title>
-  <desc id="desc">A single-color white Hao runtime mark for dark backgrounds.</desc>
-  <path d="M256 62 397 143" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M421 220v151L256 466 91 371V181L256 86" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="421" cy="181" r="23" fill="#FFFFFF"/>
-  <path d="M174 352V160h46v82c18-23 42-34 72-34 55 0 88 37 88 99v45h-46v-43c0-40-18-60-52-60-38 0-62 27-62 70v33h-46Z" fill="#FFFFFF"/>
-</svg>

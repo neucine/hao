@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const fs = @import("fs.zig");
+const runtime_allocator = @import("runtime_allocator.zig");
 
 const c = @cImport({
     @cInclude("stdlib.h");
@@ -37,6 +38,10 @@ pub const RuntimeOptions = struct {
 };
 
 pub var config: Config = .{};
+
+fn allocator() std.mem.Allocator {
+    return runtime_allocator.allocator();
+}
 
 fn getenv(key: [:0]const u8) ?[]const u8 {
     const value = c.getenv(key.ptr) orelse return null;
@@ -85,8 +90,8 @@ fn loadBool(key: [:0]const u8, dest: *bool) void {
 fn setProcessEnv(key: [:0]const u8, value: []const u8) !void {
     if (builtin.os.tag == .windows) return error.Unsupported;
 
-    var value_z = try std.heap.page_allocator.alloc(u8, value.len + 1);
-    defer std.heap.page_allocator.free(value_z);
+    var value_z = try allocator().alloc(u8, value.len + 1);
+    defer allocator().free(value_z);
     @memcpy(value_z[0..value.len], value);
     value_z[value.len] = 0;
 
@@ -98,8 +103,8 @@ fn setProcessEnvIfMissing(key: []const u8, value: []const u8) !void {
     if (std.mem.indexOfScalar(u8, key, 0) != null) return;
     if (std.mem.indexOfScalar(u8, value, 0) != null) return;
 
-    const key_z = try std.heap.page_allocator.dupeZ(u8, key);
-    defer std.heap.page_allocator.free(key_z);
+    const key_z = try allocator().dupeZ(u8, key);
+    defer allocator().free(key_z);
     if (getenv(key_z) != null) return;
     try setProcessEnv(key_z, value);
 }
@@ -159,11 +164,11 @@ fn parseDotenvLine(line: []const u8) ?struct { key: []const u8, value: []const u
 }
 
 fn loadDotenvFile(path: []const u8, required: bool) !void {
-    const data = fs.readFileAlloc(std.heap.page_allocator, path, 1024 * 1024) catch |err| {
+    const data = fs.readFileAlloc(allocator(), path, 1024 * 1024) catch |err| {
         if (!required and err == error.FileNotFound) return;
         return err;
     };
-    defer std.heap.page_allocator.free(data);
+    defer allocator().free(data);
 
     var lines = std.mem.splitScalar(u8, data, '\n');
     while (lines.next()) |line| {
@@ -278,8 +283,7 @@ test "parseDotenvLine handles comments quotes and export" {
 test "loadDotenvFile loads missing keys without overriding environment" {
     const path = ".zig-cache/hao-tests/dotenv/config.env";
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/dotenv");
-    try fs.writeFile(
-        path,
+    try fs.writeFile(path,
         \\HAO_DOTENV_TEST_KEEP=from-file
         \\HAO_DOTENV_TEST_EXISTING=from-file
         \\

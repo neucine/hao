@@ -59,11 +59,27 @@ pub const Runtime = struct {
     }
 
     pub fn deinit(self: *Runtime) void {
-        if (self.ctx) |ctx| c.JS_FreeContext(ctx);
-        if (self.rt) |rt| c.JS_FreeRuntime(rt);
+        if (self.ctx) |ctx| {
+            const pending_exception = c.JS_GetException(ctx);
+            c.JS_FreeValue(ctx, pending_exception);
+            c.JS_FreeContext(ctx);
+        }
+        if (self.rt) |rt| {
+            c.JS_RunGC(rt);
+            c.JS_FreeRuntime(rt);
+        }
         self.* = .{ .rt = null, .ctx = null };
     }
 };
+
+test "runtime deinit releases pending JavaScript exceptions" {
+    var runtime = try Runtime.init();
+    defer runtime.deinit();
+
+    const value = eval(runtime.ctx, "throw new Error('expected failure');", "<exception-test>", EvalFlags.global);
+    defer freeValue(runtime.ctx, value);
+    try std.testing.expect(isException(value));
+}
 
 pub const MemoryUsage = struct {
     malloc_size: usize,

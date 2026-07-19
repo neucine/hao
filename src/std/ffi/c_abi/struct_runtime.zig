@@ -1,9 +1,10 @@
 const std = @import("std");
 const errors = @import("../../../errors.zig");
 const qjs = @import("../../../qjs.zig");
+const runtime_allocator = @import("../../../runtime_allocator.zig");
 const metadata = @import("metadata.zig");
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 pub const TempStructArg = struct {
     spec: metadata.LibrarySpec,

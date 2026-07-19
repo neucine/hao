@@ -1,6 +1,7 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 const runtime = @import("runtime.zig");
 
 pub const specifier: [:0]const u8 = "std:ffi/native";
@@ -17,8 +18,8 @@ const function_ptrs = [_]*const js_abi.Function{
     &functions[2],
 };
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
 fn borrowedArgs(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, comptime max_args: usize) ?[max_args]qjs.c.JSValueConst {

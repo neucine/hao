@@ -40,8 +40,8 @@ const function_ptrs = [_]*const js_abi.Function{
     &functions[10],
 };
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(allocator(), ctx, module_name, &function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
 fn throwType(ctx: *js_abi.Context, message: [*:0]const u8) js_abi.Value {

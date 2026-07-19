@@ -10,7 +10,9 @@ pub const SourceModule = struct {
 
 pub const NativeModule = struct {
     specifier: []const u8,
-    load: *const fn (ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef,
+    // Keep the package boundary independent of the embedded JS engine type.
+    // Implementations that need QuickJS may cast inside Hao itself.
+    load: *const fn (ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque,
 };
 
 pub const PackageContext = struct {
@@ -221,35 +223,56 @@ fn resolvePackageSubpath(
     defer parsed.deinit();
     const root = parsed.value;
 
-    const pkg_type = jsonStringAt(root, &.{"type"}) orelse return error.UnsupportedPackageManifest;
-    if (!std.mem.eql(u8, pkg_type, "module")) return error.UnsupportedCommonJS;
+    const pkg_type = jsonStringAt(root, &.{"type"});
+    if (pkg_type) |value| {
+        if (std.mem.eql(u8, value, "commonjs")) return error.UnsupportedCommonJS;
+    }
 
     if (subpath.len != 0) {
         const export_key = try std.fmt.allocPrint(allocator, "./{s}", .{subpath});
         defer allocator.free(export_key);
         if (jsonStringAt(root, &.{ "exports", export_key, "import" })) |entry| {
-            return resolvePathWithExtensions(package_root, entry, allocator);
+            return resolveEsmPathWithExtensions(package_root, entry, pkg_type, allocator);
         }
         if (jsonStringAt(root, &.{ "exports", export_key })) |entry| {
-            return resolvePathWithExtensions(package_root, entry, allocator);
+            return resolveEsmPathWithExtensions(package_root, entry, pkg_type, allocator);
         }
         return error.PackageExportNotFound;
     }
 
     if (jsonStringAt(root, &.{ "exports", ".", "import" })) |entry| {
-        return resolvePathWithExtensions(package_root, entry, allocator);
+        return resolveEsmPathWithExtensions(package_root, entry, pkg_type, allocator);
     }
     if (jsonStringAt(root, &.{ "exports", "." })) |entry| {
-        return resolvePathWithExtensions(package_root, entry, allocator);
+        return resolveEsmPathWithExtensions(package_root, entry, pkg_type, allocator);
     }
     if (jsonStringAt(root, &.{"exports"})) |entry| {
-        return resolvePathWithExtensions(package_root, entry, allocator);
+        return resolveEsmPathWithExtensions(package_root, entry, pkg_type, allocator);
     }
     if (jsonStringAt(root, &.{"main"})) |entry| {
-        return resolvePathWithExtensions(package_root, entry, allocator);
+        return resolveEsmPathWithExtensions(package_root, entry, pkg_type, allocator);
     }
 
     return error.PackageExportNotFound;
+}
+
+fn resolveEsmPathWithExtensions(package_root: []const u8, entry: []const u8, pkg_type: ?[]const u8, allocator: std.mem.Allocator) ![]u8 {
+    const rel = try resolvePathWithExtensions(package_root, entry, allocator);
+    errdefer allocator.free(rel);
+
+    if (!isEsmPackageEntry(rel, pkg_type)) return error.UnsupportedPackageManifest;
+    return rel;
+}
+
+fn isEsmPackageEntry(rel: []const u8, pkg_type: ?[]const u8) bool {
+    if (js_addon.isAddonPath(rel)) return true;
+    if (std.mem.endsWith(u8, rel, ".ts")) return true;
+    if (std.mem.endsWith(u8, rel, ".mts")) return true;
+    if (std.mem.endsWith(u8, rel, ".mjs")) return true;
+    if (std.mem.endsWith(u8, rel, ".js")) {
+        return if (pkg_type) |value| std.mem.eql(u8, value, "module") else false;
+    }
+    return false;
 }
 
 fn resolvePathWithExtensions(package_root: []const u8, entry: []const u8, allocator: std.mem.Allocator) ![]u8 {
@@ -448,8 +471,21 @@ test "package resolver requires package json manifest" {
     );
 }
 
-test "package resolver requires esm package type" {
-    const root = ".zig-cache/hao-tests/package-esm-required";
+test "package resolver accepts mjs packages without type module" {
+    const root = ".zig-cache/hao-tests/package-mjs-no-type";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo';");
+    try fs.writeFile(root ++ "/node_modules/demo/package.json", "{\"exports\":\"./index.mjs\"}");
+    try fs.writeFile(root ++ "/node_modules/demo/index.mjs", "export const value = 1;");
+
+    const resolved = try resolveImport(root ++ "/main.ts", "demo", std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "index.mjs"));
+}
+
+test "package resolver rejects ambiguous js packages without type module" {
+    const root = ".zig-cache/hao-tests/package-ambiguous-js-rejected";
     try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
     try fs.writeFile(root ++ "/main.ts", "import 'demo';");
     try fs.writeFile(root ++ "/node_modules/demo/package.json", "{\"exports\":\"./index.js\"}");
@@ -459,6 +495,33 @@ test "package resolver requires esm package type" {
         error.UnsupportedPackageManifest,
         resolveImport(root ++ "/main.ts", "demo", std.testing.allocator),
     );
+}
+
+test "package resolver accepts js packages with type module" {
+    const root = ".zig-cache/hao-tests/package-js-type-module";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo';");
+    try fs.writeFile(root ++ "/node_modules/demo/package.json", "{\"type\":\"module\",\"exports\":\"./index.js\"}");
+    try fs.writeFile(root ++ "/node_modules/demo/index.js", "export const value = 1;");
+
+    const resolved = try resolveImport(root ++ "/main.ts", "demo", std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "index.js"));
+}
+
+test "package resolver accepts native addon exports without type module" {
+    const root = ".zig-cache/hao-tests/package-native-no-type";
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo:native';");
+    try fs.writeFile(root ++ "/node_modules/demo/package.json", "{\"exports\":{\"./native\":\"./native.dylib\"}}");
+    try fs.writeFile(root ++ "/node_modules/demo/native.dylib", "");
+
+    const resolved = try resolveImport(root ++ "/main.ts", "demo:native", std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expect(js_addon.isAddonPath(resolved.abs_path));
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
 }
 
 test "package resolver rejects unexported package subpaths" {

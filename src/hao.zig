@@ -11,6 +11,7 @@ pub const transpiler = @import("transpiler.zig");
 pub const config = @import("config.zig");
 pub const errors = @import("errors.zig");
 pub const telemetry = @import("telemetry/index.zig");
+pub const runtime_allocator = @import("runtime_allocator.zig");
 pub const version_info = @import("version.zig");
 
 pub const version = version_info.string;
@@ -37,5 +38,6 @@ test {
     _ = config;
     _ = errors;
     _ = telemetry;
+    _ = runtime_allocator;
     _ = version_info;
 }

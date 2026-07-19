@@ -10,6 +10,7 @@ const module_runtime = @import("../module.zig");
 const packages = @import("../package.zig");
 const async_loop = @import("../async/loop.zig");
 const global_timer = @import("../global/timer.zig");
+const runtime_allocator = @import("../runtime_allocator.zig");
 const hao_std = @import("../std.zig");
 const util_native = @import("../std/util/native.zig");
 const version = @import("../version.zig");
@@ -18,7 +19,7 @@ const c = @cImport({
     @cInclude("stdlib.h");
 });
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 // ============================================================
 // Kernel state
@@ -64,6 +65,8 @@ fn selfExePathAlloc(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
 // ============================================================
 
 pub fn run(connection_file: []const u8, io: std.Io) !void {
+    runtime_allocator.init(std.heap.page_allocator);
+
     // Parse connection file
     conn_info = try connection.parse(alloc, connection_file);
 
@@ -153,7 +156,7 @@ pub fn run(connection_file: []const u8, io: std.Io) !void {
     // Generate session ID
     wire.generateId(&session_id);
 
-    writeStderr("hao kernel started\n");
+    writeStderr("kernel started\n");
 
     // Message loop
     var poll_items = [_]zmq.zmq_pollitem_t{
@@ -197,7 +200,7 @@ pub fn run(connection_file: []const u8, io: std.Io) !void {
         }
     }
 
-    writeStderr("hao kernel shutting down\n");
+    writeStderr("kernel shutting down\n");
 }
 
 // ============================================================
@@ -876,8 +879,8 @@ fn renderKernelJson(exe_path: []const u8, buf: []u8) ![]const u8 {
 pub fn install(io: std.Io) !void {
 
     // Get hao binary path
-    const exe_path_owned = try selfExePathAlloc(std.heap.page_allocator, io);
-    defer std.heap.page_allocator.free(exe_path_owned);
+    const exe_path_owned = try selfExePathAlloc(alloc, io);
+    defer alloc.free(exe_path_owned);
     const exe_path = exe_path_owned;
 
     // Determine kernels directory
@@ -886,7 +889,7 @@ pub fn install(io: std.Io) !void {
     const kernels_dir = try kernelspecDir(home, &path_buf);
 
     // Create directory
-    fs.makePath(std.heap.page_allocator, kernels_dir) catch |err| {
+    fs.makePath(alloc, kernels_dir) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
 
@@ -899,7 +902,7 @@ pub fn install(io: std.Io) !void {
 
     try fs.writeFile(json_path, json_content);
 
-    writeStdout("Installed hao kernel to ");
+    writeStdout("Installed kernel to ");
     writeStdout(json_path);
     writeStdout("\n");
 }

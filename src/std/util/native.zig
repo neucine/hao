@@ -1,10 +1,11 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 
 pub const specifier: [:0]const u8 = "std:util/native";
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 pub const InspectOptions = struct {
     max_depth: usize = 4,
@@ -26,8 +27,8 @@ const function_ptrs = [_]*const js_abi.Function{
     &functions[2],
 };
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
 fn isInfinity(n: f64) bool {

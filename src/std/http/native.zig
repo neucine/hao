@@ -102,8 +102,8 @@ pub fn detachIo() void {
     current_io = null;
 }
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(runtime_allocator.allocator(), ctx, module_name, &function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
 fn throwType(ctx: ?*qjs.c.JSContext, message: [:0]const u8) qjs.c.JSValue {

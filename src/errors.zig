@@ -1,6 +1,7 @@
 const std = @import("std");
 const config = @import("config.zig");
 const qjs = @import("qjs.zig");
+const runtime_allocator = @import("runtime_allocator.zig");
 
 pub const ErrorCode = enum {
     invalid_arg,
@@ -47,6 +48,10 @@ pub const Diagnostic = struct {
 };
 
 threadlocal var current_diagnostic_ptr: ?*Diagnostic = null;
+
+fn runtimeAllocator() std.mem.Allocator {
+    return runtime_allocator.allocator();
+}
 
 pub const DiagnosticScope = struct {
     previous: ?*Diagnostic,
@@ -113,25 +118,25 @@ pub fn jsError(
     diag: ?*const Diagnostic,
     trace: ?*const std.builtin.StackTrace,
 ) qjs.c.JSValue {
-    const allocator = std.heap.page_allocator;
+    const alloc = runtimeAllocator();
     const native_stack = if (config.config.debug.native_stack_trace and err != null)
-        formatNativeStackAlloc(err.?, trace, allocator) catch null
+        formatNativeStackAlloc(err.?, trace, alloc) catch null
     else
         null;
-    defer if (native_stack) |owned| allocator.free(owned);
+    defer if (native_stack) |owned| alloc.free(owned);
 
     const detail_owned = if (diag) |diagnostic|
         if (!diagnostic.isEmpty())
             null
         else if (err) |native_err|
-            std.fmt.allocPrint(allocator, "{s}: {s}", .{ message, @errorName(native_err) }) catch null
+            std.fmt.allocPrint(alloc, "{s}: {s}", .{ message, @errorName(native_err) }) catch null
         else
             null
     else if (err) |native_err|
-        std.fmt.allocPrint(allocator, "{s}: {s}", .{ message, @errorName(native_err) }) catch null
+        std.fmt.allocPrint(alloc, "{s}: {s}", .{ message, @errorName(native_err) }) catch null
     else
         null;
-    defer if (detail_owned) |owned| allocator.free(owned);
+    defer if (detail_owned) |owned| alloc.free(owned);
 
     const final_message = if (diag) |diagnostic|
         if (!diagnostic.isEmpty()) diagnostic.slice() else detail_owned orelse message
@@ -192,9 +197,9 @@ pub fn jsNativeErrorWithDetail(
     diag: ?*const Diagnostic,
 ) qjs.c.JSValue {
     if (detail) |text| {
-        const allocator = std.heap.page_allocator;
-        const full = std.fmt.allocPrint(allocator, "{s} ({s})", .{ message, text }) catch message;
-        defer if (full.ptr != message.ptr) allocator.free(full);
+        const alloc = runtimeAllocator();
+        const full = std.fmt.allocPrint(alloc, "{s} ({s})", .{ message, text }) catch message;
+        defer if (full.ptr != message.ptr) alloc.free(full);
         return jsNativeError(ctx, err_code, full, err, diag);
     }
     return jsNativeError(ctx, err_code, message, err, diag);
@@ -277,7 +282,7 @@ pub fn formatCurrentNativeStackAlloc(start_addr: ?usize, allocator: std.mem.Allo
 }
 
 pub fn warn(warn_code: ErrorCode, message: []const u8) void {
-    std.debug.print("[hao] warning [{s}]: {s}\n", .{ @tagName(warn_code), message });
+    std.debug.print("[runtime] warning [{s}]: {s}\n", .{ @tagName(warn_code), message });
 }
 
 test "Diagnostic empty on init" {

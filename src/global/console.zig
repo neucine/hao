@@ -1,5 +1,6 @@
 const std = @import("std");
 const qjs = @import("../qjs.zig");
+const runtime_allocator = @import("../runtime_allocator.zig");
 const util_qjs = @import("../std/util/native.zig");
 
 const c = @cImport({
@@ -19,6 +20,10 @@ pub const CaptureState = struct {
 };
 
 pub var capture_state: ?CaptureState = null;
+
+fn allocator() std.mem.Allocator {
+    return runtime_allocator.allocator();
+}
 
 pub fn register(ctx: ?*qjs.c.JSContext) !void {
     const global = qjs.c.JS_GetGlobalObject(ctx);
@@ -67,13 +72,13 @@ fn writeCaptured(target: CaptureTarget, bytes: []const u8) void {
         switch (target) {
             .stdout => {
                 if (state.target == .stdout or state.target == .both) {
-                    if (state.stdout) |buf| buf.appendSlice(std.heap.page_allocator, bytes) catch {};
+                    if (state.stdout) |buf| buf.appendSlice(allocator(), bytes) catch {};
                     return;
                 }
             },
             .stderr => {
                 if (state.target == .stderr or state.target == .both) {
-                    if (state.stderr) |buf| buf.appendSlice(std.heap.page_allocator, bytes) catch {};
+                    if (state.stderr) |buf| buf.appendSlice(allocator(), bytes) catch {};
                     return;
                 }
             },
@@ -91,10 +96,10 @@ fn jsConsoleWrite(ctx: ?*qjs.c.JSContext, argc: c_int, argv: [*c]qjs.c.JSValueCo
     var first = true;
     var i: c_int = 0;
     while (i < argc) : (i += 1) {
-        const text = util_qjs.inspectAlloc(ctx, argv[@intCast(i)], null, std.heap.page_allocator) catch {
+        const text = util_qjs.inspectAlloc(ctx, argv[@intCast(i)], null, allocator()) catch {
             return qjs.c.JS_ThrowInternalError(ctx, "console write failed");
         };
-        defer std.heap.page_allocator.free(text);
+        defer allocator().free(text);
         if (!first) writeCaptured(target, " ");
         first = false;
         writeCaptured(target, text);

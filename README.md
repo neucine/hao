@@ -34,8 +34,10 @@ their product modules.
 ## Third-Party Packages
 
 Hao loads third-party packages from `node_modules` using package manifests. A
-package must include `package.json`, declare `"type": "module"`, and expose
-entry points through `exports` or `main`.
+package must include `package.json` and expose entry points through `exports` or
+`main`. Resolved entries are accepted only when they are ESM-compatible by a
+safe whitelist: `.mjs`, `.mts`, `.ts`, native addon libraries, or `.js` inside a
+package that declares `"type": "module"`.
 
 ```json
 {
@@ -47,8 +49,8 @@ entry points through `exports` or `main`.
 }
 ```
 
-CommonJS packages and unexported package subpaths are rejected by the module
-loader.
+CommonJS packages, ambiguous `.js` entries, and unexported package subpaths are
+rejected by the module loader.
 
 ## Guides
 

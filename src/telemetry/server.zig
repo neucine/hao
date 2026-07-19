@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const config = @import("../config.zig");
+const runtime_allocator = @import("../runtime_allocator.zig");
 const metrics = @import("metrics.zig");
 const store = @import("store.zig");
 
@@ -8,7 +9,10 @@ const net_available = @hasDecl(std.Io, "net");
 const net = std.Io.net;
 
 const page = @embedFile("dashboard.html");
-const alloc = std.heap.page_allocator;
+
+fn runtimeAllocator() std.mem.Allocator {
+    return runtime_allocator.allocator();
+}
 
 pub const Handle = struct {
     state: ?*State = null,
@@ -75,7 +79,7 @@ pub fn start(allocator: std.mem.Allocator, io: ?std.Io) !Handle {
 
 fn run(state: *State) void {
     if (!builtin.is_test) {
-        std.debug.print("Hao telemetry console listening on http://127.0.0.1:{d}/\n", .{state.port});
+        std.debug.print("Telemetry console listening on http://127.0.0.1:{d}/\n", .{state.port});
     }
     while (!state.stop.load(.acquire)) {
         const connection = state.server.accept(state.io) catch {
@@ -121,20 +125,20 @@ fn writeMetricsResponse(io: std.Io, stream: net.Stream) !void {
     var snapshots: [metrics.max_metrics]metrics.Snapshot = undefined;
     const view = metrics.snapshot(&snapshots);
     var body = std.ArrayList(u8).empty;
-    defer body.deinit(alloc);
-    try body.append(alloc, '[');
+    defer body.deinit(runtimeAllocator());
+    try body.append(runtimeAllocator(), '[');
     for (view, 0..) |entry, index| {
-        if (index != 0) try body.append(alloc, ',');
-        try body.appendSlice(alloc, "{\"id\":");
-        try body.print(alloc, "{d},\"scope\":", .{entry.id});
+        if (index != 0) try body.append(runtimeAllocator(), ',');
+        try body.appendSlice(runtimeAllocator(), "{\"id\":");
+        try body.print(runtimeAllocator(), "{d},\"scope\":", .{entry.id});
         try appendJsonString(&body, entry.scope);
-        try body.appendSlice(alloc, ",\"name\":");
+        try body.appendSlice(runtimeAllocator(), ",\"name\":");
         try appendJsonString(&body, entry.name);
-        try body.appendSlice(alloc, ",\"kind\":");
+        try body.appendSlice(runtimeAllocator(), ",\"kind\":");
         try appendJsonString(&body, @tagName(entry.kind));
-        try body.appendSlice(alloc, ",\"unit\":");
+        try body.appendSlice(runtimeAllocator(), ",\"unit\":");
         try appendJsonString(&body, entry.unit);
-        try body.print(alloc, ",\"value\":{d},\"count\":{d},\"sum\":{d},\"min\":{d},\"max\":{d}}}", .{
+        try body.print(runtimeAllocator(), ",\"value\":{d},\"count\":{d},\"sum\":{d},\"min\":{d},\"max\":{d}}}", .{
             entry.value,
             entry.count,
             entry.sum,
@@ -142,7 +146,7 @@ fn writeMetricsResponse(io: std.Io, stream: net.Stream) !void {
             entry.max,
         });
     }
-    try body.append(alloc, ']');
+    try body.append(runtimeAllocator(), ']');
     try writeJsonResponse(io, stream, 200, body.items);
 }
 
@@ -153,28 +157,28 @@ fn writeTracesResponse(io: std.Io, stream: net.Stream, target: []const u8) !void
     const result = store.buffer().snapshotAfter(query.since, records[0..limit]);
 
     var body = std.ArrayList(u8).empty;
-    defer body.deinit(alloc);
-    try body.print(alloc, "{{\"next_cursor\":{d},\"missed\":{s},\"records\":[", .{
+    defer body.deinit(runtimeAllocator());
+    try body.print(runtimeAllocator(), "{{\"next_cursor\":{d},\"missed\":{s},\"records\":[", .{
         result.next_cursor,
         if (result.missed) "true" else "false",
     });
     for (result.records, 0..) |record, index| {
-        if (index != 0) try body.append(alloc, ',');
-        try body.print(alloc, "{{\"sequence\":{d},\"kind\":", .{record.sequence});
+        if (index != 0) try body.append(runtimeAllocator(), ',');
+        try body.print(runtimeAllocator(), "{{\"sequence\":{d},\"kind\":", .{record.sequence});
         try appendJsonString(&body, @tagName(record.kind));
-        try body.print(alloc, ",\"timestamp_ns\":{d},\"trace_id\":", .{record.timestamp_ns});
+        try body.print(runtimeAllocator(), ",\"timestamp_ns\":{d},\"trace_id\":", .{record.timestamp_ns});
         try appendHexString(&body, &record.context.trace_id);
-        try body.appendSlice(alloc, ",\"span_id\":");
+        try body.appendSlice(runtimeAllocator(), ",\"span_id\":");
         try appendHexString(&body, &record.context.span_id);
-        try body.appendSlice(alloc, ",\"parent_span_id\":");
+        try body.appendSlice(runtimeAllocator(), ",\"parent_span_id\":");
         try appendHexString(&body, &record.parent_span_id);
-        try body.appendSlice(alloc, ",\"name\":");
+        try body.appendSlice(runtimeAllocator(), ",\"name\":");
         try appendJsonString(&body, record.name);
-        try body.appendSlice(alloc, ",\"status\":");
+        try body.appendSlice(runtimeAllocator(), ",\"status\":");
         try appendJsonString(&body, @tagName(record.status));
-        try body.append(alloc, '}');
+        try body.append(runtimeAllocator(), '}');
     }
-    try body.appendSlice(alloc, "]}");
+    try body.appendSlice(runtimeAllocator(), "]}");
     try writeJsonResponse(io, stream, 200, body.items);
 }
 
@@ -203,28 +207,28 @@ fn pathEquals(value: []const u8, comptime expected: []const u8) bool {
 }
 
 fn appendJsonString(body: *std.ArrayList(u8), value: []const u8) !void {
-    try body.append(alloc, '"');
+    try body.append(runtimeAllocator(), '"');
     for (value) |byte| switch (byte) {
-        '"' => try body.appendSlice(alloc, "\\\""),
-        '\\' => try body.appendSlice(alloc, "\\\\"),
-        '\n' => try body.appendSlice(alloc, "\\n"),
-        '\r' => try body.appendSlice(alloc, "\\r"),
-        '\t' => try body.appendSlice(alloc, "\\t"),
+        '"' => try body.appendSlice(runtimeAllocator(), "\\\""),
+        '\\' => try body.appendSlice(runtimeAllocator(), "\\\\"),
+        '\n' => try body.appendSlice(runtimeAllocator(), "\\n"),
+        '\r' => try body.appendSlice(runtimeAllocator(), "\\r"),
+        '\t' => try body.appendSlice(runtimeAllocator(), "\\t"),
         else => if (byte < 0x20) {
-            try body.print(alloc, "\\u{d:0>4}", .{byte});
-        } else try body.append(alloc, byte),
+            try body.print(runtimeAllocator(), "\\u{d:0>4}", .{byte});
+        } else try body.append(runtimeAllocator(), byte),
     };
-    try body.append(alloc, '"');
+    try body.append(runtimeAllocator(), '"');
 }
 
 fn appendHexString(body: *std.ArrayList(u8), bytes: []const u8) !void {
     const hex = "0123456789abcdef";
-    try body.append(alloc, '"');
+    try body.append(runtimeAllocator(), '"');
     for (bytes) |byte| {
-        try body.append(alloc, hex[byte >> 4]);
-        try body.append(alloc, hex[byte & 0xf]);
+        try body.append(runtimeAllocator(), hex[byte >> 4]);
+        try body.append(runtimeAllocator(), hex[byte & 0xf]);
     }
-    try body.append(alloc, '"');
+    try body.append(runtimeAllocator(), '"');
 }
 
 fn writeJsonResponse(io: std.Io, stream: net.Stream, status: u16, body: []const u8) !void {

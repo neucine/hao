@@ -1,6 +1,7 @@
 const std = @import("std");
 const abi = @import("abi.zig");
 const qjs = @import("../qjs.zig");
+const runtime_allocator = @import("../runtime_allocator.zig");
 
 pub const register_symbol_name = abi.register_symbol_name;
 
@@ -18,7 +19,10 @@ pub const ResolvedImport = struct {
 
 var extensions: std.ArrayList(Extension) = .empty;
 var resolved_imports: std.ArrayList(ResolvedImport) = .empty;
-const allocator = std.heap.page_allocator;
+
+fn allocator() std.mem.Allocator {
+    return runtime_allocator.allocator();
+}
 
 pub fn isAddonPath(path: []const u8) bool {
     return std.mem.endsWith(u8, path, ".dylib") or
@@ -53,14 +57,15 @@ pub fn rememberResolvedImport(return_allocator: std.mem.Allocator, path: []const
         return return_allocator.dupe(u8, existing.module_name);
     }
 
-    const module_name = try std.fmt.allocPrint(allocator, "addon:{s}\n{s}", .{ specifier, path });
-    errdefer allocator.free(module_name);
-    const owned_path = try allocator.dupe(u8, path);
-    errdefer allocator.free(owned_path);
-    const owned_specifier = try allocator.dupe(u8, specifier);
-    errdefer allocator.free(owned_specifier);
+    const alloc = allocator();
+    const module_name = try std.fmt.allocPrint(alloc, "addon:{s}\n{s}", .{ specifier, path });
+    errdefer alloc.free(module_name);
+    const owned_path = try alloc.dupe(u8, path);
+    errdefer alloc.free(owned_path);
+    const owned_specifier = try alloc.dupe(u8, specifier);
+    errdefer alloc.free(owned_specifier);
 
-    try resolved_imports.append(allocator, .{
+    try resolved_imports.append(alloc, .{
         .module_name = module_name,
         .path = owned_path,
         .specifier = owned_specifier,
@@ -75,18 +80,19 @@ fn loadExtension(path: []const u8) !*Extension {
     errdefer lib.close();
 
     const register_fn = lib.lookup(abi.RegisterModulesFn, register_symbol_name) orelse return error.AddonSymbolNotFound;
-    var collector = abi.ModuleCollector.init(allocator);
+    const alloc = allocator();
+    var collector = abi.ModuleCollector.init(alloc);
     errdefer collector.deinit();
     var registry = collector.registry();
     if (register_fn(&registry) != 0) return error.AddonRegisterFailed;
 
-    const owned_path = try allocator.dupe(u8, path);
-    errdefer allocator.free(owned_path);
+    const owned_path = try alloc.dupe(u8, path);
+    errdefer alloc.free(owned_path);
 
-    try extensions.append(allocator, .{
+    try extensions.append(alloc, .{
         .path = owned_path,
         .lib = lib,
-        .modules = try collector.modules.toOwnedSlice(allocator),
+        .modules = try collector.modules.toOwnedSlice(alloc),
     });
 
     return &extensions.items[extensions.items.len - 1];
@@ -116,24 +122,25 @@ pub fn loadModule(
 }
 
 pub fn cleanup() void {
+    const alloc = allocator();
     for (resolved_imports.items) |entry| {
-        allocator.free(entry.module_name);
-        allocator.free(entry.path);
-        allocator.free(entry.specifier);
+        alloc.free(entry.module_name);
+        alloc.free(entry.path);
+        alloc.free(entry.specifier);
     }
-    resolved_imports.deinit(allocator);
+    resolved_imports.deinit(alloc);
     resolved_imports = .empty;
 
     for (extensions.items) |*extension| {
         for (extension.modules) |module| {
-            allocator.free(module.specifier);
-            allocator.free(module.functions);
+            alloc.free(module.specifier);
+            alloc.free(module.functions);
         }
-        allocator.free(extension.modules);
+        alloc.free(extension.modules);
         extension.lib.close();
-        allocator.free(extension.path);
+        alloc.free(extension.path);
     }
-    extensions.deinit(allocator);
+    extensions.deinit(alloc);
     extensions = .empty;
 }
 

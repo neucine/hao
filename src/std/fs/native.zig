@@ -2,10 +2,11 @@ const std = @import("std");
 const fs = @import("../../fs.zig");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 
 pub const specifier: [:0]const u8 = "std:fs/native";
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 const functions = [_]js_abi.Function{
     .{ .name = "existsSync", .callback = jsExistsSync, .length = 1 },
@@ -21,8 +22,8 @@ const function_ptrs = [_]*const js_abi.Function{
     &functions[3],
 };
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
 fn stringArg(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, index: usize) ?[]const u8 {

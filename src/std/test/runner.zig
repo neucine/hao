@@ -9,6 +9,7 @@ const fs = @import("../../fs.zig");
 const module_runtime = @import("../../module.zig");
 const js_addon = @import("../../js/addon.zig");
 const packages = @import("../../package.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 const hao_std = @import("../../std.zig");
 const http_native = @import("../http/native.zig");
 const process_native = @import("../process/native.zig");
@@ -42,6 +43,8 @@ pub const RunResult = struct {
         return if (self.totalFailures() > 0) 1 else 0;
     }
 };
+
+pub const PackageRegistrar = *const fn (*packages.Registry) anyerror!void;
 
 const RunOptions = struct {
     grep: ?[]const u8,
@@ -185,8 +188,9 @@ fn appendDiscoveredTestDirCompat(allocator: std.mem.Allocator, out: *std.ArrayLi
 }
 
 fn isDirectoryCompat(path: []const u8) bool {
-    const path_z = std.heap.page_allocator.dupeZ(u8, path) catch return false;
-    defer std.heap.page_allocator.free(path_z);
+    const alloc = runtime_allocator.allocator();
+    const path_z = alloc.dupeZ(u8, path) catch return false;
+    defer alloc.free(path_z);
     const dir = std.c.opendir(path_z.ptr) orelse return false;
     _ = std.c.closedir(dir);
     return true;
@@ -602,6 +606,17 @@ fn runSuite(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suit
 }
 
 pub fn run(paths: [][]const u8, grep: ?[]const u8, print_summary: bool, allocator: std.mem.Allocator, io: ?std.Io) !RunResult {
+    return runWithPackageRegistrar(paths, grep, print_summary, allocator, io, null);
+}
+
+pub fn runWithPackageRegistrar(
+    paths: [][]const u8,
+    grep: ?[]const u8,
+    print_summary: bool,
+    allocator: std.mem.Allocator,
+    io: ?std.Io,
+    package_registrar: ?PackageRegistrar,
+) !RunResult {
     const run_start_ns = nanoTimestamp();
 
     var test_paths = try collectTestPaths(paths, allocator);
@@ -641,6 +656,7 @@ pub fn run(paths: [][]const u8, grep: ?[]const u8, print_summary: bool, allocato
     var package_registry = packages.Registry.init(allocator);
     defer package_registry.deinit();
     try hao_std.register(&package_registry);
+    if (package_registrar) |registrar| try registrar(&package_registry);
 
     var loader = module_runtime.Loader{
         .allocator = allocator,

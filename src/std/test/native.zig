@@ -2,6 +2,7 @@ const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
 const console = @import("../../global/console.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 const registry = @import("registry.zig");
 
 pub const specifier: [:0]const u8 = "std:test/native";
@@ -43,8 +44,8 @@ pub fn setCurrentExecutablePath(path: []const u8) void {
     current_executable_path = path;
 }
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
 fn stringArg(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, index: usize) ?[]const u8 {
@@ -98,8 +99,9 @@ fn js_registerHook(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Val
 }
 
 fn stringValue(ctx: *js_abi.Context, value: []const u8) js_abi.Value {
-    const value_z = std.heap.page_allocator.dupeZ(u8, value) catch return throwInternal(ctx, "out of memory");
-    defer std.heap.page_allocator.free(value_z);
+    const alloc = runtime_allocator.allocator();
+    const value_z = alloc.dupeZ(u8, value) catch return throwInternal(ctx, "out of memory");
+    defer alloc.free(value_z);
     return ctx.api.string_value(ctx, value_z.ptr);
 }
 
@@ -132,8 +134,9 @@ fn js_beginCapture(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Val
 }
 
 fn setStringProp(ctx: *js_abi.Context, object: js_abi.Value, key: [*:0]const u8, value: []const u8) !void {
-    const value_z = try std.heap.page_allocator.dupeZ(u8, value);
-    defer std.heap.page_allocator.free(value_z);
+    const alloc = runtime_allocator.allocator();
+    const value_z = try alloc.dupeZ(u8, value);
+    defer alloc.free(value_z);
     const value_handle = ctx.api.string_value(ctx, value_z.ptr);
     if (ctx.api.set_property(ctx, object, key, value_handle) < 0) return error.JavaScriptError;
 }
@@ -143,12 +146,17 @@ fn js_endCapture(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) call
     capture_active = false;
     console.capture_state = null;
     const obj = ctx.api.object_value(ctx);
+    const alloc = runtime_allocator.allocator();
+    defer {
+        capture_stdout.clearAndFree(alloc);
+        capture_stderr.clearAndFree(alloc);
+    }
     setStringProp(ctx, obj, "stdout", capture_stdout.items) catch return throwInternal(ctx, "failed to create capture result");
     setStringProp(ctx, obj, "stderr", capture_stderr.items) catch return throwInternal(ctx, "failed to create capture result");
     var combined = std.ArrayList(u8).empty;
-    defer combined.deinit(std.heap.page_allocator);
-    combined.appendSlice(std.heap.page_allocator, capture_stdout.items) catch {};
-    combined.appendSlice(std.heap.page_allocator, capture_stderr.items) catch {};
+    defer combined.deinit(alloc);
+    combined.appendSlice(alloc, capture_stdout.items) catch {};
+    combined.appendSlice(alloc, capture_stderr.items) catch {};
     setStringProp(ctx, obj, "combined", combined.items) catch return throwInternal(ctx, "failed to create capture result");
     return obj;
 }

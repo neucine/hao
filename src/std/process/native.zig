@@ -1,6 +1,7 @@
 const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
 const qjs = @import("../../qjs.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 
 const c = @cImport({
     @cInclude("stdlib.h");
@@ -8,7 +9,7 @@ const c = @cImport({
 
 pub const specifier: [:0]const u8 = "std:process/native";
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 var current_io: ?std.Io = null;
 
 const functions = [_]js_abi.Function{
@@ -29,8 +30,8 @@ pub fn detachIo() void {
     current_io = null;
 }
 
-pub fn load(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &function_ptrs);
+pub fn load(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(runtime_allocator.allocator(), @ptrCast(ctx), module_name, &function_ptrs));
 }
 
 fn valueString(ctx: *js_abi.Context, value: js_abi.Value) ?[]const u8 {

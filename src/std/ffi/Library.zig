@@ -1,7 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 pub const Library = struct {
     dynlib: std.DynLib,

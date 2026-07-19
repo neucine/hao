@@ -1,10 +1,11 @@
 const std = @import("std");
 const qjs = @import("../../qjs.zig");
+const runtime_allocator = @import("../../runtime_allocator.zig");
 const types = @import("types.zig");
 const trampoline = @import("trampoline.zig");
 const Library = @import("Library.zig").Library;
 
-const alloc = std.heap.page_allocator;
+const alloc = runtime_allocator.allocator();
 
 const Binding = struct {
     fn_ptr: *anyopaque,

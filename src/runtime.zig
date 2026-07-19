@@ -23,6 +23,7 @@ const CoreEnvironment = struct {
     allocator: std.mem.Allocator,
     io: ?std.Io = null,
     telemetry_console: telemetry_server.Handle = .{},
+    native_cache: module.NativeModuleCache,
 
     pub fn init(allocator: std.mem.Allocator) !CoreEnvironment {
         return initWithIo(allocator, null);
@@ -37,6 +38,7 @@ const CoreEnvironment = struct {
         var loop = try async_loop.Loop.init(allocator);
         errdefer loop.deinit();
         const telemetry_console = try telemetry_server.start(allocator, io);
+        const native_cache = module.NativeModuleCache.init(allocator);
 
         return .{
             .runtime = runtime,
@@ -44,6 +46,7 @@ const CoreEnvironment = struct {
             .allocator = allocator,
             .io = io,
             .telemetry_console = telemetry_console,
+            .native_cache = native_cache,
         };
     }
 
@@ -54,6 +57,7 @@ const CoreEnvironment = struct {
         global_timer.cleanup(self.allocator);
         js_addon.cleanup();
         self.loop.deinit();
+        self.native_cache.deinit();
         self.runtime.deinit();
         self.* = undefined;
     }
@@ -74,6 +78,7 @@ const CoreEnvironment = struct {
         var loader = module.Loader{
             .allocator = self.allocator,
             .registry = registry,
+            .native_cache = &self.native_cache,
         };
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);
@@ -120,6 +125,7 @@ pub const RuntimeEnvironment = struct {
     std_enabled: bool = false,
     registry: packages.Registry,
     telemetry_console: telemetry_server.Handle = .{},
+    native_cache: module.NativeModuleCache,
 
     pub const Options = struct {
         std: bool = false,
@@ -145,6 +151,7 @@ pub const RuntimeEnvironment = struct {
             .std_enabled = options.std,
             .registry = registry,
             .telemetry_console = core.telemetry_console,
+            .native_cache = core.native_cache,
         };
     }
 
@@ -162,6 +169,7 @@ pub const RuntimeEnvironment = struct {
         self.registry.deinitPackages(&package_context);
         self.registry.deinit();
         self.loop.deinit();
+        self.native_cache.deinit();
         self.runtime.deinit();
         self.* = undefined;
     }
@@ -195,6 +203,7 @@ pub const RuntimeEnvironment = struct {
         var loader = module.Loader{
             .allocator = self.allocator,
             .registry = registry,
+            .native_cache = &self.native_cache,
         };
         loader.install(&self.runtime);
         async_loop.attachCurrent(&self.loop);

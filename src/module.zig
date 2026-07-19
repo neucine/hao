@@ -4,6 +4,7 @@ const js_abi = @import("js/abi.zig");
 const js_addon = @import("js/addon.zig");
 const qjs = @import("qjs.zig");
 const packages = @import("package.zig");
+const runtime_allocator = @import("runtime_allocator.zig");
 const transpiler = @import("transpiler.zig");
 
 var last_error_storage: [4096]u8 = undefined;
@@ -24,9 +25,41 @@ pub const PreparedNotebookCell = struct {
 pub const Loader = struct {
     allocator: std.mem.Allocator,
     registry: *const packages.Registry,
+    native_cache: ?*NativeModuleCache = null,
 
     pub fn install(self: *Loader, runtime: *qjs.Runtime) void {
         qjs.c.JS_SetModuleLoaderFunc(runtime.rt, normalizeModule, loadModule, self);
+    }
+};
+
+pub const NativeModuleCache = struct {
+    allocator: std.mem.Allocator,
+    entries: std.ArrayList(Entry),
+
+    const Entry = struct { specifier: []u8, module: *qjs.c.JSModuleDef };
+
+    pub fn init(allocator: std.mem.Allocator) NativeModuleCache {
+        return .{ .allocator = allocator, .entries = .empty };
+    }
+
+    pub fn deinit(self: *NativeModuleCache) void {
+        for (self.entries.items) |entry| self.allocator.free(entry.specifier);
+        self.entries.deinit(self.allocator);
+        self.* = undefined;
+    }
+
+    fn get(self: *const NativeModuleCache, specifier: []const u8) ?*qjs.c.JSModuleDef {
+        for (self.entries.items) |entry| {
+            if (std.mem.eql(u8, entry.specifier, specifier)) return entry.module;
+        }
+        return null;
+    }
+
+    fn put(self: *NativeModuleCache, specifier: []const u8, module: *qjs.c.JSModuleDef) !void {
+        try self.entries.append(self.allocator, .{
+            .specifier = try self.allocator.dupe(u8, specifier),
+            .module = module,
+        });
     }
 };
 
@@ -56,6 +89,15 @@ fn rememberTranspileFailure(allocator: std.mem.Allocator, fallback_path: []const
     rememberLastError(msg);
 }
 
+fn rememberJavaScriptException(ctx: ?*qjs.c.JSContext, allocator: std.mem.Allocator, fallback: []const u8) void {
+    const message = qjs.getExceptionAlloc(ctx, allocator) catch {
+        rememberLastError(fallback);
+        return;
+    };
+    defer allocator.free(message);
+    rememberLastError(message);
+}
+
 pub fn evalModuleSource(
     loader: *Loader,
     runtime: *qjs.Runtime,
@@ -77,12 +119,18 @@ pub fn evalModuleSource(
     defer loader.allocator.free(file_name);
 
     const compiled = qjs.eval(runtime.ctx, source_z, file_name, qjs.EvalFlags.module_compile_only);
-    if (qjs.isException(compiled)) return error.JavaScriptError;
+    if (qjs.isException(compiled)) {
+        rememberJavaScriptException(runtime.ctx, loader.allocator, "JavaScript module compilation failed");
+        return error.JavaScriptError;
+    }
     defer qjs.freeValue(runtime.ctx, compiled);
 
     const value = qjs.c.JS_EvalFunction(runtime.ctx, qjs.dupValue(runtime.ctx, compiled));
     defer qjs.freeValue(runtime.ctx, value);
-    if (qjs.isException(value)) return error.JavaScriptError;
+    if (qjs.isException(value)) {
+        rememberJavaScriptException(runtime.ctx, loader.allocator, "JavaScript module evaluation failed");
+        return error.JavaScriptError;
+    }
 }
 
 pub fn evalPackageModule(loader: *Loader, runtime: *qjs.Runtime, specifier: []const u8) !void {
@@ -155,8 +203,9 @@ fn setNotebookNamespaceValue(ctx: ?*qjs.c.JSContext, slot: []const u8, value: qj
     defer qjs.freeValue(ctx, namespace);
     if (qjs.isUndefined(namespace) or qjs.isNull(namespace)) return error.JavaScriptError;
 
-    const slot_z = try std.heap.page_allocator.dupeZ(u8, slot);
-    defer std.heap.page_allocator.free(slot_z);
+    const alloc = runtime_allocator.allocator();
+    const slot_z = try alloc.dupeZ(u8, slot);
+    defer alloc.free(slot_z);
     try qjs.setProperty(ctx, namespace, slot_z, value);
 }
 
@@ -187,17 +236,26 @@ fn importNamespace(loader: *Loader, runtime: *qjs.Runtime, current_file: []const
     defer loader.allocator.free(file_name_z);
 
     const compiled = qjs.eval(runtime.ctx, source_z, file_name_z, qjs.EvalFlags.module_compile_only);
-    if (qjs.isException(compiled)) return error.JavaScriptError;
+    if (qjs.isException(compiled)) {
+        rememberJavaScriptException(runtime.ctx, loader.allocator, "JavaScript notebook import compilation failed");
+        return error.JavaScriptError;
+    }
     defer qjs.freeValue(runtime.ctx, compiled);
 
     const result = qjs.c.JS_EvalFunction(runtime.ctx, qjs.dupValue(runtime.ctx, compiled));
     defer qjs.freeValue(runtime.ctx, result);
-    if (qjs.isException(result)) return error.JavaScriptError;
+    if (qjs.isException(result)) {
+        rememberJavaScriptException(runtime.ctx, loader.allocator, "JavaScript notebook import failed");
+        return error.JavaScriptError;
+    }
 
     const global = qjs.c.JS_GetGlobalObject(runtime.ctx);
     defer qjs.freeValue(runtime.ctx, global);
     const value = qjs.getProperty(runtime.ctx, global, "__hao_jupyter_import");
-    if (qjs.isException(value)) return error.JavaScriptError;
+    if (qjs.isException(value)) {
+        rememberJavaScriptException(runtime.ctx, loader.allocator, "JavaScript notebook import value failed");
+        return error.JavaScriptError;
+    }
     return value;
 }
 
@@ -266,9 +324,15 @@ fn loadModule(
     const name = std.mem.span(module_name);
 
     if (loader.registry.findNativeModule(name)) |native| {
+        if (loader.native_cache) |cache| {
+            if (cache.get(name)) |cached| return cached;
+        }
         const name_z = loader.allocator.dupeZ(u8, native.specifier) catch return null;
         defer loader.allocator.free(name_z);
-        return native.load(ctx, name_z.ptr);
+        const module = native.load(@ptrCast(ctx), name_z.ptr) orelse return null;
+        const module_def: *qjs.c.JSModuleDef = @ptrCast(@alignCast(module));
+        if (loader.native_cache) |cache| cache.put(name, module_def) catch return null;
+        return module_def;
     }
 
     if (js_addon.isAddonPath(name)) {
@@ -451,8 +515,8 @@ const fixture_abi_functions = [_]js_abi.Function{
 };
 const fixture_abi_function_ptrs = [_]*const js_abi.Function{&fixture_abi_functions[0]};
 
-fn fixtureNativeLoad(ctx: ?*qjs.c.JSContext, module_name: [*c]const u8) ?*qjs.c.JSModuleDef {
-    return js_abi.createFunctionModule(std.heap.page_allocator, ctx, module_name, &fixture_abi_function_ptrs);
+fn fixtureNativeLoad(ctx: ?*anyopaque, module_name: [*c]const u8) ?*anyopaque {
+    return @ptrCast(js_abi.createFunctionModule(std.heap.page_allocator, @ptrCast(ctx), module_name, &fixture_abi_function_ptrs));
 }
 
 fn fixtureAbiNativeValue(ctx: *js_abi.Context, _: c_int, _: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
