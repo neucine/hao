@@ -84,6 +84,12 @@ Run tests:
 hao test test/e2e/runtime
 ```
 
+Test output uses ANSI colors by default. Use plain Unicode output:
+
+```bash
+HAO_TEST_REPORTER=plain hao test test/e2e/runtime
+```
+
 ## Development
 
 Build the local CLI from source:

@@ -26,6 +26,8 @@ const Failure = struct {
 };
 
 pub const RunResult = struct {
+    files_total: usize = 0,
+    files_loaded: usize = 0,
     passed: usize = 0,
     failed: usize = 0,
     file_failures: usize = 0,
@@ -51,8 +53,79 @@ const RunOptions = struct {
     only_mode: bool,
 };
 
+const CaseCounts = struct {
+    total: usize = 0,
+    selected: usize = 0,
+    declared_skip: usize = 0,
+    filtered: usize = 0,
+};
+
+const ReporterGlyphs = struct {
+    pass: []const u8 = "✓",
+    fail: []const u8 = "✕",
+    skip: []const u8 = "↷",
+    load: []const u8 = "→",
+};
+
+const glyphs = ReporterGlyphs{};
+
+const ReporterMode = enum {
+    plain,
+    ansi,
+};
+
+var reporter_mode: ReporterMode = .plain;
+
+const ansi = struct {
+    const reset = "\x1b[0m";
+    const bold = "\x1b[1m";
+    const dim = "\x1b[2m";
+    const green = "\x1b[32m";
+    const red = "\x1b[31m";
+    const yellow = "\x1b[33m";
+    const cyan = "\x1b[36m";
+};
+
 fn writeStdout(bytes: []const u8) void {
     std.debug.print("{s}", .{bytes});
+}
+
+fn getenv(key: [:0]const u8) ?[]const u8 {
+    const value = c.getenv(key.ptr) orelse return null;
+    return std.mem.span(value);
+}
+
+fn reporterModeFromEnv() ReporterMode {
+    const value = getenv("HAO_TEST_REPORTER") orelse return .ansi;
+    if (std.ascii.eqlIgnoreCase(value, "plain")) return .plain;
+    if (std.ascii.eqlIgnoreCase(value, "ansi")) return .ansi;
+    return .ansi;
+}
+
+fn styled(style: []const u8, text: []const u8) void {
+    if (reporter_mode == .ansi) writeStdout(style);
+    writeStdout(text);
+    if (reporter_mode == .ansi) writeStdout(ansi.reset);
+}
+
+fn writePassGlyph() void {
+    styled(ansi.green, glyphs.pass);
+}
+
+fn writeFailGlyph() void {
+    styled(ansi.red, glyphs.fail);
+}
+
+fn writeSkipGlyph() void {
+    styled(ansi.yellow, glyphs.skip);
+}
+
+fn writeLoadGlyph() void {
+    styled(ansi.cyan, glyphs.load);
+}
+
+fn writeLabel(label: []const u8) void {
+    styled(ansi.bold, label);
 }
 
 fn nanoTimestamp() i128 {
@@ -363,11 +436,28 @@ fn printFailure(depth: usize, failure: Failure) void {
 
 fn printSkip(depth: usize, name: []const u8, reason: []const u8) void {
     printIndent(depth);
-    writeStdout("- ");
+    writeSkipGlyph();
+    writeStdout(" ");
     writeStdout(name);
     writeStdout(" (skipped: ");
     writeStdout(reason);
     writeStdout(")\n");
+}
+
+fn printLine(comptime fmt: []const u8, args: anytype) void {
+    var buf: [512]u8 = undefined;
+    const line = std.fmt.bufPrint(&buf, fmt, args) catch return;
+    writeStdout(line);
+    writeStdout("\n");
+}
+
+fn printPathProgress(prefix: []const u8, index: usize, total: usize, path: []const u8) void {
+    var buf: [1024]u8 = undefined;
+    writeLoadGlyph();
+    writeStdout(" ");
+    const line = std.fmt.bufPrint(&buf, "{s} [{d}/{d}] {s}", .{ prefix, index, total, path }) catch return;
+    writeStdout(line);
+    writeStdout("\n");
 }
 
 const SkipReason = enum { none, declared, filtered };
@@ -399,6 +489,31 @@ fn suiteHasSelectedCases(suite: *registry.Suite, opts: RunOptions) bool {
         .child => |child| if (suiteHasSelectedCases(child, opts)) return true,
     };
     return false;
+}
+
+fn countCases(suite: *registry.Suite, opts: RunOptions) CaseCounts {
+    var counts: CaseCounts = .{};
+    for (suite.entries.items) |entry| switch (entry) {
+        .case_index => |case_index| {
+            const case_ = suite.cases.items[case_index];
+            counts.total += 1;
+            if (caseSelected(case_, opts)) {
+                counts.selected += 1;
+            } else switch (caseSkipReason(case_, opts)) {
+                .declared => counts.declared_skip += 1,
+                .filtered => counts.filtered += 1,
+                .none => {},
+            }
+        },
+        .child => |child| {
+            const child_counts = countCases(child, opts);
+            counts.total += child_counts.total;
+            counts.selected += child_counts.selected;
+            counts.declared_skip += child_counts.declared_skip;
+            counts.filtered += child_counts.filtered;
+        },
+    };
+    return counts;
 }
 
 fn addSkip(summary: *RunResult, reason: enum { declared, filtered, blocked }) void {
@@ -487,7 +602,8 @@ fn runCase(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suite
     printIndent(depth);
     if (primary_failure) |failure| {
         summary.failed += 1;
-        writeStdout("x ");
+        writeFailGlyph();
+        writeStdout(" ");
         writeStdout(case_.name);
         printDuration(duration_ns);
         writeStdout("\n");
@@ -495,7 +611,8 @@ fn runCase(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suite
         allocator.free(failure.message);
     } else {
         summary.passed += 1;
-        writeStdout("ok ");
+        writePassGlyph();
+        writeStdout(" ");
         writeStdout(case_.name);
         printDuration(duration_ns);
         writeStdout("\n");
@@ -538,7 +655,8 @@ fn runSuite(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suit
             before_all_failed = true;
             summary.failed += 1;
             printIndent(depth + 1);
-            writeStdout("x beforeAll\n");
+            writeFailGlyph();
+            writeStdout(" beforeAll\n");
             printFailure(depth + 2, failure);
             allocator.free(failure.message);
             for (suite.entries.items) |entry| switch (entry) {
@@ -598,7 +716,8 @@ fn runSuite(runtime: *qjs.Runtime, loop: *async_loop.Loop, suite: *registry.Suit
         if (try callFunction(runtime, loop, hook.callback, hook.file_path, allocator, "afterAll")) |failure| {
             summary.failed += 1;
             printIndent(depth + 1);
-            writeStdout("x afterAll\n");
+            writeFailGlyph();
+            writeStdout(" afterAll\n");
             printFailure(depth + 2, failure);
             allocator.free(failure.message);
         }
@@ -617,6 +736,7 @@ pub fn runWithPackageRegistrar(
     io: ?std.Io,
     package_registrar: ?PackageRegistrar,
 ) !RunResult {
+    reporter_mode = reporterModeFromEnv();
     const run_start_ns = nanoTimestamp();
 
     var test_paths = try collectTestPaths(paths, allocator);
@@ -665,12 +785,19 @@ pub fn runWithPackageRegistrar(
     loader.install(&runtime);
 
     var summary: RunResult = .{};
+    summary.files_total = test_paths.items.len;
 
-    for (test_paths.items) |path| {
+    if (print_summary) {
+        printLine("Found {d} test file(s)", .{test_paths.items.len});
+    }
+
+    file_loop: for (test_paths.items, 0..) |path, index| {
+        if (print_summary) printPathProgress("Load", index + 1, test_paths.items.len, path);
         runTestFile(&loader, &runtime, path, allocator) catch |err| {
             summary.file_failures += 1;
             if (err != error.JavaScriptError) return err;
-            writeStdout("module evaluation failed: ");
+            writeFailGlyph();
+            writeStdout(" module ");
             writeStdout(path);
             const exception = qjs.c.JS_GetException(runtime.ctx);
             defer qjs.freeValue(runtime.ctx, exception);
@@ -679,27 +806,57 @@ pub fn runWithPackageRegistrar(
             writeStdout("\n  ");
             writeStdout(text);
             writeStdout("\n");
+            continue :file_loop;
         };
+        summary.files_loaded += 1;
     }
 
     const opts: RunOptions = .{
         .grep = grep,
         .only_mode = registry.hasOnlyTestsInSuite(registry.root()),
     };
+    if (print_summary) {
+        const counts = countCases(registry.root(), opts);
+        if (opts.grep) |pattern| {
+            printLine("Filter: grep \"{s}\"", .{pattern});
+        }
+        if (opts.only_mode) {
+            writeStdout("Filter: only mode\n");
+        }
+        printLine("Run {d}/{d} test case(s)", .{ counts.selected, counts.total });
+        if (counts.declared_skip > 0 or counts.filtered > 0) {
+            printLine("Skip before run: {d} declared, {d} filtered", .{ counts.declared_skip, counts.filtered });
+        }
+        writeStdout("\n");
+    }
     try runSuite(&runtime, &loop, registry.root(), 0, allocator, &summary, opts);
 
     summary.duration_ns = @intCast(nanoTimestamp() - run_start_ns);
     if (print_summary) {
-        writeStdout("\nResults: ");
         var buf: [320]u8 = undefined;
-        const line = try std.fmt.bufPrint(&buf, "{d} passed, {d} failed, {d} skipped", .{ summary.passed, summary.failed + summary.file_failures, summary.skipped });
-        writeStdout(line);
-        writeStdout(" in ");
+        writeStdout("\n");
+        writeLabel("Test Files:");
+        writeStdout(" ");
+        const files_line = try std.fmt.bufPrint(&buf, "{d} loaded, {d} failed, {d} total", .{ summary.files_loaded, summary.file_failures, summary.files_total });
+        writeStdout(files_line);
+        writeStdout("\n");
+
+        writeLabel("Tests:");
+        writeStdout(" ");
+        const tests_line = try std.fmt.bufPrint(&buf, "{d} passed, {d} failed, {d} skipped", .{ summary.passed, summary.failed, summary.skipped });
+        writeStdout(tests_line);
+        writeStdout("\n");
+
+        writeLabel("Time:");
+        writeStdout(" ");
         const duration = try formatDuration(&buf, summary.duration_ns);
         writeStdout(duration);
         writeStdout("\n");
+
         if (summary.skipped > 0) {
-            const detail = try std.fmt.bufPrint(&buf, "Skipped: {d} declared, {d} filtered, {d} blocked", .{ summary.skipped_declared, summary.skipped_filtered, summary.skipped_blocked });
+            writeLabel("Skipped:");
+            writeStdout(" ");
+            const detail = try std.fmt.bufPrint(&buf, "{d} declared, {d} filtered, {d} blocked", .{ summary.skipped_declared, summary.skipped_filtered, summary.skipped_blocked });
             writeStdout(detail);
             writeStdout("\n");
         }
