@@ -383,7 +383,7 @@ fn resolveSpecifier(loader: *const Loader, current_file: []const u8, specifier: 
     const resolved = packages.resolveImport(current_file, specifier, loader.allocator) catch |err| {
         rememberLastError(switch (err) {
             error.UnsupportedCommonJS => "CommonJS packages are not supported",
-            error.UnsupportedPackageManifest => "Package must declare type: module",
+            error.UnsupportedPackageManifest => "Package entry is not ESM-compatible",
             error.PackageManifestNotFound => "Package manifest not found",
             error.PackageExportNotFound => "Package export not found",
             else => "Cannot resolve module",

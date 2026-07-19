@@ -1,5 +1,6 @@
 const std = @import("std");
 const qjs = @import("qjs.zig");
+const config = @import("config.zig");
 const fs = @import("fs.zig");
 const js_addon = @import("js/addon.zig");
 
@@ -121,6 +122,10 @@ pub const Resolution = struct {
     }
 };
 
+pub const ResolveOptions = struct {
+    package_path: ?[]const u8 = null,
+};
+
 fn copy(allocator: std.mem.Allocator, value: []const u8) ![]u8 {
     const out = try allocator.alloc(u8, value.len);
     @memcpy(out, value);
@@ -144,8 +149,23 @@ fn readPackageJson(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
 }
 
 pub fn resolveImport(current_file: []const u8, specifier: []const u8, allocator: std.mem.Allocator) !Resolution {
+    return resolveImportWithOptions(current_file, specifier, .{
+        .package_path = config.config.package.path,
+    }, allocator);
+}
+
+pub fn resolveImportWithOptions(
+    current_file: []const u8,
+    specifier: []const u8,
+    options: ResolveOptions,
+    allocator: std.mem.Allocator,
+) !Resolution {
     const current_dir = std.fs.path.dirname(current_file) orelse ".";
     const package_name, const subpath = splitPackageSpecifier(specifier);
+
+    if (options.package_path) |package_path| {
+        if (try resolveFromPackagePath(package_path, package_name, subpath, allocator)) |resolved| return resolved;
+    }
 
     var dir = try copy(allocator, current_dir);
     defer allocator.free(dir);
@@ -176,6 +196,36 @@ pub fn resolveImport(current_file: []const u8, specifier: []const u8, allocator:
     }
 
     return error.PackageNotFound;
+}
+
+fn resolveFromPackagePath(
+    package_path: []const u8,
+    package_name: []const u8,
+    subpath: []const u8,
+    allocator: std.mem.Allocator,
+) !?Resolution {
+    var roots = std.mem.tokenizeScalar(u8, package_path, std.fs.path.delimiter);
+    while (roots.next()) |root| {
+        const trimmed = std.mem.trim(u8, root, " \t\r\n");
+        if (trimmed.len == 0) continue;
+
+        const package_root = try join(allocator, &.{ trimmed, package_name });
+        defer allocator.free(package_root);
+        if (!fs.pathExists(package_root)) continue;
+
+        const entry_rel = try resolveEntry(package_root, subpath, allocator);
+        defer allocator.free(entry_rel);
+
+        const abs_path = try join(allocator, &.{ package_root, entry_rel });
+        errdefer allocator.free(abs_path);
+        const package_name_copy = try copy(allocator, package_name);
+        errdefer allocator.free(package_name_copy);
+        return .{
+            .abs_path = abs_path,
+            .package_name = package_name_copy,
+        };
+    }
+    return null;
 }
 
 fn splitPackageSpecifier(specifier: []const u8) struct { []const u8, []const u8 } {
@@ -522,6 +572,41 @@ test "package resolver accepts native addon exports without type module" {
 
     try std.testing.expect(js_addon.isAddonPath(resolved.abs_path));
     try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "native.dylib"));
+}
+
+test "package resolver uses configured package path" {
+    const root = ".zig-cache/hao-tests/package-config-path";
+    const package_root = root ++ "/vendor/demo";
+    try fs.makePath(std.testing.allocator, package_root);
+    try fs.writeFile(root ++ "/main.ts", "import 'demo';");
+    try fs.writeFile(package_root ++ "/package.json", "{\"exports\":\"./index.mjs\"}");
+    try fs.writeFile(package_root ++ "/index.mjs", "export const value = 1;");
+
+    const resolved = try resolveImportWithOptions(root ++ "/main.ts", "demo", .{
+        .package_path = root ++ "/vendor",
+    }, std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expectEqualStrings("demo", resolved.package_name);
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "vendor/demo/index.mjs"));
+}
+
+test "package resolver package path precedes local node modules" {
+    const root = ".zig-cache/hao-tests/package-config-path-precedence";
+    try fs.makePath(std.testing.allocator, root ++ "/vendor/demo");
+    try fs.makePath(std.testing.allocator, root ++ "/node_modules/demo");
+    try fs.writeFile(root ++ "/main.ts", "import 'demo';");
+    try fs.writeFile(root ++ "/vendor/demo/package.json", "{\"exports\":\"./vendor.mjs\"}");
+    try fs.writeFile(root ++ "/vendor/demo/vendor.mjs", "export const value = 1;");
+    try fs.writeFile(root ++ "/node_modules/demo/package.json", "{\"exports\":\"./local.mjs\"}");
+    try fs.writeFile(root ++ "/node_modules/demo/local.mjs", "export const value = 2;");
+
+    const resolved = try resolveImportWithOptions(root ++ "/main.ts", "demo", .{
+        .package_path = root ++ "/vendor",
+    }, std.testing.allocator);
+    defer resolved.deinit(std.testing.allocator);
+
+    try std.testing.expect(std.mem.endsWith(u8, resolved.abs_path, "vendor/demo/vendor.mjs"));
 }
 
 test "package resolver rejects unexported package subpaths" {

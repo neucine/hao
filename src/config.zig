@@ -14,6 +14,7 @@ pub const Config = struct {
     libuv: Libuv = .{},
     debug: Debug = .{},
     telemetry: Telemetry = .{},
+    package: Package = .{},
 
     pub const QuickJS = struct {
         stack_size: usize = default_quickjs_stack_size,
@@ -30,6 +31,10 @@ pub const Config = struct {
     pub const Telemetry = struct {
         console_enabled: bool = false,
         console_port: u16 = 0,
+    };
+
+    pub const Package = struct {
+        path: ?[]const u8 = null,
     };
 };
 
@@ -85,6 +90,11 @@ fn loadUsizeAllowZero(key: [:0]const u8, dest: *u16) void {
 fn loadBool(key: [:0]const u8, dest: *bool) void {
     const val = getenv(key) orelse return;
     if (parseBool(val)) |flag| dest.* = flag;
+}
+
+fn loadString(key: [:0]const u8, dest: *?[]const u8) void {
+    const val = getenv(key) orelse return;
+    dest.* = if (val.len == 0) null else val;
 }
 
 fn setProcessEnv(key: [:0]const u8, value: []const u8) !void {
@@ -200,6 +210,7 @@ pub fn loadFromEnv() !void {
     loadBool("HAO_NATIVE_STACK_TRACE", &config.debug.native_stack_trace);
     loadBool("HAO_TELEMETRY_CONSOLE", &config.telemetry.console_enabled);
     loadUsizeAllowZero("HAO_TELEMETRY_CONSOLE_PORT", &config.telemetry.console_port);
+    loadString("HAO_PACKAGE_PATH", &config.package.path);
     try syncLibuvThreadPoolEnv();
 }
 
@@ -216,6 +227,7 @@ test "Config defaults are correct" {
     try std.testing.expectEqual(false, def.debug.native_stack_trace);
     try std.testing.expectEqual(false, def.telemetry.console_enabled);
     try std.testing.expectEqual(@as(u16, 0), def.telemetry.console_port);
+    try std.testing.expectEqual(@as(?[]const u8, null), def.package.path);
 }
 
 test "loadUsize ignores missing env key" {

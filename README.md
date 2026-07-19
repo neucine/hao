@@ -52,6 +52,17 @@ package that declares `"type": "module"`.
 CommonJS packages, ambiguous `.js` entries, and unexported package subpaths are
 rejected by the module loader.
 
+Set `HAO_PACKAGE_PATH` to add package search roots before Hao walks ancestor
+`node_modules` directories. Entries use the platform path delimiter (`:` on
+macOS/Linux, `;` on Windows), and each root should contain package directories:
+
+```bash
+HAO_PACKAGE_PATH="../packages:../vendor/node_modules" hao app/main.ts
+```
+
+With that configuration, `import "foo"` checks `../packages/foo`, then
+`../vendor/node_modules/foo`, then the usual `node_modules` chain.
+
 ## Guides
 
 - [Embedding Hao](docs/embedding.md)
