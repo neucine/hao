@@ -43,12 +43,14 @@ declare module "std:telemetry" {
   export function gauge(definition: MetricDefinition): Gauge;
   export function histogram(definition: MetricDefinition): Histogram;
   export function metrics(): MetricSnapshot[];
+  export function trace<T>(name: string, callback: () => T): T | Promise<T>;
 
   const telemetry: {
     counter: typeof counter;
     gauge: typeof gauge;
     histogram: typeof histogram;
     metrics: typeof metrics;
+    trace: typeof trace;
   };
   export default telemetry;
 }
