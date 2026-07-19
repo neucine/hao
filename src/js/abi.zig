@@ -384,6 +384,20 @@ pub fn jsThrowError(ctx: JSContext, message: [*:0]const u8) JSValue {
     return qjs.exceptionValue();
 }
 
+pub fn jsThrowConstructedError(ctx: JSContext, constructor_name: [:0]const u8, code: []const u8, message: []const u8) JSValue {
+    const global = qjs.c.JS_GetGlobalObject(ctx);
+    defer qjs.freeValue(ctx, global);
+    const ctor = qjs.getProperty(ctx, global, constructor_name);
+    defer qjs.freeValue(ctx, ctor);
+    if (!qjs.isFunction(ctx, ctor)) return jsThrowError(ctx, "error constructor unavailable");
+    var args = [_]JSValue{ qjs.createString(ctx, code), qjs.createString(ctx, message) };
+    defer qjs.freeValue(ctx, args[0]);
+    defer qjs.freeValue(ctx, args[1]);
+    const value = qjs.c.JS_CallConstructor(ctx, ctor, args.len, @ptrCast(&args));
+    if (qjs.isException(value)) return value;
+    return qjs.c.JS_Throw(ctx, value);
+}
+
 pub fn jsThrowTypeError(ctx: JSContext, message: [*:0]const u8) JSValue {
     _ = qjs.c.JS_ThrowTypeError(ctx, "%s", message);
     return qjs.exceptionValue();
