@@ -7,17 +7,17 @@ const c = @cImport({
     @cInclude("stdlib.h");
 });
 
-pub const default_quickjs_stack_size: usize = 8 * 1024 * 1024;
+pub const default_qjs_stack_size: usize = 8 * 1024 * 1024;
 
 pub const Config = struct {
-    quickjs: QuickJS = .{},
+    qjs: QJS = .{},
     libuv: Libuv = .{},
     debug: Debug = .{},
     telemetry: Telemetry = .{},
     package: Package = .{},
 
-    pub const QuickJS = struct {
-        stack_size: usize = default_quickjs_stack_size,
+    pub const QJS = struct {
+        stack_size: usize = default_qjs_stack_size,
     };
 
     pub const Libuv = struct {
@@ -39,7 +39,7 @@ pub const Config = struct {
 };
 
 pub const RuntimeOptions = struct {
-    quickjs_stack_size: usize = default_quickjs_stack_size,
+    qjs_stack_size: usize = default_qjs_stack_size,
 };
 
 pub var config: Config = .{};
@@ -205,7 +205,7 @@ pub fn syncLibuvThreadPoolEnv() !void {
 
 pub fn loadFromEnv() !void {
     try loadDotenv();
-    loadUsize("HAO_QJS_STACK_SIZE", &config.quickjs.stack_size);
+    loadUsize("HAO_QJS_STACK_SIZE", &config.qjs.stack_size);
     loadOptionalUsize("HAO_LIBUV_THREADPOOL_SIZE", &config.libuv.thread_pool_size);
     loadBool("HAO_NATIVE_STACK_TRACE", &config.debug.native_stack_trace);
     loadBool("HAO_TELEMETRY_CONSOLE", &config.telemetry.console_enabled);
@@ -216,13 +216,13 @@ pub fn loadFromEnv() !void {
 
 pub fn runtimeOptions() RuntimeOptions {
     return .{
-        .quickjs_stack_size = config.quickjs.stack_size,
+        .qjs_stack_size = config.qjs.stack_size,
     };
 }
 
 test "Config defaults are correct" {
     const def = Config{};
-    try std.testing.expectEqual(@as(usize, 8 * 1024 * 1024), def.quickjs.stack_size);
+    try std.testing.expectEqual(@as(usize, 8 * 1024 * 1024), def.qjs.stack_size);
     try std.testing.expectEqual(@as(?usize, null), def.libuv.thread_pool_size);
     try std.testing.expectEqual(false, def.debug.native_stack_trace);
     try std.testing.expectEqual(false, def.telemetry.console_enabled);

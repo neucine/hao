@@ -42,7 +42,7 @@ pub const Runtime = struct {
     pub fn initWithOptions(options: config.RuntimeOptions) !Runtime {
         const rt = c.JS_NewRuntime() orelse return error.OutOfMemory;
         errdefer c.JS_FreeRuntime(rt);
-        c.JS_SetMaxStackSize(rt, options.quickjs_stack_size);
+        c.JS_SetMaxStackSize(rt, options.qjs_stack_size);
         c.JS_UpdateStackTop(rt);
         c.JS_SetHostPromiseRejectionTracker(rt, onHostPromiseRejection, null);
         ensureClassesRegistered(rt);

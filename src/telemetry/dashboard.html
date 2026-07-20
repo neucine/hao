@@ -5,62 +5,239 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hao Telemetry</title>
   <style>
-    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background: #111827; color: #e5e7eb; }
-    body { margin: 0; background: #111827; }
-    header { padding: 18px 24px; border-bottom: 1px solid #374151; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    h1 { margin: 0; font-size: 20px; font-weight: 650; }
-    main { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 18px; padding: 18px 24px; }
+    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background: #0d1117; color: #e6edf3; }
+    body { margin: 0; background: #0d1117; }
+    header { padding: 16px 24px; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: 0; }
+    main { display: grid; grid-template-columns: minmax(240px, 290px) 1fr; gap: 18px; padding: 18px 24px; }
     section { min-width: 0; }
-    .panel { border: 1px solid #374151; background: #172033; padding: 14px; }
-    .panel h2 { margin: 0 0 12px; font-size: 14px; color: #93c5fd; }
+    .panel { border: 1px solid #30363d; background: #161b22; padding: 14px; }
+    .panel h2 { margin: 0 0 12px; font-size: 14px; color: #c9d1d9; }
     .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    label { display: block; padding: 7px 0; font-size: 13px; color: #d1d5db; }
-    input[type=checkbox] { margin-right: 8px; accent-color: #60a5fa; }
-    select, button { border: 1px solid #4b5563; background: #111827; color: #e5e7eb; padding: 6px 8px; }
+    label { display: block; padding: 6px 0; font-size: 13px; color: #c9d1d9; }
+    input[type=checkbox] { margin-right: 8px; accent-color: #58a6ff; }
+    input[type=search], select, button { border: 1px solid #484f58; border-radius: 5px; background: #0d1117; color: #e6edf3; padding: 6px 8px; }
+    input[type=search] { box-sizing: border-box; width: 100%; margin-bottom: 8px; }
     button { cursor: pointer; }
-    .metrics { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    .metric { border: 1px solid #374151; background: #172033; padding: 12px; }
-    .metric-title { font-size: 13px; color: #bfdbfe; }
-    .metric-value { font-size: 24px; margin: 8px 0; font-variant-numeric: tabular-nums; }
-    canvas { width: 100%; height: 90px; display: block; background: #111827; }
+    button:hover { border-color: #8b949e; }
+    .metric-actions { display: flex; gap: 6px; margin-bottom: 10px; }
+    .metric-actions button { flex: 1; font-size: 12px; }
+    .metric-list { max-height: 560px; overflow: auto; }
+    .metric-scope { margin: 12px 0 4px; color: #8b949e; font: 11px ui-monospace, SFMono-Regular, monospace; text-transform: uppercase; }
+    .metric-check { padding: 4px 0; }
+    .metrics { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .metric { border: 1px solid #30363d; background: #161b22; padding: 12px; min-width: 0; }
+    .metric-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .metric-title { color: #c9d1d9; font: 12px ui-monospace, SFMono-Regular, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .metric-kind { color: #8b949e; font-size: 11px; }
+    .metric-value { font-size: 24px; margin: 9px 0 2px; font-variant-numeric: tabular-nums; }
+    .metric-detail { min-height: 17px; color: #8b949e; font-size: 12px; font-variant-numeric: tabular-nums; }
+    canvas { width: 100%; height: 92px; display: block; margin-top: 8px; background: #0d1117; }
+    .empty { border: 1px dashed #30363d; padding: 28px; text-align: center; }
     .trace-stream { display: grid; gap: 4px; max-height: 520px; overflow: auto; font: 12px ui-monospace, SFMono-Regular, monospace; }
-    .trace-row { padding: 5px 8px; border-left: 2px solid #60a5fa; background: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .trace-row.event { border-left-color: #fbbf24; }
-    .muted { color: #9ca3af; font-size: 12px; }
+    .trace-row { padding: 5px 8px; border-left: 2px solid #58a6ff; background: #1c2128; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .trace-row.event { border-left-color: #d29922; }
+    .muted { color: #8b949e; font-size: 12px; }
     @media (max-width: 760px) { main { grid-template-columns: 1fr; padding: 14px; } header { padding: 14px; } }
   </style>
 </head>
 <body>
   <header><h1>Hao Telemetry</h1><div class="controls"><span class="muted" id="status">Connecting</span><label>Interval <select id="interval"><option value="1000">1s</option><option value="2000" selected>2s</option><option value="5000">5s</option><option value="10000">10s</option></select></label></div></header>
   <main>
-    <aside class="panel"><h2>Metrics</h2><div id="metric-list" class="muted">Loading metrics...</div></aside>
+    <aside class="panel"><h2>Metrics</h2><input id="metric-search" type="search" placeholder="Filter metrics" aria-label="Filter metrics"><div class="metric-actions"><button id="select-all" type="button">Select all</button><button id="clear-all" type="button">Clear</button></div><div id="metric-list" class="metric-list muted">Loading metrics...</div></aside>
     <section>
-      <div class="metrics" id="metric-grid"></div>
+      <div class="metrics" id="metric-grid"><div class="panel empty muted">Select metrics to begin.</div></div>
       <div class="panel" style="margin-top:18px"><h2>Trace Stream</h2><div id="trace-stream" class="trace-stream"><span class="muted">No trace records yet.</span></div></div>
     </section>
   </main>
   <script>
-    const selected = new Set(), history = new Map(); let cursor = 0, timer;
+    const selected = new Set();
+    const history = new Map();
+    let cursor = 0, timer, latestMetrics = [];
     const $ = (id) => document.getElementById(id);
-    function esc(value) { return String(value).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function format(value) { return Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }); }
+
+    function format(value, unit) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return '—';
+      if (unit === 'bytes') {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let scaled = Math.abs(number), index = 0;
+        while (scaled >= 1024 && index < units.length - 1) { scaled /= 1024; index++; }
+        return `${number < 0 ? '-' : ''}${scaled.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${units[index]}`;
+      }
+      if (unit === 'nanoseconds') {
+        const absolute = Math.abs(number);
+        if (absolute >= 1000000000) return `${(number / 1000000000).toLocaleString(undefined, { maximumFractionDigits: 2 })} s`;
+        if (absolute >= 1000000) return `${(number / 1000000).toLocaleString(undefined, { maximumFractionDigits: 2 })} ms`;
+        if (absolute >= 1000) return `${(number / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} us`;
+        return `${number.toLocaleString(undefined, { maximumFractionDigits: 2 })} ns`;
+      }
+      return number.toLocaleString(undefined, { maximumFractionDigits: 3 });
+    }
+
+    function formatRate(value, unit) { return `${format(value, unit)}/s`; }
+    function metricId(metric) { return String(metric.id); }
+    function metricLabel(metric) { return `${metric.scope}.${metric.name}`; }
+
+    function visibleMetrics(metrics) {
+      const query = $('metric-search').value.trim().toLowerCase();
+      if (!query) return metrics;
+      return metrics.filter((metric) => `${metricLabel(metric)} ${metric.kind} ${metric.unit || ''}`.toLowerCase().includes(query));
+    }
+
     function renderMetricList(metrics) {
-      const list = $('metric-list'); list.replaceChildren();
-      metrics.forEach((metric) => { const id = String(metric.id), label = document.createElement('label'), input = document.createElement('input'); input.type='checkbox'; input.checked=selected.has(id); input.onchange=() => { input.checked ? selected.add(id) : selected.delete(id); renderMetrics(metrics); }; label.append(input, document.createTextNode(`${metric.scope}.${metric.name}`)); list.append(label); });
-      if (!metrics.length) list.textContent = 'No metrics registered.';
+      const list = $('metric-list');
+      const visible = visibleMetrics(metrics);
+      const scopes = new Map();
+      visible.forEach((metric) => {
+        if (!scopes.has(metric.scope)) scopes.set(metric.scope, []);
+        scopes.get(metric.scope).push(metric);
+      });
+      list.replaceChildren();
+      scopes.forEach((scopeMetrics, scope) => {
+        const heading = document.createElement('div');
+        heading.className = 'metric-scope';
+        heading.textContent = scope;
+        list.append(heading);
+        scopeMetrics.forEach((metric) => {
+          const id = metricId(metric);
+          const label = document.createElement('label');
+          label.className = 'metric-check';
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = selected.has(id);
+          input.onchange = () => {
+            input.checked ? selected.add(id) : selected.delete(id);
+            renderMetrics(latestMetrics);
+          };
+          label.append(input, document.createTextNode(metric.name));
+          list.append(label);
+        });
+      });
+      if (!visible.length) list.textContent = metrics.length ? 'No matching metrics.' : 'No metrics registered.';
     }
+
+    function updateHistory(metrics) {
+      const now = Date.now();
+      metrics.forEach((metric) => {
+        const id = metricId(metric);
+        const entry = history.get(id) || { kind: metric.kind, unit: metric.unit, samples: [] };
+        const value = Number(metric.value);
+        const previous = entry.samples[entry.samples.length - 1];
+        if (metric.kind === 'counter' && previous && value < previous.value) entry.samples = [];
+        entry.kind = metric.kind;
+        entry.unit = metric.unit;
+        entry.samples.push({ time: now, value });
+        entry.samples = entry.samples.slice(-60);
+        history.set(id, entry);
+      });
+    }
+
+    function drawChart(canvas, entry) {
+      const width = canvas.width, height = canvas.height, padding = 18;
+      const ctx = canvas.getContext('2d');
+      const values = entry.samples.map((sample) => sample.value).filter(Number.isFinite);
+      ctx.clearRect(0, 0, width, height);
+      ctx.strokeStyle = '#30363d';
+      ctx.lineWidth = 1;
+      [0.25, 0.5, 0.75].forEach((fraction) => { const y = Math.round(height * fraction); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); });
+      if (!values.length) return;
+      let min = Math.min(...values), max = Math.max(...values);
+      if (entry.kind === 'counter') min = Math.min(0, min);
+      if (min === max) { min -= 1; max += 1; }
+      const range = max - min;
+      ctx.strokeStyle = entry.kind === 'counter' ? '#3fb950' : '#58a6ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      entry.samples.forEach((sample, index) => {
+        const x = index / Math.max(entry.samples.length - 1, 1) * width;
+        const y = height - padding - ((sample.value - min) / range) * (height - padding * 2);
+        index ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    function renderMetricCard(metric) {
+      const id = metricId(metric), entry = history.get(id), samples = entry ? entry.samples : [];
+      const card = document.createElement('div');
+      card.className = 'metric';
+      const head = document.createElement('div');
+      head.className = 'metric-head';
+      const title = document.createElement('div');
+      title.className = 'metric-title';
+      title.title = metricLabel(metric);
+      title.textContent = metricLabel(metric);
+      const kind = document.createElement('div');
+      kind.className = 'metric-kind';
+      kind.textContent = metric.kind;
+      head.append(title, kind);
+      const value = document.createElement('div');
+      value.className = 'metric-value';
+      value.textContent = format(metric.value, metric.unit);
+      const detail = document.createElement('div');
+      detail.className = 'metric-detail';
+      const previous = samples.length > 1 ? samples[samples.length - 2] : null;
+      if (metric.kind === 'counter' && previous) {
+        const elapsed = Math.max((samples[samples.length - 1].time - previous.time) / 1000, 0.001);
+        detail.textContent = `${format(Number(metric.value) - previous.value, metric.unit)} since last · ${formatRate((Number(metric.value) - previous.value) / elapsed, metric.unit)}`;
+      } else if (samples.length) {
+        const values = samples.map((sample) => sample.value);
+        detail.textContent = `range ${format(Math.min(...values), metric.unit)} – ${format(Math.max(...values), metric.unit)}`;
+      } else {
+        detail.textContent = 'Waiting for samples';
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 180;
+      card.append(head, value, detail, canvas);
+      if (entry) drawChart(canvas, entry);
+      return card;
+    }
+
     function renderMetrics(metrics) {
-      const grid = $('metric-grid'); grid.replaceChildren();
-      metrics.filter((metric) => selected.has(String(metric.id))).forEach((metric) => { const card = document.createElement('div'); card.className='metric'; const title = document.createElement('div'); title.className='metric-title'; title.textContent=`${metric.scope}.${metric.name} (${metric.kind})`; const value = document.createElement('div'); value.className='metric-value'; value.textContent=format(metric.value); const canvas=document.createElement('canvas'); canvas.width=640; canvas.height=180; card.append(title,value,canvas); const points=history.get(String(metric.id))||[]; points.push(Number(metric.value)); history.set(String(metric.id), points.slice(-60)); const ctx=canvas.getContext('2d'); ctx.strokeStyle='#60a5fa'; ctx.lineWidth=3; ctx.beginPath(); points.forEach((point,index)=>{ const x=index/(Math.max(points.length-1,1))*canvas.width, y=canvas.height-(point/(Math.max(...points,1)))*140-20; index?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); grid.append(card); });
+      const grid = $('metric-grid');
+      grid.replaceChildren();
+      metrics.filter((metric) => selected.has(metricId(metric))).forEach((metric) => grid.append(renderMetricCard(metric)));
+      if (!grid.children.length) grid.innerHTML = '<div class="panel empty muted">Select metrics to begin.</div>';
     }
+
     function renderTraces(result) {
-      if (result.missed) $('trace-stream').insertAdjacentHTML('afterbegin','<span class="muted">Earlier records were overwritten.</span>');
-      result.records.forEach((record) => { const row=document.createElement('div'); row.className='trace-row '+(record.kind==='event'?'event':''); const indent=record.parent_span_id && !/^0+$/.test(record.parent_span_id) ? '  ' : ''; row.textContent=`${record.sequence} ${indent}${record.kind} ${record.name} [${record.status}]`; $('trace-stream').append(row); });
-      cursor=result.next_cursor; while ($('trace-stream').children.length>300) $('trace-stream').firstElementChild.remove();
+      if (result.missed) $('trace-stream').insertAdjacentHTML('afterbegin', '<span class="muted">Earlier records were overwritten.</span>');
+      result.records.forEach((record) => {
+        const row = document.createElement('div');
+        row.className = `trace-row ${record.kind === 'event' ? 'event' : ''}`;
+        const indent = record.parent_span_id && !/^0+$/.test(record.parent_span_id) ? '  ' : '';
+        row.textContent = `${record.sequence} ${indent}${record.kind} ${record.name} [${record.status}]`;
+        $('trace-stream').append(row);
+      });
+      cursor = result.next_cursor;
+      while ($('trace-stream').children.length > 300) $('trace-stream').firstElementChild.remove();
     }
-    async function refresh() { try { const [m,t]=await Promise.all([fetch('/api/metrics').then((r)=>r.json()),fetch(`/api/traces?since=${cursor}&limit=128`).then((r)=>r.json())]); if (!$('metric-list').children.length) renderMetricList(m); renderMetrics(m); renderTraces(t); $('status').textContent=`Updated ${new Date().toLocaleTimeString()}`; } catch (error) { $('status').textContent='Disconnected'; } }
-    function schedule() { clearInterval(timer); timer=setInterval(refresh, Number($('interval').value)); }
-    $('interval').onchange=schedule; refresh(); schedule();
+
+    async function refresh() {
+      try {
+        const [metrics, traces] = await Promise.all([
+          fetch('/api/metrics').then((response) => response.json()),
+          fetch(`/api/traces?since=${cursor}&limit=128`).then((response) => response.json()),
+        ]);
+        latestMetrics = metrics;
+        updateHistory(metrics);
+        renderMetricList(metrics);
+        renderMetrics(metrics);
+        renderTraces(traces);
+        $('status').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+      } catch (error) {
+        $('status').textContent = 'Disconnected';
+      }
+    }
+
+    function schedule() { clearInterval(timer); timer = setInterval(refresh, Number($('interval').value)); }
+    $('metric-search').oninput = () => renderMetricList(latestMetrics);
+    $('select-all').onclick = () => { visibleMetrics(latestMetrics).forEach((metric) => selected.add(metricId(metric))); renderMetricList(latestMetrics); renderMetrics(latestMetrics); };
+    $('clear-all').onclick = () => { selected.clear(); renderMetricList(latestMetrics); renderMetrics(latestMetrics); };
+    $('interval').onchange = schedule;
+    refresh();
+    schedule();
   </script>
 </body>
 </html>

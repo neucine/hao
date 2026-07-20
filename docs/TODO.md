@@ -26,6 +26,8 @@ dependency used by Affon and other hosts.
 - Add async context propagation across promises, timers, and native callbacks.
 - Define the host consumer/export policy before exposing tracing through the
   addon ABI.
+- Clarify trace record identity: `sequence` is currently the global record ID;
+  decide whether events also need a separate event ID.
 
 ## Docs And Examples
 

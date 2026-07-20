@@ -314,13 +314,7 @@ pub fn jsHostObjectHandleWithClass(ctx: JSContext, value: JSValueConst, class_id
 }
 
 pub fn jsSetProperty(ctx: JSContext, object: JSValueConst, key: [*:0]const u8, value: JSValue) c_int {
-    return qjs.c.JS_DefinePropertyValueStr(
-        ctx,
-        object,
-        key,
-        value,
-        qjs.c.JS_PROP_HAS_VALUE | qjs.c.JS_PROP_HAS_ENUMERABLE | qjs.c.JS_PROP_ENUMERABLE,
-    );
+    return qjs.c.JS_SetPropertyStr(ctx, object, key, value);
 }
 
 pub fn jsSetPropertyChecked(ctx: JSContext, object: JSValueConst, key: [*:0]const u8, value: JSValue) !void {

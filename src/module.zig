@@ -95,6 +95,10 @@ fn rememberJavaScriptException(ctx: ?*qjs.c.JSContext, allocator: std.mem.Alloca
         return;
     };
     defer allocator.free(message);
+    if (message.len == 0 or std.mem.eql(u8, message, "[uninitialized]")) {
+        if (last_error_len == 0) rememberLastError(fallback);
+        return;
+    }
     rememberLastError(message);
 }
 
@@ -108,6 +112,10 @@ fn rememberJavaScriptExceptionValue(ctx: ?*qjs.c.JSContext, exception: qjs.c.JSV
         return;
     };
     defer allocator.free(message);
+    if (message.len == 0 or std.mem.eql(u8, message, "[uninitialized]")) {
+        if (last_error_len == 0) rememberLastError(fallback);
+        return;
+    }
     rememberLastError(message);
 }
 
@@ -375,7 +383,10 @@ fn loadModule(
     defer loader.allocator.free(file_name);
 
     const compiled = qjs.eval(ctx, source_z, file_name, qjs.EvalFlags.module_compile_only);
-    if (qjs.isException(compiled)) return null;
+    if (qjs.isException(compiled)) {
+        rememberJavaScriptException(ctx, loader.allocator, "JavaScript module compilation failed");
+        return null;
+    }
     defer qjs.freeValue(ctx, compiled);
 
     return @ptrCast(@alignCast(qjs.c.JS_VALUE_GET_PTR(compiled)));
@@ -394,13 +405,16 @@ fn resolveSpecifier(loader: *const Loader, current_file: []const u8, specifier: 
     }
 
     const resolved = packages.resolveImport(current_file, specifier, loader.allocator) catch |err| {
-        rememberLastError(switch (err) {
+        const fallback = switch (err) {
             error.UnsupportedCommonJS => "CommonJS packages are not supported",
             error.UnsupportedPackageManifest => "Package entry is not ESM-compatible",
             error.PackageManifestNotFound => "Package manifest not found",
             error.PackageExportNotFound => "Package export not found",
             else => "Cannot resolve module",
-        });
+        };
+        var message: [512]u8 = undefined;
+        const rendered = std.fmt.bufPrint(&message, "{s}: {s} (from {s})", .{ fallback, specifier, current_file }) catch fallback;
+        rememberLastError(rendered);
         return err;
     };
     defer resolved.deinit(loader.allocator);
@@ -478,6 +492,28 @@ test "loader imports package source module" {
     );
 
     try std.testing.expectEqual(@as(f64, 42), try getGlobalNumber(runtime.ctx, "__hao_loader_value"));
+}
+
+test "loader preserves imported module compile errors" {
+    var runtime = try qjs.Runtime.init();
+    defer runtime.deinit();
+
+    const sources = [_]packages.SourceModule{.{
+        .specifier = "demo:broken",
+        .source = "export const = ;",
+    }};
+    var registry = packages.Registry.init(std.testing.allocator);
+    defer registry.deinit();
+    try registry.register(.{ .name = "demo", .sources = &sources });
+
+    var loader = Loader{ .allocator = std.testing.allocator, .registry = &registry };
+    loader.install(&runtime);
+
+    try std.testing.expectError(
+        error.JavaScriptError,
+        evalModuleSource(&loader, &runtime, "import 'demo:broken';", "<test-import-error>"),
+    );
+    try std.testing.expect(lastError() != null);
 }
 
 test "loader resolves relative TypeScript files and node_modules packages" {

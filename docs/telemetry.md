@@ -122,3 +122,9 @@ Hao prints the loopback URL when the console starts. The current endpoints are:
 - `GET /api/health`
 - `GET /api/metrics`
 - `GET /api/traces?since=<cursor>&limit=<n>`
+
+The browser API still needs a lossless numeric representation. Metric
+`value`, `sum`, `min`, and `max` are `f64` and can remain JSON numbers, while
+integer fields such as metric `count`, trace `sequence`, trace cursors, and
+timestamps should eventually be serialized as strings. The dashboard should
+keep cursors as strings so large values do not lose precision in JavaScript.

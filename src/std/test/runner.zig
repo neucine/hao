@@ -815,7 +815,10 @@ pub fn runWithPackageRegistrar(
             writeStdout(path);
             const exception = js_abi.jsGetException(runtime.ctx);
             defer js_abi.jsFreeValue(runtime.ctx, exception);
-            const text = exceptionSummaryAlloc(runtime.ctx, exception, allocator) catch try allocator.dupe(u8, "[uninitialized]");
+            const text = if (module_runtime.lastError()) |message|
+                try allocator.dupe(u8, message)
+            else
+                exceptionSummaryAlloc(runtime.ctx, exception, allocator) catch try allocator.dupe(u8, "[uninitialized]");
             defer allocator.free(text);
             writeStdout("\n  ");
             writeStdout(text);
