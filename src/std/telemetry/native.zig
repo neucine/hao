@@ -7,8 +7,8 @@ const metrics = @import("../../telemetry/metrics.zig");
 const store = @import("../../telemetry/store.zig");
 const trace = @import("../../telemetry/trace.zig");
 
-var peak_resident_bytes = std.atomic.Value(u64).init(0);
-var peak_physical_footprint_bytes = std.atomic.Value(u64).init(0);
+var resident_peak_bytes = std.atomic.Value(u64).init(0);
+var physical_footprint_peak_bytes = std.atomic.Value(u64).init(0);
 
 pub const specifier: [:0]const u8 = "std:telemetry/native";
 
@@ -98,29 +98,29 @@ const RuntimeMemoryMetric = struct {
 };
 
 const runtime_memory_metrics = [_]RuntimeMemoryMetric{
-    .{ .name = "malloc_size", .unit = "bytes", .read = memoryMallocSize },
-    .{ .name = "malloc_limit", .unit = "bytes", .read = memoryMallocLimit },
-    .{ .name = "qjs_used_size", .unit = "bytes", .read = memoryUsedSize },
-    .{ .name = "malloc_count", .unit = "count", .read = memoryMallocCount },
-    .{ .name = "memory_used_count", .unit = "count", .read = memoryUsedCount },
-    .{ .name = "atom_count", .unit = "count", .read = memoryAtomCount },
-    .{ .name = "atom_size", .unit = "bytes", .read = memoryAtomSize },
-    .{ .name = "str_count", .unit = "count", .read = memoryStrCount },
-    .{ .name = "str_size", .unit = "bytes", .read = memoryStrSize },
-    .{ .name = "obj_count", .unit = "count", .read = memoryObjCount },
-    .{ .name = "obj_size", .unit = "bytes", .read = memoryObjSize },
-    .{ .name = "prop_count", .unit = "count", .read = memoryPropCount },
-    .{ .name = "prop_size", .unit = "bytes", .read = memoryPropSize },
-    .{ .name = "shape_count", .unit = "count", .read = memoryShapeCount },
-    .{ .name = "shape_size", .unit = "bytes", .read = memoryShapeSize },
-    .{ .name = "js_func_count", .unit = "count", .read = memoryJsFuncCount },
-    .{ .name = "js_func_size", .unit = "bytes", .read = memoryJsFuncSize },
-    .{ .name = "js_func_code_size", .unit = "bytes", .read = memoryJsFuncCodeSize },
-    .{ .name = "array_count", .unit = "count", .read = memoryArrayCount },
-    .{ .name = "fast_array_count", .unit = "count", .read = memoryFastArrayCount },
-    .{ .name = "fast_array_elements", .unit = "count", .read = memoryFastArrayElements },
-    .{ .name = "binary_object_count", .unit = "count", .read = memoryBinaryObjectCount },
-    .{ .name = "binary_object_size", .unit = "bytes", .read = memoryBinaryObjectSize },
+    .{ .name = "qjs_malloc_bytes", .unit = "bytes", .read = memoryMallocSize },
+    .{ .name = "qjs_malloc_limit_bytes", .unit = "bytes", .read = memoryMallocLimit },
+    .{ .name = "qjs_heap_used_bytes", .unit = "bytes", .read = memoryUsedSize },
+    .{ .name = "qjs_malloc_count", .unit = "count", .read = memoryMallocCount },
+    .{ .name = "qjs_heap_used_count", .unit = "count", .read = memoryUsedCount },
+    .{ .name = "qjs_atom_count", .unit = "count", .read = memoryAtomCount },
+    .{ .name = "qjs_atom_bytes", .unit = "bytes", .read = memoryAtomSize },
+    .{ .name = "qjs_string_count", .unit = "count", .read = memoryStrCount },
+    .{ .name = "qjs_string_bytes", .unit = "bytes", .read = memoryStrSize },
+    .{ .name = "qjs_object_count", .unit = "count", .read = memoryObjCount },
+    .{ .name = "qjs_object_bytes", .unit = "bytes", .read = memoryObjSize },
+    .{ .name = "qjs_property_count", .unit = "count", .read = memoryPropCount },
+    .{ .name = "qjs_property_bytes", .unit = "bytes", .read = memoryPropSize },
+    .{ .name = "qjs_shape_count", .unit = "count", .read = memoryShapeCount },
+    .{ .name = "qjs_shape_bytes", .unit = "bytes", .read = memoryShapeSize },
+    .{ .name = "qjs_function_count", .unit = "count", .read = memoryJsFuncCount },
+    .{ .name = "qjs_function_bytes", .unit = "bytes", .read = memoryJsFuncSize },
+    .{ .name = "qjs_function_code_bytes", .unit = "bytes", .read = memoryJsFuncCodeSize },
+    .{ .name = "qjs_array_count", .unit = "count", .read = memoryArrayCount },
+    .{ .name = "qjs_fast_array_count", .unit = "count", .read = memoryFastArrayCount },
+    .{ .name = "qjs_fast_array_element_count", .unit = "count", .read = memoryFastArrayElements },
+    .{ .name = "qjs_binary_object_count", .unit = "count", .read = memoryBinaryObjectCount },
+    .{ .name = "qjs_binary_object_bytes", .unit = "bytes", .read = memoryBinaryObjectSize },
 };
 
 const RuntimeAllocatorMetric = struct {
@@ -130,12 +130,12 @@ const RuntimeAllocatorMetric = struct {
 };
 
 const runtime_allocator_metrics = [_]RuntimeAllocatorMetric{
-    .{ .name = "runtime_active_size", .unit = "bytes", .read = allocatorActiveSize },
-    .{ .name = "runtime_peak_size", .unit = "bytes", .read = allocatorPeakSize },
-    .{ .name = "runtime_allocated_size", .unit = "bytes", .read = allocatorAllocatedSize },
-    .{ .name = "runtime_freed_size", .unit = "bytes", .read = allocatorFreedSize },
-    .{ .name = "runtime_allocation_count", .unit = "count", .read = allocatorAllocationCount },
-    .{ .name = "runtime_free_count", .unit = "count", .read = allocatorFreeCount },
+    .{ .name = "allocator_active_bytes", .unit = "bytes", .read = allocatorActiveSize },
+    .{ .name = "allocator_peak_bytes", .unit = "bytes", .read = allocatorPeakSize },
+    .{ .name = "allocator_allocated_bytes_total", .unit = "bytes", .read = allocatorAllocatedSize },
+    .{ .name = "allocator_freed_bytes_total", .unit = "bytes", .read = allocatorFreedSize },
+    .{ .name = "allocator_allocation_count", .unit = "count", .read = allocatorAllocationCount },
+    .{ .name = "allocator_free_count", .unit = "count", .read = allocatorFreeCount },
 };
 
 const process_memory_metrics = [_]struct {
@@ -300,8 +300,8 @@ fn refreshRuntimeMemoryMetrics(ctx: *js_abi.Context) !void {
         try metrics.set(id, metric.read(allocator_stats));
     }
     const process_snapshot = process_memory.snapshot();
-    updatePeak(&peak_resident_bytes, process_snapshot.resident_bytes);
-    updatePeak(&peak_physical_footprint_bytes, process_snapshot.physical_footprint_bytes);
+    updatePeak(&resident_peak_bytes, process_snapshot.resident_bytes);
+    updatePeak(&physical_footprint_peak_bytes, process_snapshot.physical_footprint_bytes);
     for (process_memory_metrics) |metric| {
         const id = try metrics.register(.{
             .scope = "runtime.memory",
@@ -315,8 +315,8 @@ fn refreshRuntimeMemoryMetrics(ctx: *js_abi.Context) !void {
         name: []const u8,
         value: u64,
     }{
-        .{ .name = "peak_resident_bytes", .value = peak_resident_bytes.load(.monotonic) },
-        .{ .name = "peak_physical_footprint_bytes", .value = peak_physical_footprint_bytes.load(.monotonic) },
+        .{ .name = "resident_peak_bytes", .value = resident_peak_bytes.load(.monotonic) },
+        .{ .name = "physical_footprint_peak_bytes", .value = physical_footprint_peak_bytes.load(.monotonic) },
     };
     for (process_peak_metrics) |metric| {
         const id = try metrics.register(.{

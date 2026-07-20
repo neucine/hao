@@ -363,8 +363,8 @@ test "runtime telemetry reports tracked Zig allocator stats" {
     try host.evalModuleSource(
         \\import { metrics } from "std:telemetry";
         \\const snapshot = metrics();
-        \\globalThis.__hao_runtime_active_size = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_active_size")?.value ?? -1;
-        \\globalThis.__hao_runtime_peak_size = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_peak_size")?.value ?? -1;
+        \\globalThis.__hao_allocator_active_bytes = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_active_bytes")?.value ?? -1;
+        \\globalThis.__hao_allocator_peak_bytes = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_peak_bytes")?.value ?? -1;
     ,
         "<hao-telemetry-memory-test>",
     );
@@ -372,13 +372,13 @@ test "runtime telemetry reports tracked Zig allocator stats" {
     const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
     defer qjs.freeValue(host.runtime.ctx, global);
 
-    const active_value = qjs.getProperty(host.runtime.ctx, global, "__hao_runtime_active_size");
+    const active_value = qjs.getProperty(host.runtime.ctx, global, "__hao_allocator_active_bytes");
     defer qjs.freeValue(host.runtime.ctx, active_value);
     var active: f64 = 0;
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &active, active_value));
     try std.testing.expect(active >= 4096);
 
-    const peak_value = qjs.getProperty(host.runtime.ctx, global, "__hao_runtime_peak_size");
+    const peak_value = qjs.getProperty(host.runtime.ctx, global, "__hao_allocator_peak_bytes");
     defer qjs.freeValue(host.runtime.ctx, peak_value);
     var peak: f64 = 0;
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &peak, peak_value));

@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const config = @import("../config.zig");
+const process_memory = @import("../process_memory.zig");
 const runtime_allocator = @import("../runtime_allocator.zig");
 const metrics = @import("metrics.zig");
 const store = @import("store.zig");
@@ -9,6 +10,9 @@ const net_available = @hasDecl(std.Io, "net");
 const net = std.Io.net;
 
 const page = @embedFile("dashboard.html");
+
+var resident_peak_bytes = std.atomic.Value(u64).init(0);
+var physical_footprint_peak_bytes = std.atomic.Value(u64).init(0);
 
 fn runtimeAllocator() std.mem.Allocator {
     return runtime_allocator.allocator();
@@ -145,6 +149,7 @@ fn handleConnection(io: std.Io, connection: net.Stream) !void {
 }
 
 fn writeMetricsResponse(io: std.Io, stream: net.Stream) !void {
+    try refreshRuntimeHostMetrics();
     var snapshots: [metrics.max_metrics]metrics.Snapshot = undefined;
     const view = metrics.snapshot(&snapshots);
     var body = std.ArrayList(u8).empty;
@@ -171,6 +176,41 @@ fn writeMetricsResponse(io: std.Io, stream: net.Stream) !void {
     }
     try body.append(runtimeAllocator(), ']');
     try writeJsonResponse(io, stream, 200, body.items);
+}
+
+fn updatePeak(target: *std.atomic.Value(u64), value: u64) void {
+    var current = target.load(.monotonic);
+    while (value > current) {
+        current = target.cmpxchgWeak(current, value, .monotonic, .monotonic) orelse return;
+    }
+}
+
+fn setRuntimeGauge(name: []const u8, unit: []const u8, value: f64) !void {
+    const id = try metrics.register(.{
+        .scope = "runtime.memory",
+        .name = name,
+        .kind = .gauge,
+        .unit = unit,
+    });
+    try metrics.set(id, value);
+}
+
+fn refreshRuntimeHostMetrics() !void {
+    const allocator_stats = runtime_allocator.stats();
+    try setRuntimeGauge("allocator_active_bytes", "bytes", @floatFromInt(allocator_stats.active_size));
+    try setRuntimeGauge("allocator_peak_bytes", "bytes", @floatFromInt(allocator_stats.peak_size));
+    try setRuntimeGauge("allocator_allocated_bytes_total", "bytes", @floatFromInt(allocator_stats.allocated_size));
+    try setRuntimeGauge("allocator_freed_bytes_total", "bytes", @floatFromInt(allocator_stats.freed_size));
+    try setRuntimeGauge("allocator_allocation_count", "count", @floatFromInt(allocator_stats.allocation_count));
+    try setRuntimeGauge("allocator_free_count", "count", @floatFromInt(allocator_stats.free_count));
+
+    const process_snapshot = process_memory.snapshot();
+    updatePeak(&resident_peak_bytes, process_snapshot.resident_bytes);
+    updatePeak(&physical_footprint_peak_bytes, process_snapshot.physical_footprint_bytes);
+    try setRuntimeGauge("resident_bytes", "bytes", @floatFromInt(process_snapshot.resident_bytes));
+    try setRuntimeGauge("physical_footprint_bytes", "bytes", @floatFromInt(process_snapshot.physical_footprint_bytes));
+    try setRuntimeGauge("resident_peak_bytes", "bytes", @floatFromInt(resident_peak_bytes.load(.monotonic)));
+    try setRuntimeGauge("physical_footprint_peak_bytes", "bytes", @floatFromInt(physical_footprint_peak_bytes.load(.monotonic)));
 }
 
 fn writeTracesResponse(io: std.Io, stream: net.Stream, target: []const u8) !void {
@@ -304,4 +344,37 @@ test "telemetry console config starts an in-process HTTP server" {
     var reader = stream.reader(std.testing.io, &read_buffer);
     const count = try reader.interface.readSliceShort(&response);
     try std.testing.expect(std.mem.startsWith(u8, response[0..count], "HTTP/1.1 200 OK"));
+}
+
+test "telemetry console metrics include host runtime memory" {
+    if (!net_available) return error.SkipZigTest;
+    const old_enabled = config.config.read().telemetry.console_enabled.get();
+    const old_port = config.config.read().telemetry.console_port.get();
+    defer {
+        config.config.set("telemetry.console_enabled", old_enabled) catch {};
+        config.config.set("telemetry.console_port", old_port) catch {};
+    }
+    try config.config.set("telemetry.console_enabled", true);
+    try config.config.set("telemetry.console_port", 0);
+    metrics.clear();
+    defer metrics.clear();
+
+    var handle = try start(std.testing.allocator, std.testing.io);
+    defer handle.deinit();
+    const port = handle.port() orelse return error.TestExpectedPort;
+
+    const address = try net.IpAddress.parseIp4("127.0.0.1", port);
+    const stream = try address.connect(std.testing.io, .{ .mode = .stream });
+    defer stream.close(std.testing.io);
+    var write_buffer: [1024]u8 = undefined;
+    var writer = stream.writer(std.testing.io, &write_buffer);
+    try writer.interface.writeAll("GET /api/metrics HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+    try writer.interface.flush();
+
+    var response: [4096]u8 = undefined;
+    var read_buffer: [4096]u8 = undefined;
+    var reader = stream.reader(std.testing.io, &read_buffer);
+    const count = try reader.interface.readSliceShort(&response);
+    try std.testing.expect(std.mem.indexOf(u8, response[0..count], "\"scope\":\"runtime.memory\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, response[0..count], "\"name\":\"resident_bytes\"") != null);
 }

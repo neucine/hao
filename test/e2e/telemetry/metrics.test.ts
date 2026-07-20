@@ -45,10 +45,10 @@ describe("telemetry metrics", () => {
 
   test("includes runtime memory gauges", () => {
     const snapshot = metrics();
-    const memoryUsed = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "qjs_used_size");
-    const objects = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "obj_count");
-    const allocatorActive = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_active_size");
-    const allocatorPeak = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "runtime_peak_size");
+    const memoryUsed = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "qjs_heap_used_bytes");
+    const objects = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "qjs_object_count");
+    const allocatorActive = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_active_bytes");
+    const allocatorPeak = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_peak_bytes");
 
     expect(memoryUsed?.kind).toBe("gauge");
     expect(memoryUsed?.unit).toBe("bytes");
