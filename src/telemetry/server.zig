@@ -239,6 +239,8 @@ fn writeTracesResponse(io: std.Io, stream: net.Stream, target: []const u8) !void
         try appendJsonString(&body, record.name);
         try body.appendSlice(runtimeAllocator(), ",\"status\":");
         try appendJsonString(&body, @tagName(record.status));
+        try body.appendSlice(runtimeAllocator(), ",\"attributes\":");
+        try appendJsonAttributes(&body, record.attributes);
         try body.append(runtimeAllocator(), '}');
     }
     try body.appendSlice(runtimeAllocator(), "]}");
@@ -292,6 +294,26 @@ fn appendHexString(body: *std.ArrayList(u8), bytes: []const u8) !void {
         try body.append(runtimeAllocator(), hex[byte & 0xf]);
     }
     try body.append(runtimeAllocator(), '"');
+}
+
+fn appendJsonAttributes(body: *std.ArrayList(u8), attributes: []const @import("trace.zig").StoredAttribute) !void {
+    try body.append(runtimeAllocator(), '{');
+    for (attributes, 0..) |attribute, index| {
+        if (index != 0) try body.append(runtimeAllocator(), ',');
+        try appendJsonString(body, attribute.key[0..attribute.key_len]);
+        try body.append(runtimeAllocator(), ':');
+        try appendJsonAttributeValue(body, attribute.value);
+    }
+    try body.append(runtimeAllocator(), '}');
+}
+
+fn appendJsonAttributeValue(body: *std.ArrayList(u8), value: @import("trace.zig").StoredValue) !void {
+    switch (value) {
+        .boolean => |item| try body.appendSlice(runtimeAllocator(), if (item) "true" else "false"),
+        .integer => |item| try body.print(runtimeAllocator(), "{d}", .{item}),
+        .float => |item| try body.print(runtimeAllocator(), "{d}", .{item}),
+        .string => |item| try appendJsonString(body, item.bytes[0..item.len]),
+    }
 }
 
 fn writeJsonResponse(io: std.Io, stream: net.Stream, status: u16, body: []const u8) !void {

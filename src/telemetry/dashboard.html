@@ -207,7 +207,10 @@
         const row = document.createElement('div');
         row.className = `trace-row ${record.kind === 'event' ? 'event' : ''}`;
         const indent = record.parent_span_id && !/^0+$/.test(record.parent_span_id) ? '  ' : '';
-        row.textContent = `${record.sequence} ${indent}${record.kind} ${record.name} [${record.status}]`;
+        const attrs = record.attributes && Object.keys(record.attributes).length
+          ? ' ' + Object.entries(record.attributes).map(([key, value]) => `${key}=${value}`).join(' ')
+          : '';
+        row.textContent = `${record.sequence} ${indent}${record.kind} ${record.name} [${record.status}]${attrs}`;
         $('trace-stream').append(row);
       });
       cursor = result.next_cursor;
