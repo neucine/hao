@@ -2,9 +2,13 @@ const std = @import("std");
 const js_abi = @import("../../js/abi.zig");
 const qjs_test = @import("../../qjs.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
+const process_memory = @import("../../process_memory.zig");
 const metrics = @import("../../telemetry/metrics.zig");
 const store = @import("../../telemetry/store.zig");
 const trace = @import("../../telemetry/trace.zig");
+
+var peak_resident_bytes = std.atomic.Value(u64).init(0);
+var peak_physical_footprint_bytes = std.atomic.Value(u64).init(0);
 
 pub const specifier: [:0]const u8 = "std:telemetry/native";
 
@@ -133,6 +137,29 @@ const runtime_allocator_metrics = [_]RuntimeAllocatorMetric{
     .{ .name = "runtime_allocation_count", .unit = "count", .read = allocatorAllocationCount },
     .{ .name = "runtime_free_count", .unit = "count", .read = allocatorFreeCount },
 };
+
+const process_memory_metrics = [_]struct {
+    name: []const u8,
+    read: *const fn (process_memory.Snapshot) u64,
+}{
+    .{ .name = "resident_bytes", .read = processResidentBytes },
+    .{ .name = "physical_footprint_bytes", .read = processPhysicalFootprintBytes },
+};
+
+fn processResidentBytes(snapshot: process_memory.Snapshot) u64 {
+    return snapshot.resident_bytes;
+}
+
+fn processPhysicalFootprintBytes(snapshot: process_memory.Snapshot) u64 {
+    return snapshot.physical_footprint_bytes;
+}
+
+fn updatePeak(target: *std.atomic.Value(u64), value: u64) void {
+    var current = target.load(.monotonic);
+    while (value > current) {
+        current = target.cmpxchgWeak(current, value, .monotonic, .monotonic) orelse return;
+    }
+}
 
 fn memoryMallocSize(usage: js_abi.MemoryUsage) usize {
     return usage.malloc_size;
@@ -271,6 +298,34 @@ fn refreshRuntimeMemoryMetrics(ctx: *js_abi.Context) !void {
             .unit = metric.unit,
         });
         try metrics.set(id, metric.read(allocator_stats));
+    }
+    const process_snapshot = process_memory.snapshot();
+    updatePeak(&peak_resident_bytes, process_snapshot.resident_bytes);
+    updatePeak(&peak_physical_footprint_bytes, process_snapshot.physical_footprint_bytes);
+    for (process_memory_metrics) |metric| {
+        const id = try metrics.register(.{
+            .scope = "runtime.memory",
+            .name = metric.name,
+            .kind = .gauge,
+            .unit = "bytes",
+        });
+        try metrics.set(id, @floatFromInt(metric.read(process_snapshot)));
+    }
+    const process_peak_metrics = [_]struct {
+        name: []const u8,
+        value: u64,
+    }{
+        .{ .name = "peak_resident_bytes", .value = peak_resident_bytes.load(.monotonic) },
+        .{ .name = "peak_physical_footprint_bytes", .value = peak_physical_footprint_bytes.load(.monotonic) },
+    };
+    for (process_peak_metrics) |metric| {
+        const id = try metrics.register(.{
+            .scope = "runtime.memory",
+            .name = metric.name,
+            .kind = .gauge,
+            .unit = "bytes",
+        });
+        try metrics.set(id, @floatFromInt(metric.value));
     }
 }
 

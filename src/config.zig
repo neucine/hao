@@ -1,11 +1,9 @@
 const std = @import("std");
-const builtin = @import("builtin");
+const zig_libs = @import("zig_libs");
 const fs = @import("fs.zig");
 const runtime_allocator = @import("runtime_allocator.zig");
 
-const c = @cImport({
-    @cInclude("stdlib.h");
-});
+const cfg = zig_libs.config;
 
 pub const default_qjs_stack_size: usize = 8 * 1024 * 1024;
 
@@ -17,298 +15,168 @@ pub const Config = struct {
     package: Package = .{},
 
     pub const QJS = struct {
-        stack_size: usize = default_qjs_stack_size,
+        stack_size: cfg.Startup(usize, .{
+            .env = "RUNTIME_QJS_STACK_SIZE",
+            .default = default_qjs_stack_size,
+            .parser = .positive_int,
+        }) = .{},
+        gc_threshold: cfg.Startup(?usize, .{
+            .env = "RUNTIME_QJS_GC_THRESHOLD",
+            .parser = .positive_int,
+        }) = .{},
     };
 
     pub const Libuv = struct {
-        thread_pool_size: ?usize = null,
+        thread_pool_size: cfg.Startup(?usize, .{
+            .env = "RUNTIME_LIBUV_THREADPOOL_SIZE",
+            .parser = .positive_int,
+        }) = .{},
     };
 
     pub const Debug = struct {
-        native_stack_trace: bool = false,
+        native_stack_trace: cfg.Runtime(bool, .{
+            .env = "RUNTIME_NATIVE_STACK_TRACE",
+        }) = .{},
     };
 
     pub const Telemetry = struct {
-        console_enabled: bool = false,
-        console_port: u16 = 0,
+        console_enabled: cfg.Runtime(bool, .{
+            .env = "RUNTIME_TELEMETRY_CONSOLE",
+        }) = .{},
+        console_port: cfg.Runtime(u16, .{
+            .env = "RUNTIME_TELEMETRY_CONSOLE_PORT",
+            .parser = .int_allow_zero,
+        }) = .{},
     };
 
     pub const Package = struct {
-        path: ?[]const u8 = null,
+        path: cfg.Runtime(?[]const u8, .{
+            .env = "RUNTIME_PACKAGE_PATH",
+            .parser = .non_empty_string,
+        }) = .{},
     };
 };
 
 pub const RuntimeOptions = struct {
     qjs_stack_size: usize = default_qjs_stack_size,
+    qjs_gc_threshold: ?usize = null,
 };
 
-pub var config: Config = .{};
+pub var config = cfg.Store(Config).init();
 
 fn allocator() std.mem.Allocator {
     return runtime_allocator.allocator();
 }
 
-fn getenv(key: [:0]const u8) ?[]const u8 {
-    const value = c.getenv(key.ptr) orelse return null;
-    return std.mem.span(value);
-}
-
-fn parsePositiveUsize(s: []const u8) ?usize {
-    const n = std.fmt.parseInt(usize, s, 10) catch return null;
-    if (n == 0) return null;
-    return n;
-}
-
-fn parseBool(s: []const u8) ?bool {
-    if (std.ascii.eqlIgnoreCase(s, "1")) return true;
-    if (std.ascii.eqlIgnoreCase(s, "true")) return true;
-    if (std.ascii.eqlIgnoreCase(s, "yes")) return true;
-    if (std.ascii.eqlIgnoreCase(s, "on")) return true;
-    if (std.ascii.eqlIgnoreCase(s, "0")) return false;
-    if (std.ascii.eqlIgnoreCase(s, "false")) return false;
-    if (std.ascii.eqlIgnoreCase(s, "no")) return false;
-    if (std.ascii.eqlIgnoreCase(s, "off")) return false;
-    return null;
-}
-
-fn loadUsize(key: [:0]const u8, dest: *usize) void {
-    const val = getenv(key) orelse return;
-    if (parsePositiveUsize(val)) |n| dest.* = n;
-}
-
-fn loadOptionalUsize(key: [:0]const u8, dest: *?usize) void {
-    const val = getenv(key) orelse return;
-    if (parsePositiveUsize(val)) |n| dest.* = n;
-}
-
-fn loadUsizeAllowZero(key: [:0]const u8, dest: *u16) void {
-    const val = getenv(key) orelse return;
-    const n = std.fmt.parseInt(u16, val, 10) catch return;
-    dest.* = n;
-}
-
-fn loadBool(key: [:0]const u8, dest: *bool) void {
-    const val = getenv(key) orelse return;
-    if (parseBool(val)) |flag| dest.* = flag;
-}
-
-fn loadString(key: [:0]const u8, dest: *?[]const u8) void {
-    const val = getenv(key) orelse return;
-    dest.* = if (val.len == 0) null else val;
-}
-
-fn setProcessEnv(key: [:0]const u8, value: []const u8) !void {
-    if (builtin.os.tag == .windows) return error.Unsupported;
-
-    var value_z = try allocator().alloc(u8, value.len + 1);
-    defer allocator().free(value_z);
-    @memcpy(value_z[0..value.len], value);
-    value_z[value.len] = 0;
-
-    if (c.setenv(key.ptr, value_z.ptr, 1) != 0) return error.SetEnvFailed;
-}
-
-fn setProcessEnvIfMissing(key: []const u8, value: []const u8) !void {
-    if (key.len == 0) return;
-    if (std.mem.indexOfScalar(u8, key, 0) != null) return;
-    if (std.mem.indexOfScalar(u8, value, 0) != null) return;
-
-    const key_z = try allocator().dupeZ(u8, key);
-    defer allocator().free(key_z);
-    if (getenv(key_z) != null) return;
-    try setProcessEnv(key_z, value);
-}
-
-fn stripInlineComment(value: []const u8) []const u8 {
-    var quote: ?u8 = null;
-    var escaped = false;
-    for (value, 0..) |ch, i| {
-        if (escaped) {
-            escaped = false;
-            continue;
-        }
-        if (quote != null and ch == '\\') {
-            escaped = true;
-            continue;
-        }
-        if (quote) |q| {
-            if (ch == q) quote = null;
-            continue;
-        }
-        if (ch == '"' or ch == '\'') {
-            quote = ch;
-            continue;
-        }
-        if (ch == '#') {
-            if (i == 0 or std.ascii.isWhitespace(value[i - 1])) {
-                return std.mem.trim(u8, value[0..i], " \t\r");
-            }
-        }
-    }
-    return std.mem.trim(u8, value, " \t\r");
-}
-
-fn unquoteValue(value: []const u8) []const u8 {
-    const trimmed = std.mem.trim(u8, value, " \t\r");
-    if (trimmed.len >= 2) {
-        const first = trimmed[0];
-        const last = trimmed[trimmed.len - 1];
-        if ((first == '"' and last == '"') or (first == '\'' and last == '\'')) {
-            return trimmed[1 .. trimmed.len - 1];
-        }
-    }
-    return trimmed;
-}
-
-fn parseDotenvLine(line: []const u8) ?struct { key: []const u8, value: []const u8 } {
-    var trimmed = std.mem.trim(u8, line, " \t\r");
-    if (trimmed.len == 0 or trimmed[0] == '#') return null;
-    if (std.mem.startsWith(u8, trimmed, "export ")) {
-        trimmed = std.mem.trim(u8, trimmed["export ".len..], " \t\r");
-    }
-    const eq = std.mem.indexOfScalar(u8, trimmed, '=') orelse return null;
-    const key = std.mem.trim(u8, trimmed[0..eq], " \t\r");
-    if (key.len == 0) return null;
-    const value = unquoteValue(stripInlineComment(trimmed[eq + 1 ..]));
-    return .{ .key = key, .value = value };
-}
-
-fn loadDotenvFile(path: []const u8, required: bool) !void {
-    const data = fs.readFileAlloc(allocator(), path, 1024 * 1024) catch |err| {
-        if (!required and err == error.FileNotFound) return;
-        return err;
-    };
-    defer allocator().free(data);
-
-    var lines = std.mem.splitScalar(u8, data, '\n');
-    while (lines.next()) |line| {
-        const entry = parseDotenvLine(line) orelse continue;
-        try setProcessEnvIfMissing(entry.key, entry.value);
-    }
-}
-
 pub fn loadDotenv() !void {
-    if (getenv("DOTENV")) |path| {
-        if (path.len == 0) return;
-        try loadDotenvFile(path, true);
-        return;
-    }
-    try loadDotenvFile(".env", false);
+    _ = try cfg.loadDotenvFromEnv(allocator());
 }
 
 pub fn syncLibuvThreadPoolEnv() !void {
-    const size = config.libuv.thread_pool_size orelse return;
-    var buf: [32]u8 = undefined;
-    const value = try std.fmt.bufPrint(&buf, "{d}", .{size});
-    try setProcessEnv("UV_THREADPOOL_SIZE", value);
+    try cfg.syncOptionalUsizeEnv("UV_THREADPOOL_SIZE", config.read().libuv.thread_pool_size.get());
 }
 
 pub fn loadFromEnv() !void {
     try loadDotenv();
-    loadUsize("HAO_QJS_STACK_SIZE", &config.qjs.stack_size);
-    loadOptionalUsize("HAO_LIBUV_THREADPOOL_SIZE", &config.libuv.thread_pool_size);
-    loadBool("HAO_NATIVE_STACK_TRACE", &config.debug.native_stack_trace);
-    loadBool("HAO_TELEMETRY_CONSOLE", &config.telemetry.console_enabled);
-    loadUsizeAllowZero("HAO_TELEMETRY_CONSOLE_PORT", &config.telemetry.console_port);
-    loadString("HAO_PACKAGE_PATH", &config.package.path);
+    _ = try config.loadEnv();
+    config.freezeStartup();
     try syncLibuvThreadPoolEnv();
 }
 
 pub fn runtimeOptions() RuntimeOptions {
     return .{
-        .qjs_stack_size = config.qjs.stack_size,
+        .qjs_stack_size = config.read().qjs.stack_size.get(),
+        .qjs_gc_threshold = config.read().qjs.gc_threshold.get(),
     };
 }
 
 test "Config defaults are correct" {
     const def = Config{};
-    try std.testing.expectEqual(@as(usize, 8 * 1024 * 1024), def.qjs.stack_size);
-    try std.testing.expectEqual(@as(?usize, null), def.libuv.thread_pool_size);
-    try std.testing.expectEqual(false, def.debug.native_stack_trace);
-    try std.testing.expectEqual(false, def.telemetry.console_enabled);
-    try std.testing.expectEqual(@as(u16, 0), def.telemetry.console_port);
-    try std.testing.expectEqual(@as(?[]const u8, null), def.package.path);
+    try std.testing.expectEqual(@as(usize, 8 * 1024 * 1024), def.qjs.stack_size.get());
+    try std.testing.expectEqual(@as(?usize, null), def.libuv.thread_pool_size.get());
+    try std.testing.expectEqual(false, def.debug.native_stack_trace.get());
+    try std.testing.expectEqual(false, def.telemetry.console_enabled.get());
+    try std.testing.expectEqual(@as(u16, 0), def.telemetry.console_port.get());
+    try std.testing.expectEqual(@as(?[]const u8, null), def.package.path.get());
 }
 
-test "loadUsize ignores missing env key" {
-    var dest: usize = 42;
-    loadUsize("HAO_NONEXISTENT_KEY_ZZZYYYXXX", &dest);
-    try std.testing.expectEqual(@as(usize, 42), dest);
-}
+test "loadFromEnv reads schema-backed values" {
+    const c = @cImport({
+        @cInclude("stdlib.h");
+    });
+    const old_stack = cfg.getenv("RUNTIME_QJS_STACK_SIZE");
+    const old_gc = cfg.getenv("RUNTIME_QJS_GC_THRESHOLD");
+    const old_trace = cfg.getenv("RUNTIME_NATIVE_STACK_TRACE");
+    defer {
+        if (old_stack) |value| {
+            _ = c.setenv("RUNTIME_QJS_STACK_SIZE", value.ptr, 1);
+        } else {
+            _ = c.unsetenv("RUNTIME_QJS_STACK_SIZE");
+        }
+        if (old_gc) |value| {
+            _ = c.setenv("RUNTIME_QJS_GC_THRESHOLD", value.ptr, 1);
+        } else {
+            _ = c.unsetenv("RUNTIME_QJS_GC_THRESHOLD");
+        }
+        if (old_trace) |value| {
+            _ = c.setenv("RUNTIME_NATIVE_STACK_TRACE", value.ptr, 1);
+        } else {
+            _ = c.unsetenv("RUNTIME_NATIVE_STACK_TRACE");
+        }
+        config = cfg.Store(Config).init();
+    }
 
-test "loadOptionalUsize ignores missing env key" {
-    var dest: ?usize = 42;
-    loadOptionalUsize("HAO_NONEXISTENT_OPTIONAL_KEY_ZZZYYYXXX", &dest);
-    try std.testing.expectEqual(@as(?usize, 42), dest);
-}
+    try cfg.setProcessEnv("RUNTIME_QJS_STACK_SIZE", "16");
+    try cfg.setProcessEnv("RUNTIME_QJS_GC_THRESHOLD", "32");
+    try cfg.setProcessEnv("RUNTIME_NATIVE_STACK_TRACE", "on");
 
-test "parsePositiveUsize rejects zero" {
-    try std.testing.expectEqual(@as(?usize, null), parsePositiveUsize("0"));
-}
+    config = cfg.Store(Config).init();
+    _ = try config.loadEnv();
 
-test "parsePositiveUsize rejects non-numeric" {
-    try std.testing.expectEqual(@as(?usize, null), parsePositiveUsize("notanumber"));
-}
-
-test "parsePositiveUsize accepts positive integer" {
-    try std.testing.expectEqual(@as(?usize, 256), parsePositiveUsize("256"));
-}
-
-test "parseBool accepts common true and false values" {
-    try std.testing.expectEqual(@as(?bool, true), parseBool("1"));
-    try std.testing.expectEqual(@as(?bool, true), parseBool("true"));
-    try std.testing.expectEqual(@as(?bool, true), parseBool("YES"));
-    try std.testing.expectEqual(@as(?bool, false), parseBool("0"));
-    try std.testing.expectEqual(@as(?bool, false), parseBool("false"));
-    try std.testing.expectEqual(@as(?bool, false), parseBool("Off"));
-    try std.testing.expectEqual(@as(?bool, null), parseBool("maybe"));
+    try std.testing.expectEqual(@as(usize, 16), config.read().qjs.stack_size.get());
+    try std.testing.expectEqual(@as(?usize, 32), config.read().qjs.gc_threshold.get());
+    try std.testing.expectEqual(true, config.read().debug.native_stack_trace.get());
 }
 
 test "syncLibuvThreadPoolEnv mirrors config into UV_THREADPOOL_SIZE" {
-    const old = getenv("UV_THREADPOOL_SIZE");
+    const c = @cImport({
+        @cInclude("stdlib.h");
+    });
+    const old = cfg.getenv("UV_THREADPOOL_SIZE");
     defer {
         if (old) |value| {
             _ = c.setenv("UV_THREADPOOL_SIZE", value.ptr, 1);
         } else {
             _ = c.unsetenv("UV_THREADPOOL_SIZE");
         }
-        config.libuv.thread_pool_size = null;
+        config = cfg.Store(Config).init();
     }
 
-    config.libuv.thread_pool_size = 7;
+    try config.set("libuv.thread_pool_size", @as(?usize, 7));
     try syncLibuvThreadPoolEnv();
-    try std.testing.expectEqualStrings("7", getenv("UV_THREADPOOL_SIZE").?);
+    try std.testing.expectEqualStrings("7", cfg.getenv("UV_THREADPOOL_SIZE").?);
 }
 
-test "parseDotenvLine handles comments quotes and export" {
-    const plain = parseDotenvLine("HAO_QJS_STACK_SIZE=123 # comment").?;
-    try std.testing.expectEqualStrings("HAO_QJS_STACK_SIZE", plain.key);
-    try std.testing.expectEqualStrings("123", plain.value);
-
-    const quoted = parseDotenvLine("export HAO_NATIVE_STACK_TRACE=\"true # kept\"").?;
-    try std.testing.expectEqualStrings("HAO_NATIVE_STACK_TRACE", quoted.key);
-    try std.testing.expectEqualStrings("true # kept", quoted.value);
-
-    try std.testing.expect(parseDotenvLine("# ignored") == null);
-}
-
-test "loadDotenvFile loads missing keys without overriding environment" {
+test "dotenv loader loads missing keys without overriding environment" {
+    const c = @cImport({
+        @cInclude("stdlib.h");
+    });
     const path = ".zig-cache/hao-tests/dotenv/config.env";
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/dotenv");
     try fs.writeFile(path,
-        \\HAO_DOTENV_TEST_KEEP=from-file
-        \\HAO_DOTENV_TEST_EXISTING=from-file
+        \\RUNTIME_DOTENV_TEST_KEEP=from-file
+        \\RUNTIME_DOTENV_TEST_EXISTING=from-file
         \\
     );
 
-    _ = c.unsetenv("HAO_DOTENV_TEST_KEEP");
-    try setProcessEnv("HAO_DOTENV_TEST_EXISTING", "from-env");
+    _ = c.unsetenv("RUNTIME_DOTENV_TEST_KEEP");
+    try cfg.setProcessEnv("RUNTIME_DOTENV_TEST_EXISTING", "from-env");
     defer {
-        _ = c.unsetenv("HAO_DOTENV_TEST_KEEP");
-        _ = c.unsetenv("HAO_DOTENV_TEST_EXISTING");
+        _ = c.unsetenv("RUNTIME_DOTENV_TEST_KEEP");
+        _ = c.unsetenv("RUNTIME_DOTENV_TEST_EXISTING");
     }
 
-    try loadDotenvFile(path, true);
-    try std.testing.expectEqualStrings("from-file", getenv("HAO_DOTENV_TEST_KEEP").?);
-    try std.testing.expectEqualStrings("from-env", getenv("HAO_DOTENV_TEST_EXISTING").?);
+    _ = try cfg.loadDotenvFile(allocator(), .{ .path = path, .required = true });
+    try std.testing.expectEqualStrings("from-file", cfg.getenv("RUNTIME_DOTENV_TEST_KEEP").?);
+    try std.testing.expectEqualStrings("from-env", cfg.getenv("RUNTIME_DOTENV_TEST_EXISTING").?);
 }

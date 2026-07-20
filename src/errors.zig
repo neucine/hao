@@ -71,7 +71,7 @@ pub fn jsError(
     trace: ?*const std.builtin.StackTrace,
 ) qjs.c.JSValue {
     const alloc = runtimeAllocator();
-    const native_stack = if (config.config.debug.native_stack_trace and err != null)
+    const native_stack = if (config.config.read().debug.native_stack_trace.get() and err != null)
         formatNativeStackAlloc(err.?, trace, alloc) catch null
     else
         null;

@@ -52,12 +52,12 @@ package that declares `"type": "module"`.
 CommonJS packages, ambiguous `.js` entries, and unexported package subpaths are
 rejected by the module loader.
 
-Set `HAO_PACKAGE_PATH` to add package search roots before Hao walks ancestor
+Set `RUNTIME_PACKAGE_PATH` to add package search roots before Hao walks ancestor
 `node_modules` directories. Entries use the platform path delimiter (`:` on
 macOS/Linux, `;` on Windows), and each root should contain package directories:
 
 ```bash
-HAO_PACKAGE_PATH="../packages:../vendor/node_modules" hao app/main.ts
+RUNTIME_PACKAGE_PATH="../packages:../vendor/node_modules" hao app/main.ts
 ```
 
 With that configuration, `import "foo"` checks `../packages/foo`, then
@@ -87,7 +87,7 @@ hao test test/e2e/runtime
 Test output uses ANSI colors by default. Use plain Unicode output:
 
 ```bash
-HAO_TEST_REPORTER=plain hao test test/e2e/runtime
+RUNTIME_TEST_REPORTER=plain hao test test/e2e/runtime
 ```
 
 ## Development

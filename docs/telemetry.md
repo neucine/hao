@@ -113,7 +113,7 @@ thread or process without changing the dashboard protocol.
 Enable it for a local CLI run with:
 
 ```sh
-HAO_TELEMETRY_CONSOLE=1 HAO_TELEMETRY_CONSOLE_PORT=0 hao path/to/main.ts
+RUNTIME_TELEMETRY_CONSOLE=1 RUNTIME_TELEMETRY_CONSOLE_PORT=0 hao path/to/main.ts
 ```
 
 Hao prints the loopback URL when the console starts. The current endpoints are:

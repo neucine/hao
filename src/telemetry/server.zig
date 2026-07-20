@@ -57,10 +57,10 @@ const ConnectionTask = struct {
 };
 
 pub fn start(allocator: std.mem.Allocator, io: ?std.Io) !Handle {
-    if (!config.config.telemetry.console_enabled or !net_available) return .{};
+    if (!config.config.read().telemetry.console_enabled.get() or !net_available) return .{};
     const active_io = io orelse return .{};
 
-    const address = try net.IpAddress.parseIp4("127.0.0.1", config.config.telemetry.console_port);
+    const address = try net.IpAddress.parseIp4("127.0.0.1", config.config.read().telemetry.console_port.get());
     var listener = try address.listen(active_io, .{
         .reuse_address = true,
     });
@@ -277,14 +277,14 @@ fn writeResponse(io: std.Io, stream: net.Stream, status: u16, content_type: []co
 
 test "telemetry console config starts an in-process HTTP server" {
     if (!net_available) return error.SkipZigTest;
-    const old_enabled = config.config.telemetry.console_enabled;
-    const old_port = config.config.telemetry.console_port;
+    const old_enabled = config.config.read().telemetry.console_enabled.get();
+    const old_port = config.config.read().telemetry.console_port.get();
     defer {
-        config.config.telemetry.console_enabled = old_enabled;
-        config.config.telemetry.console_port = old_port;
+        config.config.set("telemetry.console_enabled", old_enabled) catch {};
+        config.config.set("telemetry.console_port", old_port) catch {};
     }
-    config.config.telemetry.console_enabled = true;
-    config.config.telemetry.console_port = 0;
+    try config.config.set("telemetry.console_enabled", true);
+    try config.config.set("telemetry.console_port", 0);
 
     var handle = try start(std.testing.allocator, std.testing.io);
     defer handle.deinit();

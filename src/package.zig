@@ -150,7 +150,7 @@ fn readPackageJson(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
 
 pub fn resolveImport(current_file: []const u8, specifier: []const u8, allocator: std.mem.Allocator) !Resolution {
     return resolveImportWithOptions(current_file, specifier, .{
-        .package_path = config.config.package.path,
+        .package_path = config.config.read().package.path.get(),
     }, allocator);
 }
 

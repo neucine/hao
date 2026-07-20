@@ -97,7 +97,7 @@ fn getenv(key: [:0]const u8) ?[]const u8 {
 }
 
 fn reporterModeFromEnv() ReporterMode {
-    const value = getenv("HAO_TEST_REPORTER") orelse return .ansi;
+    const value = getenv("RUNTIME_TEST_REPORTER") orelse return .ansi;
     if (std.ascii.eqlIgnoreCase(value, "plain")) return .plain;
     if (std.ascii.eqlIgnoreCase(value, "ansi")) return .ansi;
     return .ansi;
