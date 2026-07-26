@@ -752,6 +752,7 @@ pub fn runWithPackageRegistrar(
 ) !RunResult {
     reporter_mode = reporterModeFromEnv();
     const run_start_ns = nanoTimestamp();
+    runtime_allocator.init(allocator);
 
     var test_paths = try collectTestPaths(paths, allocator);
     defer {
