@@ -65,6 +65,14 @@ fn selfExePathAlloc(allocator: std.mem.Allocator, io: std.Io) ![]u8 {
 // ============================================================
 
 pub fn run(connection_file: []const u8, io: std.Io) !void {
+    return runWithPackageRegistrar(connection_file, io, null);
+}
+
+pub fn runWithPackageRegistrar(
+    connection_file: []const u8,
+    io: std.Io,
+    register_package: ?*const fn (*packages.Registry) anyerror!void,
+) !void {
     runtime_allocator.init(std.heap.page_allocator);
 
     // Parse connection file
@@ -136,6 +144,7 @@ pub fn run(connection_file: []const u8, io: std.Io) !void {
     registry = packages.Registry.init(alloc);
     registry_ready = true;
     try hao_std.register(&registry);
+    if (register_package) |register| try register(&registry);
     loader = .{ .allocator = alloc, .registry = &registry };
     loader.install(&runtime);
 
