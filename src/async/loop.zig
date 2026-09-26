@@ -35,6 +35,14 @@ pub const Loop = struct {
         return rc != 0;
     }
 
+    // Report whether a turn was serviced, even if its last handle closed.
+    // The caller must drain JS jobs between turns for persistent listeners.
+    pub fn runTurn(self: *Loop) !bool {
+        if (uv.uv_loop_alive(self.loop) == 0) return false;
+        _ = try self.runOnce();
+        return true;
+    }
+
     pub fn runUntilIdle(self: *Loop) !bool {
         if (uv.uv_loop_alive(self.loop) == 0) return false;
         const rc = uv.uv_run(self.loop, uv.UV_RUN_DEFAULT);

@@ -21,7 +21,7 @@ Current modules include:
 - `std:runtime`
 - `std:fs`
 - `std:process`
-- `std:http`
+- [`std:http`](docs/http.md): native HTTP server, buffered requests, and bounded-memory downloads
 - `std:ffi`
 - `std:telemetry`
 - `std:util`

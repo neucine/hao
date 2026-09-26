@@ -114,7 +114,7 @@ const CoreEnvironment = struct {
                 defer qjs.freeValue(pending.ctx, pending.value);
                 return error.JavaScriptError;
             }
-            const ran_uv = try self.loop.runUntilIdle();
+            const ran_uv = try self.loop.runTurn();
             if (qjs.takeUnhandledException()) |pending| {
                 module.rememberUnhandledException(pending.ctx, pending.value, self.allocator);
                 defer qjs.freeValue(pending.ctx, pending.value);
@@ -255,7 +255,7 @@ pub const RuntimeEnvironment = struct {
                 defer qjs.freeValue(pending.ctx, pending.value);
                 return error.JavaScriptError;
             }
-            const ran_uv = try self.loop.runUntilIdle();
+            const ran_uv = try self.loop.runTurn();
             if (qjs.takeUnhandledException()) |pending| {
                 module.rememberUnhandledException(pending.ctx, pending.value, self.allocator);
                 defer qjs.freeValue(pending.ctx, pending.value);

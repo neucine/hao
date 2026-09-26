@@ -9,6 +9,7 @@ const trace = @import("../../telemetry/trace.zig");
 const uv = @import("../../async/uv.zig").c;
 
 const http = std.http;
+const server = @import("server.zig");
 const alloc = runtime_allocator.allocator();
 
 pub const specifier: [:0]const u8 = "std:http/native";
@@ -26,9 +27,13 @@ const HttpRequestOptions = struct {
     headers: []HeaderPair,
     body_text: ?[]u8 = null,
     body_bytes: ?[]u8 = null,
+    download_path: ?[]u8 = null,
+    manual_redirect: bool = false,
+    max_bytes: usize = 1024 * 1024 * 1024,
 
     fn deinit(self: *HttpRequestOptions) void {
         alloc.free(self.url);
+        if (self.download_path) |path| alloc.free(path);
         for (self.headers) |header| {
             alloc.free(header.name);
             alloc.free(header.value);
@@ -45,6 +50,7 @@ const HttpResponseData = struct {
     reason: []u8,
     headers: []HeaderPair,
     body_bytes: []u8,
+    download: ?struct { bytes_written: usize, sha256: [64]u8 } = null,
 
     fn deinit(self: *HttpResponseData) void {
         alloc.free(self.final_url);
@@ -90,10 +96,16 @@ const HttpRequestOp = struct {
 
 const functions = [_]js_abi.Function{
     .{ .name = "requestNative", .callback = jsRequest, .length = 1 },
+    .{ .name = "serveNative", .callback = server.serve, .length = 2 },
+    .{ .name = "stopServerNative", .callback = server.stop, .length = 1 },
+    .{ .name = "pauseClientNative", .callback = server.pause, .length = 1 },
+    .{ .name = "respondNative", .callback = server.respond, .length = 2 },
+    .{ .name = "encodeTextNative", .callback = server.encode, .length = 1 },
+    .{ .name = "decodeTextNative", .callback = server.decode, .length = 1 },
     .{ .name = null, .callback = jsRequest },
 };
 const function_ptrs = [_]*const js_abi.Function{
-    &functions[0],
+    &functions[0], &functions[1], &functions[2], &functions[3], &functions[4], &functions[5], &functions[6],
 };
 
 pub fn attachIo(io: std.Io) void {
@@ -101,6 +113,7 @@ pub fn attachIo(io: std.Io) void {
 }
 
 pub fn detachIo() void {
+    server.cleanup();
     current_io = null;
 }
 
@@ -207,12 +220,35 @@ fn parseRequestOptions(ctx: js_abi.JSContext, options: js_abi.JSValueConst) !Htt
     const body_bytes = try parseOptionalBodyBytes(ctx, options);
     errdefer if (body_bytes) |body| alloc.free(body);
 
+    const download_path = try getOptionalStringPropAlloc(ctx, options, "downloadPath");
+    errdefer if (download_path) |path| alloc.free(path);
+    var max_bytes: usize = 1024 * 1024 * 1024;
+    if (download_path) |path| {
+        if (path.len == 0 or std.mem.indexOfScalar(u8, path, 0) != null or
+            !std.mem.eql(u8, method_name, "GET") or body_text != null or body_bytes != null) return error.InvalidArgument;
+    }
+    {
+        const limit_value = js_abi.jsGetProperty(ctx, options, "maxBytes");
+        defer js_abi.jsFreeValue(ctx, limit_value);
+        var limit: f64 = 0;
+        if (!js_abi.jsIsUndefined(limit_value)) {
+            if (js_abi.jsToFloat64(ctx, &limit, limit_value) < 0 or !std.math.isFinite(limit) or
+                limit < 1 or limit > 9007199254740991 or @floor(limit) != limit or limit >= @as(f64, @floatFromInt(std.math.maxInt(usize)))) return error.InvalidArgument;
+            max_bytes = @intFromFloat(limit);
+        }
+    }
+
+    const redirect = try getOptionalStringPropAlloc(ctx, options, "redirect");
+    defer if (redirect) |value| alloc.free(value);
     return .{
+        .manual_redirect = if (redirect) |value| std.mem.eql(u8, value, "manual") else false,
         .url = url,
         .method = parseMethod(method_name) catch return error.InvalidArgument,
         .headers = headers,
         .body_text = body_text,
         .body_bytes = body_bytes,
+        .download_path = download_path,
+        .max_bytes = max_bytes,
     };
 }
 
@@ -310,7 +346,7 @@ fn performRequest(io: std.Io, request: *const HttpRequestOptions) !HttpResponseD
     var req = try client.request(request.method, uri, .{
         .headers = .{},
         .extra_headers = zig_headers,
-        .redirect_behavior = http.Client.Request.RedirectBehavior.init(3),
+        .redirect_behavior = if (request.manual_redirect) .unhandled else http.Client.Request.RedirectBehavior.init(3),
     });
     defer req.deinit();
 
@@ -349,18 +385,69 @@ fn performRequest(io: std.Io, request: *const HttpRequestOptions) !HttpResponseD
     const headers = try header_list.toOwnedSlice(alloc);
     errdefer freeHeaders(headers);
 
-    var body_writer: std.Io.Writer.Allocating = .init(alloc);
-    defer body_writer.deinit();
-    var transfer_buffer: [64]u8 = undefined;
+    var transfer_buffer: [64 * 1024]u8 = undefined;
     var decompress: http.Decompress = undefined;
     const decompress_buffer = try alloc.alloc(u8, std.compress.flate.max_window_len);
     defer alloc.free(decompress_buffer);
-
     const reader = response.readerDecompressing(&transfer_buffer, &decompress, decompress_buffer);
-    _ = reader.streamRemaining(&body_writer.writer) catch |err| switch (err) {
-        error.ReadFailed => return response.bodyErr() orelse error.Unexpected,
-        else => return err,
-    };
+
+    if (request.download_path) |path| {
+        if (@intFromEnum(response.head.status) < 200 or @intFromEnum(response.head.status) >= 300) return error.HttpStatusNotSuccessful;
+        var file = try std.Io.Dir.cwd().createFileAtomic(io, path, .{ .replace = true });
+        defer file.deinit(io);
+        var buffer: [64 * 1024]u8 = undefined;
+        var total: usize = 0;
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        while (true) {
+            const count = reader.readSliceShort(&buffer) catch return response.bodyErr() orelse error.ReadFailed;
+            if (count == 0) break;
+            if (count > request.max_bytes - total) return error.DownloadTooLarge;
+            try file.file.writeStreamingAll(io, buffer[0..count]);
+            hash.update(buffer[0..count]);
+            total += count;
+        }
+        // A decoder can finish before the transfer reader consumes the final
+        // chunk marker/trailers. Finish framing without buffering trailing data.
+        if (response.head.content_encoding != .identity and
+            (response.head.transfer_encoding == .chunked or response.head.content_length != null))
+        {
+            const extra = req.reader.interface.readSliceShort(buffer[0..1]) catch return response.bodyErr() orelse error.ReadFailed;
+            if (extra != 0) return error.UnexpectedCompressedTrailingData;
+        }
+        // A socket EOF is not necessarily the end of a Content-Length body.
+        switch (req.reader.state) {
+            .body_remaining_content_length => |remaining| if (remaining != 0) {
+                return error.TruncatedDownload;
+            },
+            .body_remaining_chunk_len => return error.TruncatedDownload,
+            else => {},
+        }
+        try file.file.sync(io);
+        // Allocate the result before publishing, so allocation failure preserves the destination.
+        const empty = try alloc.alloc(u8, 0);
+        errdefer alloc.free(empty);
+        try file.replace(io);
+        return .{
+            .final_url = final_uri,
+            .status = response.head.status,
+            .reason = reason,
+            .headers = headers,
+            .body_bytes = empty,
+            .download = .{ .bytes_written = total, .sha256 = std.fmt.bytesToHex(hash.finalResult(), .lower) },
+        };
+    }
+
+    var body_writer: std.Io.Writer.Allocating = .init(alloc);
+    defer body_writer.deinit();
+    var buffer: [64 * 1024]u8 = undefined;
+    var total: usize = 0;
+    while (true) {
+        const count = reader.readSliceShort(&buffer) catch return response.bodyErr() orelse error.ReadFailed;
+        if (count == 0) break;
+        if (count > request.max_bytes - total) return error.ResponseTooLarge;
+        try body_writer.writer.writeAll(buffer[0..count]);
+        total += count;
+    }
 
     const body_bytes = try body_writer.toOwnedSlice();
     return .{
@@ -461,6 +548,13 @@ fn makeResponseObject(ctx: js_abi.JSContext, response: *HttpResponseData) js_abi
     js_abi.jsSetPropertyChecked(ctx, obj, "statusText", js_abi.jsString(ctx, response.reason)) catch return js_abi.jsExceptionValue();
     js_abi.jsSetPropertyChecked(ctx, obj, "ok", js_abi.jsBool(ctx, @intFromEnum(response.status) >= 200 and @intFromEnum(response.status) < 300)) catch return js_abi.jsExceptionValue();
     js_abi.jsSetPropertyChecked(ctx, obj, "url", js_abi.jsString(ctx, response.final_url)) catch return js_abi.jsExceptionValue();
+    if (response.download) |download| {
+        js_abi.jsSetPropertyChecked(ctx, obj, "bytesWritten", js_abi.jsFloat64(ctx, @floatFromInt(download.bytes_written))) catch return js_abi.jsExceptionValue();
+        js_abi.jsSetPropertyChecked(ctx, obj, "sha256", js_abi.jsString(ctx, &download.sha256)) catch return js_abi.jsExceptionValue();
+        const headers = responseHeadersObject(ctx, response.headers) catch return js_abi.jsExceptionValue();
+        trySetOwned(ctx, obj, "headers", headers);
+        return obj;
+    }
     js_abi.jsSetPropertyChecked(ctx, obj, "bodyText", js_abi.jsString(ctx, response.body_bytes)) catch return js_abi.jsExceptionValue();
 
     const headers = responseHeadersObject(ctx, response.headers) catch return js_abi.jsExceptionValue();
