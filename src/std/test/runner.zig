@@ -11,6 +11,9 @@ const module_runtime = @import("../../module.zig");
 const js_addon = @import("../../js/addon.zig");
 const packages = @import("../../package.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
+const telemetry_interface = @import("../../telemetry/interface.zig");
+const telemetry_metrics = @import("../../telemetry/metrics.zig");
+const telemetry_store = @import("../../telemetry/store.zig");
 const hao_std = @import("../../std.zig");
 const http_native = @import("../http/native.zig");
 const process_native = @import("../process/native.zig");
@@ -753,6 +756,13 @@ pub fn runWithPackageRegistrar(
     reporter_mode = reporterModeFromEnv();
     const run_start_ns = nanoTimestamp();
     runtime_allocator.init(allocator);
+    telemetry_metrics.init(allocator);
+    @import("zig_libs").telemetry.install(telemetry_interface.host());
+    defer {
+        telemetry_metrics.clear();
+        telemetry_store.clear();
+        @import("zig_libs").telemetry.install(.{});
+    }
 
     var test_paths = try collectTestPaths(paths, allocator);
     defer {
