@@ -191,7 +191,7 @@ fn isArray(ctx: js_abi.JSContext, value: js_abi.JSValueConst) bool {
 }
 
 fn getPropertyOwned(ctx: js_abi.JSContext, object: js_abi.JSValueConst, key: []const u8) js_abi.JSValue {
-    const z = alloc.dupeZ(u8, key) catch return js_abi.jsUndefined(ctx);
+    const z = alloc.dupeSentinel(u8, key, 0) catch return js_abi.jsUndefined(ctx);
     defer alloc.free(z);
     return js_abi.jsGetProperty(ctx, object, z);
 }
@@ -343,7 +343,7 @@ fn js_inspect(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) c
     const opts = if (argc > 1) js_abi.borrowValue(ctx, argv[1]) else null;
     const text = inspectAlloc(qjs_ctx, value, opts, alloc) catch return ctx.api.throw_error(ctx, "failed to inspect value");
     defer alloc.free(text);
-    const text_z = alloc.dupeZ(u8, text) catch return ctx.api.throw_error(ctx, "out of memory");
+    const text_z = alloc.dupeSentinel(u8, text, 0) catch return ctx.api.throw_error(ctx, "out of memory");
     defer alloc.free(text_z);
     return ctx.api.string_value(ctx, text_z.ptr);
 }

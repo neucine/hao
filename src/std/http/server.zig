@@ -199,7 +199,7 @@ pub fn serve(ctx: *abi.Context, argc: c_int, argv: [*c]const abi.Value) callconv
     defer abi.jsFreeValue(js, hostname_value);
     const hostname = abi.jsStringAlloc(js, hostname_value, alloc) catch return ctx.api.throw_type_error(ctx, "Invalid hostname");
     defer alloc.free(hostname);
-    const host_z = alloc.dupeZ(u8, hostname) catch return ctx.api.throw_error(ctx, "Out of memory");
+    const host_z = alloc.dupeSentinel(u8, hostname, 0) catch return ctx.api.throw_error(ctx, "Out of memory");
     defer alloc.free(host_z);
     if (std.mem.indexOfScalar(u8, hostname, 0) != null) return ctx.api.throw_type_error(ctx, "Invalid hostname");
     var address: [128]u8 align(8) = undefined;

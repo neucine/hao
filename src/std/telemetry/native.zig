@@ -373,7 +373,7 @@ fn js_metricValueNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_ab
 }
 
 fn setStringProp(ctx: *js_abi.Context, object: js_abi.Value, key: [*:0]const u8, value: []const u8) !void {
-    const value_z = try allocator().dupeZ(u8, value);
+    const value_z = try allocator().dupeSentinel(u8, value, 0);
     defer allocator().free(value_z);
     if (ctx.api.set_property(ctx, object, key, ctx.api.string_value(ctx, value_z.ptr)) < 0) return error.JavaScriptError;
 }

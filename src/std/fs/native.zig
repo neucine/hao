@@ -40,7 +40,7 @@ fn jsReadFileSync(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Valu
     const path = stringArg(ctx, argc, argv, 0) orelse return ctx.api.throw_type_error(ctx, "readFileSync expects a path");
     const content = fs.readFileAlloc(alloc, path, 100 * 1024 * 1024) catch return ctx.api.throw_error(ctx, "failed to read file");
     defer alloc.free(content);
-    const content_z = alloc.dupeZ(u8, content) catch return ctx.api.throw_error(ctx, "out of memory");
+    const content_z = alloc.dupeSentinel(u8, content, 0) catch return ctx.api.throw_error(ctx, "out of memory");
     defer alloc.free(content_z);
     return ctx.api.string_value(ctx, content_z.ptr);
 }

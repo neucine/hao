@@ -341,7 +341,7 @@ fn makePreparedObject(ctx: js_abi.JSContext, spec: metadata.LibrarySpec) !js_abi
     for (spec.functions) |func| {
         const fn_desc = try makeFunctionDescriptor(ctx, func);
         errdefer js_abi.jsFreeValue(ctx, fn_desc);
-        const key = try alloc.dupeZ(u8, func.name);
+        const key = try alloc.dupeSentinel(u8, func.name, 0);
         defer alloc.free(key);
         try js_abi.jsSetPropertyChecked(ctx, descriptor, key, fn_desc);
     }
@@ -363,7 +363,7 @@ fn makePoliciesObject(ctx: js_abi.JSContext, spec: metadata.LibrarySpec) !js_abi
         if (policy.close_symbol) |close_symbol| {
             try js_abi.jsSetPropertyChecked(ctx, handle_obj, "close", js_abi.jsString(ctx, close_symbol));
         }
-        const key = try alloc.dupeZ(u8, policy.type_name);
+        const key = try alloc.dupeSentinel(u8, policy.type_name, 0);
         defer alloc.free(key);
         try js_abi.jsSetPropertyChecked(ctx, handles, key, handle_obj);
     }
@@ -379,7 +379,7 @@ fn makePoliciesObject(ctx: js_abi.JSContext, spec: metadata.LibrarySpec) !js_abi
             try js_abi.jsSetPropertyChecked(ctx, returns, "kind", js_abi.jsString(ctx, "handle"));
             try js_abi.jsSetPropertyChecked(ctx, returns, "type", js_abi.jsString(ctx, handle_type));
             try js_abi.jsSetPropertyChecked(ctx, fn_policy, "returns", returns);
-            const key = try alloc.dupeZ(u8, func.name);
+            const key = try alloc.dupeSentinel(u8, func.name, 0);
             defer alloc.free(key);
             try js_abi.jsSetPropertyChecked(ctx, functions, key, fn_policy);
         }
@@ -421,7 +421,7 @@ fn buildBindings(open_lib: *OpenCLibrary) !void {
             return error.UnsupportedFeature;
         }
 
-        const sym_z = try alloc.dupeZ(u8, func.name);
+        const sym_z = try alloc.dupeSentinel(u8, func.name, 0);
         defer alloc.free(sym_z);
         const fn_ptr = open_lib.lib.lookupSymbol(sym_z) orelse return error.SymbolNotFound;
 
@@ -913,7 +913,7 @@ fn freeOwnedStrings(items: [][]u8) void {
 }
 
 fn getPropertyOwned(ctx: js_abi.JSContext, object: js_abi.JSValueConst, key: []const u8) js_abi.JSValue {
-    const z = alloc.dupeZ(u8, key) catch return js_abi.jsUndefined(ctx);
+    const z = alloc.dupeSentinel(u8, key, 0) catch return js_abi.jsUndefined(ctx);
     defer alloc.free(z);
     return js_abi.jsGetProperty(ctx, object, z);
 }
@@ -1122,7 +1122,7 @@ fn marshalArg(
         },
         .cstring => {
             const text = js_abi.jsStringAlloc(ctx, value, alloc) catch return -1;
-            const z = alloc.dupeZ(u8, text) catch {
+            const z = alloc.dupeSentinel(u8, text, 0) catch {
                 alloc.free(text);
                 return -1;
             };

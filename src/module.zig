@@ -134,9 +134,9 @@ pub fn evalModuleSource(
     };
     defer transformed.deinit(loader.allocator);
 
-    const source_z = try loader.allocator.dupeZ(u8, transformed.code);
+    const source_z = try loader.allocator.dupeSentinel(u8, transformed.code, 0);
     defer loader.allocator.free(source_z);
-    const file_name = try loader.allocator.dupeZ(u8, transformed.source_url);
+    const file_name = try loader.allocator.dupeSentinel(u8, transformed.source_url, 0);
     defer loader.allocator.free(file_name);
 
     const compiled = qjs.eval(runtime.ctx, source_z, file_name, qjs.EvalFlags.module_compile_only);
@@ -225,7 +225,7 @@ fn setNotebookNamespaceValue(ctx: ?*qjs.c.JSContext, slot: []const u8, value: qj
     if (qjs.isUndefined(namespace) or qjs.isNull(namespace)) return error.JavaScriptError;
 
     const alloc = runtime_allocator.allocator();
-    const slot_z = try alloc.dupeZ(u8, slot);
+    const slot_z = try alloc.dupeSentinel(u8, slot, 0);
     defer alloc.free(slot_z);
     try qjs.setProperty(ctx, namespace, slot_z, value);
 }
@@ -251,9 +251,9 @@ fn importNamespace(loader: *Loader, runtime: *qjs.Runtime, current_file: []const
     jupyter_import_seq += 1;
     const file_name = try std.fmt.allocPrint(loader.allocator, "<hao-jupyter-import-{d}>", .{jupyter_import_seq});
     defer loader.allocator.free(file_name);
-    const source_z = try loader.allocator.dupeZ(u8, source);
+    const source_z = try loader.allocator.dupeSentinel(u8, source, 0);
     defer loader.allocator.free(source_z);
-    const file_name_z = try loader.allocator.dupeZ(u8, file_name);
+    const file_name_z = try loader.allocator.dupeSentinel(u8, file_name, 0);
     defer loader.allocator.free(file_name_z);
 
     const compiled = qjs.eval(runtime.ctx, source_z, file_name_z, qjs.EvalFlags.module_compile_only);
@@ -348,7 +348,7 @@ fn loadModule(
         if (loader.native_cache) |cache| {
             if (cache.get(name)) |cached| return cached;
         }
-        const name_z = loader.allocator.dupeZ(u8, native.specifier) catch return null;
+        const name_z = loader.allocator.dupeSentinel(u8, native.specifier, 0) catch return null;
         defer loader.allocator.free(name_z);
         const module = native.load(@ptrCast(ctx), name_z.ptr) orelse return null;
         const module_def: *qjs.c.JSModuleDef = @ptrCast(@alignCast(module));
@@ -377,9 +377,9 @@ fn loadModule(
     };
     defer transformed.deinit(loader.allocator);
 
-    const source_z = loader.allocator.dupeZ(u8, transformed.code) catch return null;
+    const source_z = loader.allocator.dupeSentinel(u8, transformed.code, 0) catch return null;
     defer loader.allocator.free(source_z);
-    const file_name = loader.allocator.dupeZ(u8, transformed.source_url) catch return null;
+    const file_name = loader.allocator.dupeSentinel(u8, transformed.source_url, 0) catch return null;
     defer loader.allocator.free(file_name);
 
     const compiled = qjs.eval(ctx, source_z, file_name, qjs.EvalFlags.module_compile_only);

@@ -1,9 +1,7 @@
 const std = @import("std");
 const config = @import("config.zig");
 
-pub const c = @cImport({
-    @cInclude("quickjs.h");
-});
+pub const c = @import("hao_c");
 
 var pending_exception_ctx: ?*c.JSContext = null;
 var pending_exception_value: ?c.JSValue = null;
@@ -13,12 +11,12 @@ pub const ClassSlot = enum {
     trace_handle,
 };
 
-var class_ids = [_]c.JSClassID{0} ** @typeInfo(ClassSlot).@"enum".fields.len;
-var class_ready = [_]bool{false} ** @typeInfo(ClassSlot).@"enum".fields.len;
+var class_ids: [@typeInfo(ClassSlot).@"enum".field_names.len]c.JSClassID = @splat(0);
+var class_ready: [@typeInfo(ClassSlot).@"enum".field_names.len]bool = @splat(false);
 
 fn ensureClassesRegistered(rt: ?*c.JSRuntime) void {
-    inline for (@typeInfo(ClassSlot).@"enum".fields) |field| {
-        _ = ensureClassId(rt, @enumFromInt(field.value));
+    inline for (@typeInfo(ClassSlot).@"enum".field_values) |value| {
+        _ = ensureClassId(rt, @enumFromInt(value));
     }
 }
 

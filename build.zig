@@ -6,6 +6,13 @@ pub fn build(b: *std.Build) void {
     const libuv_dep = b.dependency("libuv", .{});
     const quickjs_dep = b.dependency("quickjs", .{});
     const zig_libs_dep = b.dependency("zig_libs", .{});
+    const c_translation = b.addTranslateC(.{
+        .root_source_file = b.path("include/zig_bindings.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    c_translation.addIncludePath(quickjs_dep.path("."));
+    const hao_c = c_translation.addModule("hao_c");
 
     const hao = b.addModule("hao", .{
         .root_source_file = b.path("src/hao.zig"),
@@ -17,6 +24,7 @@ pub fn build(b: *std.Build) void {
     hao.addIncludePath(quickjs_dep.path("."));
     hao.addIncludePath(b.path("include"));
     hao.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
+    hao.addImport("hao_c", hao_c);
 
     const libuv = b.addLibrary(.{
         .name = "uv",
@@ -153,8 +161,10 @@ pub fn build(b: *std.Build) void {
     });
     runtime.root_module.linkLibrary(libuv);
     runtime.root_module.linkLibrary(quickjs);
-    runtime.root_module.addObjectFile(b.path("libs/transpiler/target/release/libhao_transpiler.a"));
+    // A static library cannot embed another archive. Final executables link
+    // the Rust transpiler archive explicitly, as `exe` does below.
     runtime.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
+    runtime.root_module.addImport("hao_c", hao_c);
     const build_transpiler = b.addSystemCommand(&.{
         "cargo",
         "build",
@@ -180,6 +190,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.linkLibrary(quickjs);
     exe.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
     exe.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
+    exe.root_module.addImport("hao_c", hao_c);
     exe.root_module.linkSystemLibrary("hao_transpiler", .{});
     exe.step.dependOn(&build_transpiler.step);
     if (target.result.os.tag == .linux) {
@@ -214,6 +225,7 @@ pub fn build(b: *std.Build) void {
     tests.root_module.linkLibrary(quickjs);
     tests.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
     tests.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
+    tests.root_module.addImport("hao_c", hao_c);
     tests.root_module.linkSystemLibrary("hao_transpiler", .{});
     tests.step.dependOn(&build_transpiler.step);
     if (target.result.os.tag == .linux) {
@@ -234,7 +246,4 @@ pub fn build(b: *std.Build) void {
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     run_step.dependOn(&run_cmd.step);
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
 }

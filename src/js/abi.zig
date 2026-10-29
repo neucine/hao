@@ -706,7 +706,7 @@ pub const ModuleCollector = struct {
     }
 
     fn addModule(self: *ModuleCollector, module: *const Module) !void {
-        const specifier = try self.allocator.dupeZ(u8, std.mem.span(module.specifier));
+        const specifier = try self.allocator.dupeSentinel(u8, std.mem.span(module.specifier), 0);
         errdefer self.allocator.free(specifier);
 
         var functions: std.ArrayList(*const Function) = .empty;
@@ -932,7 +932,7 @@ fn contextToString(context: *Context, value: Value) callconv(.c) ?[*:0]const u8 
     const js_value = valueToJs(context, value) orelse return null;
     const owned = qjs.valueToStringAlloc(data.frame.ctx, js_value, data.allocator) catch return null;
     defer data.allocator.free(owned);
-    const owned_z = data.allocator.dupeZ(u8, owned) catch return null;
+    const owned_z = data.allocator.dupeSentinel(u8, owned, 0) catch return null;
     data.frame.strings.append(data.allocator, owned_z) catch {
         data.allocator.free(owned_z);
         return null;

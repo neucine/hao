@@ -101,9 +101,7 @@ test "Config defaults are correct" {
 }
 
 test "loadFromEnv reads schema-backed values" {
-    const c = @cImport({
-        @cInclude("stdlib.h");
-    });
+    const c = @import("hao_c");
     const old_stack = cfg.getenv("RUNTIME_QJS_STACK_SIZE");
     const old_gc = cfg.getenv("RUNTIME_QJS_GC_THRESHOLD");
     const old_trace = cfg.getenv("RUNTIME_NATIVE_STACK_TRACE");
@@ -139,9 +137,7 @@ test "loadFromEnv reads schema-backed values" {
 }
 
 test "syncLibuvThreadPoolEnv mirrors config into UV_THREADPOOL_SIZE" {
-    const c = @cImport({
-        @cInclude("stdlib.h");
-    });
+    const c = @import("hao_c");
     const old = cfg.getenv("UV_THREADPOOL_SIZE");
     defer {
         if (old) |value| {
@@ -158,9 +154,7 @@ test "syncLibuvThreadPoolEnv mirrors config into UV_THREADPOOL_SIZE" {
 }
 
 test "dotenv loader loads missing keys without overriding environment" {
-    const c = @cImport({
-        @cInclude("stdlib.h");
-    });
+    const c = @import("hao_c");
     const path = ".zig-cache/hao-tests/dotenv/config.env";
     try fs.makePath(std.testing.allocator, ".zig-cache/hao-tests/dotenv");
     try fs.writeFile(path,

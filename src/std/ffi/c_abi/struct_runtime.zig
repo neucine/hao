@@ -92,7 +92,7 @@ pub fn applyPodStructOutputs(ctx: js_abi.JSContext, state: TempStructArg) c_int 
             return -1;
         };
         const js_value = readPodStructField(ctx, state.spec, field.ty, state.storage, offset) catch return -1;
-        const key = alloc.dupeZ(u8, field.name) catch {
+        const key = alloc.dupeSentinel(u8, field.name, 0) catch {
             js_abi.jsFreeValue(ctx, js_value);
             _ = errors.jsError(ctx, .out_of_memory, "C: failed to allocate POD struct field key", error.OutOfMemory, null, null);
             return -1;
@@ -187,7 +187,7 @@ fn writePodStructFromObjectAtOffset(
             _ = errors.jsError(ctx, .internal, "C: missing POD struct field offset", null, null, null);
             return -1;
         };
-        const key = alloc.dupeZ(u8, field.name) catch {
+        const key = alloc.dupeSentinel(u8, field.name, 0) catch {
             _ = errors.jsError(ctx, .out_of_memory, "C: failed to allocate POD struct field key", error.OutOfMemory, null, null);
             return -1;
         };
@@ -338,7 +338,7 @@ fn readPodStructField(
                     for (pod.fields) |field| {
                         const field_offset = podStructFieldOffset(spec, pod, field.name) orelse return error.UnsupportedFeature;
                         const js_value = try readPodStructField(ctx, spec, field.ty, storage, offset + field_offset);
-                        const key = try alloc.dupeZ(u8, field.name);
+                        const key = try alloc.dupeSentinel(u8, field.name, 0);
                         defer alloc.free(key);
                         try js_abi.jsSetPropertyChecked(ctx, obj, key, js_value);
                     }

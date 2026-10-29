@@ -20,9 +20,7 @@ const process_native = @import("../process/native.zig");
 const registry = @import("registry.zig");
 const bindings = @import("native.zig");
 
-const c = @cImport({
-    @cInclude("stdlib.h");
-});
+const c = @import("hao_c");
 
 const Failure = struct {
     phase: []const u8,
@@ -243,7 +241,7 @@ fn appendDiscoveredTestDir(allocator: std.mem.Allocator, out: *std.ArrayList([]c
 }
 
 fn appendDiscoveredTestDirCompat(allocator: std.mem.Allocator, out: *std.ArrayList([]const u8), dir_path: []const u8) !void {
-    const dir_path_z = try allocator.dupeZ(u8, dir_path);
+    const dir_path_z = try allocator.dupeSentinel(u8, dir_path, 0);
     defer allocator.free(dir_path_z);
     const dir = std.c.opendir(dir_path_z.ptr) orelse return error.NotDir;
     defer _ = std.c.closedir(dir);
@@ -270,7 +268,7 @@ fn appendDiscoveredTestDirCompat(allocator: std.mem.Allocator, out: *std.ArrayLi
 
 fn isDirectoryCompat(path: []const u8) bool {
     const alloc = runtime_allocator.allocator();
-    const path_z = alloc.dupeZ(u8, path) catch return false;
+    const path_z = alloc.dupeSentinel(u8, path, 0) catch return false;
     defer alloc.free(path_z);
     const dir = std.c.opendir(path_z.ptr) orelse return false;
     _ = std.c.closedir(dir);

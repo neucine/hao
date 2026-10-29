@@ -100,7 +100,7 @@ fn js_registerHook(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Val
 
 fn stringValue(ctx: *js_abi.Context, value: []const u8) js_abi.Value {
     const alloc = runtime_allocator.allocator();
-    const value_z = alloc.dupeZ(u8, value) catch return throwInternal(ctx, "out of memory");
+    const value_z = alloc.dupeSentinel(u8, value, 0) catch return throwInternal(ctx, "out of memory");
     defer alloc.free(value_z);
     return ctx.api.string_value(ctx, value_z.ptr);
 }
@@ -135,7 +135,7 @@ fn js_beginCapture(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Val
 
 fn setStringProp(ctx: *js_abi.Context, object: js_abi.Value, key: [*:0]const u8, value: []const u8) !void {
     const alloc = runtime_allocator.allocator();
-    const value_z = try alloc.dupeZ(u8, value);
+    const value_z = try alloc.dupeSentinel(u8, value, 0);
     defer alloc.free(value_z);
     const value_handle = ctx.api.string_value(ctx, value_z.ptr);
     if (ctx.api.set_property(ctx, object, key, value_handle) < 0) return error.JavaScriptError;

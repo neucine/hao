@@ -3,9 +3,7 @@ const qjs = @import("../qjs.zig");
 const runtime_allocator = @import("../runtime_allocator.zig");
 const util_qjs = @import("../std/util/native.zig");
 
-const c = @cImport({
-    @cInclude("stdio.h");
-});
+const c = @import("hao_c");
 
 pub const CaptureTarget = enum {
     stdout,

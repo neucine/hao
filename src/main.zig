@@ -2,9 +2,7 @@ const std = @import("std");
 const hao = @import("hao.zig");
 const config = @import("config.zig");
 
-const c = @cImport({
-    @cInclude("stdio.h");
-});
+const c = @import("hao_c");
 
 fn stdoutFile() *c.FILE {
     return switch (@typeInfo(@TypeOf(c.stdout))) {

@@ -15,9 +15,7 @@ const hao_std = @import("../std.zig");
 const util_native = @import("../std/util/native.zig");
 const version = @import("../version.zig");
 
-const c = @cImport({
-    @cInclude("stdlib.h");
-});
+const c = @import("hao_c");
 
 const alloc = runtime_allocator.allocator();
 
@@ -110,27 +108,27 @@ pub fn runWithPackageRegistrar(
     var ep_buf: [128]u8 = undefined;
 
     const shell_ep = try conn_info.endpoint(conn_info.shell_port, &ep_buf);
-    const shell_ep_z = try alloc.dupeZ(u8, shell_ep);
+    const shell_ep_z = try alloc.dupeSentinel(u8, shell_ep, 0);
     defer alloc.free(shell_ep_z);
     try z.bindSocket(shell_sock, shell_ep_z);
 
     const control_ep = try conn_info.endpoint(conn_info.control_port, &ep_buf);
-    const control_ep_z = try alloc.dupeZ(u8, control_ep);
+    const control_ep_z = try alloc.dupeSentinel(u8, control_ep, 0);
     defer alloc.free(control_ep_z);
     try z.bindSocket(control_sock, control_ep_z);
 
     const iopub_ep = try conn_info.endpoint(conn_info.iopub_port, &ep_buf);
-    const iopub_ep_z = try alloc.dupeZ(u8, iopub_ep);
+    const iopub_ep_z = try alloc.dupeSentinel(u8, iopub_ep, 0);
     defer alloc.free(iopub_ep_z);
     try z.bindSocket(iopub_sock, iopub_ep_z);
 
     const stdin_ep = try conn_info.endpoint(conn_info.stdin_port, &ep_buf);
-    const stdin_ep_z = try alloc.dupeZ(u8, stdin_ep);
+    const stdin_ep_z = try alloc.dupeSentinel(u8, stdin_ep, 0);
     defer alloc.free(stdin_ep_z);
     try z.bindSocket(stdin_sock, stdin_ep_z);
 
     const hb_ep = try conn_info.endpoint(conn_info.hb_port, &ep_buf);
-    const hb_ep_z = try alloc.dupeZ(u8, hb_ep);
+    const hb_ep_z = try alloc.dupeSentinel(u8, hb_ep, 0);
     defer alloc.free(hb_ep_z);
     try z.bindSocket(hb_sock, hb_ep_z);
 
@@ -341,9 +339,9 @@ fn handleExecute(z: *const zmq.Zmq, msg: *wire.Message, io: std.Io) !void {
         alloc.free(eval_source_for_diag);
         eval_source_for_diag = try alloc.dupe(u8, notebook_safe);
         const source_url: []const u8 = transformed.source_url;
-        const source_z = try alloc.dupeZ(u8, notebook_safe);
+        const source_z = try alloc.dupeSentinel(u8, notebook_safe, 0);
         defer alloc.free(source_z);
-        const file_name_z = try alloc.dupeZ(u8, source_url);
+        const file_name_z = try alloc.dupeSentinel(u8, source_url, 0);
         defer alloc.free(file_name_z);
         result = qjs.eval(runtime.ctx, source_z, file_name_z, qjs.EvalFlags.global);
         qjs.freeValue(runtime.ctx, display_value);

@@ -4,9 +4,9 @@ const types = @import("types.zig");
 pub const MAX_ARGS = 8;
 
 pub const PackedArgs = struct {
-    int_args: [MAX_ARGS]usize = .{0} ** MAX_ARGS,
-    float_args: [MAX_ARGS]f64 = .{0.0} ** MAX_ARGS,
-    is_float: [MAX_ARGS]bool = .{false} ** MAX_ARGS,
+    int_args: [MAX_ARGS]usize = @splat(0),
+    float_args: [MAX_ARGS]f64 = @splat(0.0),
+    is_float: [MAX_ARGS]bool = @splat(false),
 };
 
 pub const CallResult = union {
@@ -118,7 +118,7 @@ fn IntArgsTuple(comptime n: usize) type {
     for (&fields) |*f| {
         f.* = usize;
     }
-    return std.meta.Tuple(&fields);
+    return @Tuple(&fields);
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +181,7 @@ fn FloatArgsTuple(comptime n: usize) type {
     for (&fields) |*f| {
         f.* = f64;
     }
-    return std.meta.Tuple(&fields);
+    return @Tuple(&fields);
 }
 
 // ===========================================================================

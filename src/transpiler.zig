@@ -95,11 +95,11 @@ pub fn transformModule(
     namespace_root: []const u8,
     allocator: std.mem.Allocator,
 ) !ModuleTransformResult {
-    const source_z = try allocator.dupeZ(u8, source);
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
-    const path_z = try allocator.dupeZ(u8, path);
+    const path_z = try allocator.dupeSentinel(u8, path, 0);
     defer allocator.free(path_z);
-    const namespace_root_z = try allocator.dupeZ(u8, namespace_root);
+    const namespace_root_z = try allocator.dupeSentinel(u8, namespace_root, 0);
     defer allocator.free(namespace_root_z);
 
     const result_ptr = backend.hao_transform_module(
@@ -157,7 +157,7 @@ pub fn remapGeneratedLocation(
 ) !?OriginalPosition {
     if (generated_line == 0 or generated_column == 0) return null;
 
-    const path_z = try allocator.dupeZ(u8, path);
+    const path_z = try allocator.dupeSentinel(u8, path, 0);
     defer allocator.free(path_z);
     const result_ptr = backend.hao_lookup_original_position(
         path_z.ptr,
@@ -186,9 +186,9 @@ pub fn transformEsmModule(
     path: []const u8,
     allocator: std.mem.Allocator,
 ) !ESMTransformResult {
-    const source_z = try allocator.dupeZ(u8, source);
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
-    const path_z = try allocator.dupeZ(u8, path);
+    const path_z = try allocator.dupeSentinel(u8, path, 0);
     defer allocator.free(path_z);
 
     const result_ptr = backend.hao_transform_esm_module(source_z.ptr, path_z.ptr) orelse return error.TranspileFailed;
@@ -215,9 +215,9 @@ pub fn transpileScript(
     path: []const u8,
     allocator: std.mem.Allocator,
 ) !ScriptTransformResult {
-    const source_z = try allocator.dupeZ(u8, source);
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
-    const path_z = try allocator.dupeZ(u8, path);
+    const path_z = try allocator.dupeSentinel(u8, path, 0);
     defer allocator.free(path_z);
 
     const result_ptr = backend.hao_transpile_types_for_path(source_z.ptr, path_z.ptr) orelse return error.TranspileFailed;

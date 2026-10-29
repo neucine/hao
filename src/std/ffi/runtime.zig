@@ -161,7 +161,7 @@ fn parseDescriptor(ctx: js_abi.JSContext, lib: *OpenLibrary, descriptor: js_abi.
             };
         }
 
-        const sym_z = try alloc.dupeZ(u8, symbol);
+        const sym_z = try alloc.dupeSentinel(u8, symbol, 0);
         defer alloc.free(sym_z);
         const fn_ptr = lib.lib.lookupSymbol(sym_z) orelse {
             _ = throwInternal(ctx, "dlopen: symbol not found");
@@ -203,7 +203,7 @@ fn freeOwnedStrings(items: [][]u8) void {
 }
 
 fn getPropertyOwned(ctx: js_abi.JSContext, object: js_abi.JSValueConst, key: []const u8) js_abi.JSValue {
-    const z = alloc.dupeZ(u8, key) catch return js_abi.jsUndefined(ctx);
+    const z = alloc.dupeSentinel(u8, key, 0) catch return js_abi.jsUndefined(ctx);
     defer alloc.free(z);
     return js_abi.jsGetProperty(ctx, object, z);
 }
@@ -269,7 +269,7 @@ fn marshalArg(
         },
         .cstring => {
             const text = js_abi.jsStringAlloc(ctx, value, alloc) catch return -1;
-            const z = alloc.dupeZ(u8, text) catch {
+            const z = alloc.dupeSentinel(u8, text, 0) catch {
                 alloc.free(text);
                 return -1;
             };

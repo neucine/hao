@@ -1,11 +1,6 @@
 const std = @import("std");
 
-const c = @cImport({
-    @cInclude("errno.h");
-    @cInclude("stdio.h");
-    @cInclude("sys/stat.h");
-    @cInclude("unistd.h");
-});
+const c = @import("hao_c");
 
 pub fn pathExists(path: []const u8) bool {
     var buf: [std.Io.Dir.max_path_bytes + 1]u8 = undefined;

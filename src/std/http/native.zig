@@ -130,7 +130,7 @@ fn throwInternal(ctx: js_abi.JSContext, message: [:0]const u8) js_abi.JSValue {
 }
 
 fn throwError(ctx: js_abi.JSContext, message: []const u8) js_abi.JSValue {
-    const message_z = alloc.dupeZ(u8, message) catch return js_abi.jsThrowOutOfMemory(ctx);
+    const message_z = alloc.dupeSentinel(u8, message, 0) catch return js_abi.jsThrowOutOfMemory(ctx);
     defer alloc.free(message_z);
     return js_abi.jsThrowInternalError(ctx, message_z.ptr);
 }
@@ -501,7 +501,7 @@ fn onRequestDone(req: ?*uv.uv_work_t, _: c_int) callconv(.c) void {
 }
 
 fn appendHeaderValue(ctx: js_abi.JSContext, headers_obj: js_abi.JSValueConst, name: []const u8, value: []const u8) !void {
-    const key = try alloc.dupeZ(u8, name);
+    const key = try alloc.dupeSentinel(u8, name, 0);
     defer alloc.free(key);
 
     const existing = js_abi.jsGetProperty(ctx, headers_obj, key);

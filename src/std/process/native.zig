@@ -3,9 +3,7 @@ const js_abi = @import("../../js/abi.zig");
 const qjs_test = @import("../../qjs.zig");
 const runtime_allocator = @import("../../runtime_allocator.zig");
 
-const c = @cImport({
-    @cInclude("stdlib.h");
-});
+const c = @import("hao_c");
 
 pub const specifier: [:0]const u8 = "std:process/native";
 
@@ -45,7 +43,7 @@ fn stringArg(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value, in
 
 fn jsGetEnvNative(ctx: *js_abi.Context, argc: c_int, argv: [*c]const js_abi.Value) callconv(.c) js_abi.Value {
     const name = stringArg(ctx, argc, argv, 0) orelse return ctx.api.throw_type_error(ctx, "getEnvNative expects a variable name");
-    const name_z = alloc.dupeZ(u8, name) catch return throwInternalAbi(ctx, "out of memory");
+    const name_z = alloc.dupeSentinel(u8, name, 0) catch return throwInternalAbi(ctx, "out of memory");
     defer alloc.free(name_z);
 
     const value = c.getenv(name_z.ptr) orelse return ctx.api.null_value(ctx);
@@ -75,7 +73,7 @@ fn termFields(term: std.process.Child.Term) struct { exit_code: ?u32, signal: ?u
 }
 
 fn setStringProp(ctx: *js_abi.Context, object: js_abi.Value, key: [*:0]const u8, value: []const u8) !void {
-    const value_z = try alloc.dupeZ(u8, value);
+    const value_z = try alloc.dupeSentinel(u8, value, 0);
     defer alloc.free(value_z);
     if (ctx.api.set_property(ctx, object, key, ctx.api.string_value(ctx, value_z.ptr)) < 0) return error.JavaScriptError;
 }

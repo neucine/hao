@@ -122,7 +122,8 @@ fn handleConnection(io: std.Io, connection: net.Stream) !void {
 
     var request_buffer: [8192]u8 = undefined;
     var segments = [_][]u8{request_buffer[0..]};
-    const count = try io.vtable.netRead(io.userdata, connection.socket.handle, &segments);
+    const result = try io.operate(.{ .net_read = .{ .socket_handle = connection.socket.handle, .data = &segments } });
+    const count = (try result.net_read).data_len;
     if (count == 0) return;
     const request = request_buffer[0..count];
     const line_end = std.mem.indexOf(u8, request, "\r\n") orelse return writeResponse(io, connection, 400, "text/plain", "bad request");
