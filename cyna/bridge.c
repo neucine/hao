@@ -581,6 +581,11 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
             if (jobs == 0 && io == 0) break;
         }
     }
+    if (host->has_callback_error) {
+        if (JS_IsUndefined(exception)) exception = JS_DupValue(ctx, host->callback_error);
+        JS_FreeValue(ctx, host->callback_error);
+        host->has_callback_error = false;
+    }
     if (host->has_rejection) {
         if (JS_IsUndefined(exception)) exception = JS_DupValue(host->rejection_context, host->rejection);
         JS_FreeValue(host->rejection_context, host->rejection);
