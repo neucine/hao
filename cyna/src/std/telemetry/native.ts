@@ -67,7 +67,7 @@ let currentSpan: number | null = null;
 let currentTraceId: string | null = null;
 let currentSpanId: string | null = null;
 const scheduleTimeout = globalThis.setTimeout;
-globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ...args: any[]) => {
+globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number) => {
   if (typeof callback !== 'function') return scheduleTimeout(callback, delay);
   const parent = currentSpan;
   const traceId = currentTraceId;
@@ -77,7 +77,7 @@ globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ..
     currentSpan = parent;
     currentTraceId = traceId;
     currentSpanId = spanId;
-    try { callback(...args); } finally {
+    try { callback(); } finally {
       currentSpan = previous.span; currentTraceId = previous.trace; currentSpanId = previous.spanId;
     }
   }, delay);

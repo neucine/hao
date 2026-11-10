@@ -714,6 +714,13 @@ timer_turns_actual=$("$runtime" "$fixture_dir/timer-turns.ts")
 timer_turns_expected=$(printf 'first\njob\nsecond')
 test "$timer_turns_actual" = "$timer_turns_expected"
 
+cat > "$fixture_dir/timer-arguments.ts" <<'EOF'
+import { startTraceNative } from 'std:telemetry/native';
+console.log(typeof startTraceNative);
+setTimeout((value: unknown) => console.log(value === undefined ? 'none' : String(value)), 1, 42);
+EOF
+test "$("$runtime" "$fixture_dir/timer-arguments.ts")" = "$(printf 'function\nnone')"
+
 printf 'setTimeout(() => { throw new Error("timer failed"); }, 1);\n' > "$fixture_dir/timer-failure.ts"
 if "$runtime" "$fixture_dir/timer-failure.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
     echo 'expected timer callback to exit with an error' >&2
