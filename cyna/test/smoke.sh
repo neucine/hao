@@ -933,11 +933,12 @@ test "$("$runtime" "$fixture_dir/process-input-nul.ts")" = 'ok 0'
 cat > "$fixture_dir/process-errors.ts" <<'EOF'
 import { runNative, getEnvNative } from 'std:process/native';
 for (const invoke of [() => getEnvNative(), () => runNative({ cmd: 'sh', maxOutputBytes: 0 }),
-  () => runNative({ cmd: 'sh', args: ['-c', 'printf 12345'], maxOutputBytes: 3 })]) {
+  () => runNative({ cmd: 'sh', args: ['-c', 'printf 12345'], maxOutputBytes: 3 }),
+  () => runNative({ cmd: '' }), () => runNative({ cmd: 'sh', args: ['-c', 'pwd'], cwd: '' })]) {
   try { invoke(); } catch (error) { console.log(error.name, error.message); }
 }
 EOF
-test "$("$runtime" "$fixture_dir/process-errors.ts")" = "$(printf 'TypeError getEnvNative expects a variable name\nTypeError process.run maxOutputBytes must be positive\nInternalError process.run failed')"
+test "$("$runtime" "$fixture_dir/process-errors.ts")" = "$(printf 'TypeError getEnvNative expects a variable name\nTypeError process.run maxOutputBytes must be positive\nInternalError process.run failed\nInternalError process.run failed\nInternalError process.run failed')"
 cat > "$fixture_dir/process-large-env.ts" <<'EOF'
 import { getEnvNative } from 'std:process/native';
 console.log(getEnvNative('HAO_BIG_ENV')?.length);

@@ -90,6 +90,7 @@ export c("hao_process_run_json") fn run_json(options_pointer: *const c_uchar, op
                 if byte == 0 { break; }
                 program_len = program_len + 1;
             }
+            if program_len == 0 { return 3; }
             if field(&options, "cwd") is directory {
                 const cwd_bytes = directory.bytes();
                 var cwd_len: usize = 0;
@@ -97,6 +98,7 @@ export c("hao_process_run_json") fn run_json(options_pointer: *const c_uchar, op
                     if byte == 0 { break; }
                     cwd_len = cwd_len + 1;
                 }
+                if cwd_len == 0 { return 3; }
                 return execute(program_bytes.ptr as! *const c_uchar, program_len as c_size_t,
                     argument_bytes.view().ptr as! *const c_uchar, argument_bytes.len() as c_size_t, values.len() as c_size_t,
                     cwd_bytes.ptr as! *const c_uchar, cwd_len as c_size_t,
