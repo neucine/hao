@@ -30,6 +30,12 @@ that adapter.
 
 ## Open behavior checks
 
+- The `std:fs` surface has matching public operations in the shared end to end
+  suite: existence, read, write, and size. A direct Zig/Cyna comparison also
+  matched file, symlink, missing path, and directory results. The smoke suite
+  covers NUL truncation and the 100 MiB read limit. Concurrent file mutation
+  during a read has not been compared.
+
 - The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
   `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
   serviced turn even when its final handle closes. `Loop.run_until_idle` also
