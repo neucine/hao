@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const config = @import("config.zig");
 const errors = @import("errors.zig");
 const fs = @import("fs.zig");
 const qjs = @import("qjs.zig");
@@ -34,6 +35,9 @@ const CoreEnvironment = struct {
     pub fn initWithIo(allocator: std.mem.Allocator, io: ?std.Io) !CoreEnvironment {
         runtime_allocator.init(allocator);
         telemetry_metrics.init(allocator);
+        const telemetry_config = config.config.read().telemetry;
+        try telemetry_store.init(allocator, if (telemetry_config.console_enabled.get()) telemetry_config.trace_records.get() else 0);
+        errdefer telemetry_store.deinit(allocator);
         @import("zig_libs").telemetry.install(telemetry_interface.host());
         var runtime = try qjs.Runtime.init();
         errdefer runtime.deinit();
@@ -63,7 +67,7 @@ const CoreEnvironment = struct {
         self.native_cache.deinit();
         self.runtime.deinit();
         telemetry_metrics.clear();
-        telemetry_store.clear();
+        telemetry_store.deinit(self.allocator);
         @import("zig_libs").telemetry.install(.{});
         self.* = undefined;
     }
@@ -180,7 +184,7 @@ pub const RuntimeEnvironment = struct {
         self.native_cache.deinit();
         self.runtime.deinit();
         telemetry_metrics.clear();
-        telemetry_store.clear();
+        telemetry_store.deinit(self.allocator);
         self.* = undefined;
     }
 
@@ -383,6 +387,25 @@ test "runtime telemetry reports tracked Zig allocator stats" {
     var peak: f64 = 0;
     try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &peak, peak_value));
     try std.testing.expect(peak >= active);
+}
+
+test "runtime telemetry trace propagates context without a console exporter" {
+    var host = try RuntimeEnvironment.init(std.testing.allocator, .{ .std = true });
+    defer host.deinit();
+    try host.evalModuleSource(
+        \\import { trace } from "std:telemetry";
+        \\globalThis.__hao_trace_without_console = trace("runtime.no_console", () => 42);
+    ,
+        "<hao-telemetry-no-console-test>",
+    );
+
+    const global = qjs.c.JS_GetGlobalObject(host.runtime.ctx);
+    defer qjs.freeValue(host.runtime.ctx, global);
+    const result = qjs.getProperty(host.runtime.ctx, global, "__hao_trace_without_console");
+    defer qjs.freeValue(host.runtime.ctx, result);
+    var out: f64 = 0;
+    try std.testing.expectEqual(@as(c_int, 0), qjs.c.JS_ToFloat64(host.runtime.ctx, &out, result));
+    try std.testing.expectEqual(@as(f64, 42), out);
 }
 
 test "runtime environment includes std fs module by default" {

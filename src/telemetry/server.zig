@@ -216,12 +216,17 @@ fn refreshRuntimeHostMetrics() !void {
 
 fn writeTracesResponse(io: std.Io, stream: net.Stream, target: []const u8) !void {
     const query = parseQuery(target);
-    const limit = @min(query.limit, store.max_trace_records);
-    var records: [store.max_trace_records]@import("trace.zig").RecordView = undefined;
-    const result = store.buffer().snapshotAfter(query.since, records[0..limit]);
+    const limit = @min(query.limit, store.capacity());
+    const records = try runtimeAllocator().alloc(@import("trace.zig").RecordView, limit);
+    defer runtimeAllocator().free(records);
 
     var body = std.ArrayList(u8).empty;
     defer body.deinit(runtimeAllocator());
+    try store.buffer().withSnapshotAfter(query.since, records, &body, appendTracesResponse);
+    try writeJsonResponse(io, stream, 200, body.items);
+}
+
+fn appendTracesResponse(body: *std.ArrayList(u8), result: @import("trace.zig").CursorSnapshot) !void {
     try body.print(runtimeAllocator(), "{{\"next_cursor\":{d},\"missed\":{s},\"records\":[", .{
         result.next_cursor,
         if (result.missed) "true" else "false",
@@ -229,23 +234,22 @@ fn writeTracesResponse(io: std.Io, stream: net.Stream, target: []const u8) !void
     for (result.records, 0..) |record, index| {
         if (index != 0) try body.append(runtimeAllocator(), ',');
         try body.print(runtimeAllocator(), "{{\"sequence\":{d},\"kind\":", .{record.sequence});
-        try appendJsonString(&body, @tagName(record.kind));
+        try appendJsonString(body, @tagName(record.kind));
         try body.print(runtimeAllocator(), ",\"timestamp_ns\":{d},\"trace_id\":", .{record.timestamp_ns});
-        try appendHexString(&body, &record.context.trace_id);
+        try appendHexString(body, &record.context.trace_id);
         try body.appendSlice(runtimeAllocator(), ",\"span_id\":");
-        try appendHexString(&body, &record.context.span_id);
+        try appendHexString(body, &record.context.span_id);
         try body.appendSlice(runtimeAllocator(), ",\"parent_span_id\":");
-        try appendHexString(&body, &record.parent_span_id);
+        try appendHexString(body, &record.parent_span_id);
         try body.appendSlice(runtimeAllocator(), ",\"name\":");
-        try appendJsonString(&body, record.name);
+        try appendJsonString(body, record.name);
         try body.appendSlice(runtimeAllocator(), ",\"status\":");
-        try appendJsonString(&body, @tagName(record.status));
+        try appendJsonString(body, @tagName(record.status));
         try body.appendSlice(runtimeAllocator(), ",\"attributes\":");
-        try appendJsonAttributes(&body, record.attributes);
+        try appendJsonAttributes(body, record.attributes);
         try body.append(runtimeAllocator(), '}');
     }
     try body.appendSlice(runtimeAllocator(), "]}");
-    try writeJsonResponse(io, stream, 200, body.items);
 }
 
 const Query = struct {

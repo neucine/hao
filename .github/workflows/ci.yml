@@ -26,6 +26,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: neucine/zig-libs
+          token: ${{ secrets.DEPENDENCY_READ_TOKEN }}
+          persist-credentials: false
           ref: a91b58271be94a4e402a856403fe0fa83add1709
           path: zig-libs
 

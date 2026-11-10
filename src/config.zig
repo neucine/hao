@@ -6,6 +6,7 @@ const runtime_allocator = @import("runtime_allocator.zig");
 const cfg = zig_libs.config;
 
 pub const default_qjs_stack_size: usize = 8 * 1024 * 1024;
+pub const default_trace_records: usize = 4096;
 
 pub const Config = struct {
     qjs: QJS = .{},
@@ -46,6 +47,11 @@ pub const Config = struct {
         console_port: cfg.Runtime(u16, .{
             .env = "RUNTIME_TELEMETRY_CONSOLE_PORT",
             .parser = .int_allow_zero,
+        }) = .{},
+        trace_records: cfg.Startup(usize, .{
+            .env = "RUNTIME_TELEMETRY_TRACE_RECORDS",
+            .default = default_trace_records,
+            .parser = .positive_int,
         }) = .{},
     };
 
@@ -97,6 +103,7 @@ test "Config defaults are correct" {
     try std.testing.expectEqual(false, def.debug.native_stack_trace.get());
     try std.testing.expectEqual(false, def.telemetry.console_enabled.get());
     try std.testing.expectEqual(@as(u16, 0), def.telemetry.console_port.get());
+    try std.testing.expectEqual(default_trace_records, def.telemetry.trace_records.get());
     try std.testing.expectEqual(@as(?[]const u8, null), def.package.path.get());
 }
 
@@ -105,6 +112,7 @@ test "loadFromEnv reads schema-backed values" {
     const old_stack = cfg.getenv("RUNTIME_QJS_STACK_SIZE");
     const old_gc = cfg.getenv("RUNTIME_QJS_GC_THRESHOLD");
     const old_trace = cfg.getenv("RUNTIME_NATIVE_STACK_TRACE");
+    const old_telemetry_trace = cfg.getenv("RUNTIME_TELEMETRY_TRACE_RECORDS");
     defer {
         if (old_stack) |value| {
             _ = c.setenv("RUNTIME_QJS_STACK_SIZE", value.ptr, 1);
@@ -121,12 +129,18 @@ test "loadFromEnv reads schema-backed values" {
         } else {
             _ = c.unsetenv("RUNTIME_NATIVE_STACK_TRACE");
         }
+        if (old_telemetry_trace) |value| {
+            _ = c.setenv("RUNTIME_TELEMETRY_TRACE_RECORDS", value.ptr, 1);
+        } else {
+            _ = c.unsetenv("RUNTIME_TELEMETRY_TRACE_RECORDS");
+        }
         config = cfg.Store(Config).init();
     }
 
     try cfg.setProcessEnv("RUNTIME_QJS_STACK_SIZE", "16");
     try cfg.setProcessEnv("RUNTIME_QJS_GC_THRESHOLD", "32");
     try cfg.setProcessEnv("RUNTIME_NATIVE_STACK_TRACE", "on");
+    try cfg.setProcessEnv("RUNTIME_TELEMETRY_TRACE_RECORDS", "16384");
 
     config = cfg.Store(Config).init();
     _ = try config.loadEnv();
@@ -134,6 +148,7 @@ test "loadFromEnv reads schema-backed values" {
     try std.testing.expectEqual(@as(usize, 16), config.read().qjs.stack_size.get());
     try std.testing.expectEqual(@as(?usize, 32), config.read().qjs.gc_threshold.get());
     try std.testing.expectEqual(true, config.read().debug.native_stack_trace.get());
+    try std.testing.expectEqual(@as(usize, 16384), config.read().telemetry.trace_records.get());
 }
 
 test "syncLibuvThreadPoolEnv mirrors config into UV_THREADPOOL_SIZE" {

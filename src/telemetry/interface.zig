@@ -18,7 +18,9 @@ pub const SpanHandle = shared.SpanHandle;
 pub const Backend = shared.Backend;
 pub const Scope = shared.Scope;
 
-const host_allocator = std.heap.page_allocator;
+// Span handles are small, short-lived objects on every eager operation.
+// Use the runtime's libc allocator instead of mapping a page per handle.
+const host_allocator = std.heap.c_allocator;
 var host_context: u8 = 0;
 
 fn metricKind(kind: MetricKind) metrics.Kind {

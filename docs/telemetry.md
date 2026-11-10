@@ -90,6 +90,14 @@ execution or a native worker. Sampling is decided at the trace root and
 inherited by child spans and events, so one trace is not accidentally split by
 independent event sampling.
 
+Without the console exporter, trace context propagation remains available but
+no trace records are retained. This keeps `std:telemetry.trace()` usable
+without the default ring's memory cost. With the console enabled, initial
+capacity comes from `RUNTIME_TELEMETRY_TRACE_RECORDS`: the default is 4,096
+records and the maximum is 1,048,576. Size this buffer for the number of records
+produced between polls. The previous fixed capacity of 512 could discard a
+warmed model step before the collector requested it.
+
 Each retained record has a monotonic sequence number. The telemetry console can
 request records after a cursor and receive a `missed` indication when the ring
 has already overwritten part of the requested history. This allows the browser

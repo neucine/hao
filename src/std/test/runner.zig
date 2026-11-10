@@ -755,10 +755,11 @@ pub fn runWithPackageRegistrar(
     const run_start_ns = nanoTimestamp();
     runtime_allocator.init(allocator);
     telemetry_metrics.init(allocator);
+    try telemetry_store.init(allocator, 512);
     @import("zig_libs").telemetry.install(telemetry_interface.host());
     defer {
         telemetry_metrics.clear();
-        telemetry_store.clear();
+        telemetry_store.deinit(allocator);
         @import("zig_libs").telemetry.install(.{});
     }
 
