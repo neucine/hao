@@ -1,0 +1,13 @@
+name = "hao-cyna"
+version = "0.1.2"
+src = "src"
+type = "exe"
+entry = "src/main.cy"
+
+[c]
+sources = ["bridge.c"]
+include_paths = ["../zig-pkg/N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp"]
+
+[link]
+libs = ["quickjs"]
+search_paths = ["../zig-out/lib"]
