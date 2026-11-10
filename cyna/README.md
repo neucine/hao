@@ -78,8 +78,8 @@ isolation behavior remain to be ported.
 in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use
 `JS_ComputeMemoryUsage`; `allocator_active_bytes` and `allocator_peak_bytes`
 use the macOS malloc zone totals rather than the Zig runtime allocator. Trace
-context integration with timers and HTTP workers, plus the telemetry console,
-remain to be ported.
+context integration with HTTP workers and the telemetry console remain to be
+ported. `setTimeout` callbacks retain the trace parent active when scheduled.
 
 `std:ffi` binds typed dynamic symbols through libffi, including mixed numeric
 argument classes and typed array pointers. The C declaration wrapper supports

@@ -42,6 +42,17 @@ const scopes = new Map<number, number | null>();
 let nextSpanId = 1;
 let nextScopeId = 1;
 let currentSpan: number | null = null;
+const scheduleTimeout = globalThis.setTimeout;
+globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ...args: any[]) => {
+  if (typeof callback !== 'function') return scheduleTimeout(callback, delay);
+  const parent = currentSpan;
+  return scheduleTimeout(() => {
+    const previous = currentSpan;
+    currentSpan = parent;
+    try { callback(...args); } finally { currentSpan = previous; }
+  }, delay);
+}) as typeof setTimeout;
+export function snapshotTracesNative(): Span[] { return records.map(record => ({ ...record })); }
 function createSpan(name: string, parent: number | null): number {
   if (typeof name !== 'string' || !name) throw Error('trace name must be a non-empty string');
   const id = nextSpanId++;
