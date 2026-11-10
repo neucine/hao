@@ -103,7 +103,7 @@ export async function runRegistered(): Promise<void> {
   for (const item of cases) {
     globalThis.__hao_test_filePath = item.file;
     const name = qualifiedName(item);
-    if (item.mode === 'skip' || hasOnly && item.mode !== 'only' || grep && !name.includes(grep)) {
+    if (item.mode === 'skip' || hasOnly && item.mode !== 'only' || grep && !item.name.includes(grep)) {
       skipped++;
       if (item.mode === 'skip') skippedDeclared++; else skippedFiltered++;
       report('SKIP', name);

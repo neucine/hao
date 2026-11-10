@@ -397,6 +397,15 @@ case "$load_result" in
     *'Test Files: 1 loaded, 1 failed, 2 total'*'2 passed, 0 failed, 0 skipped'*) ;;
     *) echo "$load_result" >&2; exit 1 ;;
 esac
+cat > "$fixture_dir/grep-suite.test.ts" <<'EOF'
+import { describe, test } from 'std:test';
+describe('needle suite', () => test('plain case', () => { throw Error('suite name must not match grep'); }));
+EOF
+grep_result=$("$runtime" test --grep needle "$fixture_dir/grep-suite.test.ts")
+case "$grep_result" in
+    *'0 passed, 0 failed, 1 skipped'*) ;;
+    *) echo "$grep_result" >&2; exit 1 ;;
+esac
 cat > "$fixture_dir/ffi-mixed.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 const math = dlopen('m', { ldexp: { args: ['f64', 'i32'], returns: 'f64' } });
