@@ -486,6 +486,17 @@ void hao_embed_invalid_buffer(uintptr_t handle) {
     ((HaoRuntime *)handle)->embed_error = strdup("Invalid byte buffer");
 }
 
+void hao_embed_set_error(uintptr_t handle, const unsigned char *message, size_t length) {
+    if (!handle || !message || length == SIZE_MAX) return;
+    HaoRuntime *host = (HaoRuntime *)handle;
+    if (host->embed_error) return;
+    char *copy = malloc(length + 1);
+    if (!copy) return;
+    memcpy(copy, message, length);
+    copy[length] = 0;
+    host->embed_error = copy;
+}
+
 size_t hao_embed_last_error(uintptr_t handle, unsigned char *output, size_t capacity) {
     if (!handle) return 0;
     const char *error = ((HaoRuntime *)handle)->embed_error;

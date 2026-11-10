@@ -5,6 +5,12 @@ import { copy_bytes } from .c_bytes;
 extern c("hao_embed_bytes_valid") fn bytes_valid(pointer: *const c_uchar, length: c_size_t): c_int;
 extern c("hao_embed_clear_error") fn clear_error(handle: c_size_t): void;
 extern c("hao_embed_invalid_buffer") fn invalid_buffer(handle: c_size_t): void;
+extern c("hao_embed_set_error") fn set_error(handle: c_size_t, message: *const c_uchar, length: c_size_t): void;
+
+fn failure(handle: c_size_t, message: string): void {
+    const bytes = message.bytes();
+    set_error(handle, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t);
+}
 
 fn text(pointer: *const c_uchar, length: c_size_t): string {
     const bytes = copy_bytes(pointer, length as usize);
@@ -39,7 +45,11 @@ export c("hao_embed_eval") fn embed_eval(handle: c_size_t, source: *const c_ucha
     }
     clear_error(handle);
     const runtime = Runtime { handle: handle };
-    return runtime.eval(text(source, source_len), text(filename, filename_len)) as c_int;
+    const status = runtime.eval(text(source, source_len), text(filename, filename_len));
+    if status != 0 {
+        failure(handle, "Module evaluation failed");
+    }
+    return status as c_int;
 }
 
 export c("hao_embed_run_until_idle") fn embed_run_until_idle(handle: c_size_t): c_int {
@@ -48,21 +58,43 @@ export c("hao_embed_run_until_idle") fn embed_run_until_idle(handle: c_size_t): 
     }
     clear_error(handle);
     const runtime = Runtime { handle: handle };
-    return runtime.run_until_idle() as c_int;
+    const status = runtime.run_until_idle();
+    if status != 0 {
+        failure(handle, "Event loop failed");
+    }
+    return status as c_int;
 }
 
 export c("hao_embed_register_module") fn embed_register_module(handle: c_size_t, name: *const c_uchar, name_len: c_size_t, source: *const c_uchar, source_len: c_size_t): c_int {
-    if handle == 0 or bytes_valid(name, name_len) == 0 or bytes_valid(source, source_len) == 0 {
+    if handle == 0 {
         return 1;
     }
+    if bytes_valid(name, name_len) == 0 or bytes_valid(source, source_len) == 0 {
+        invalid_buffer(handle);
+        return 1;
+    }
+    clear_error(handle);
     const runtime = Runtime { handle: handle };
-    return runtime.register_source_module(text(name, name_len), text(source, source_len)) as c_int;
+    const status = runtime.register_source_module(text(name, name_len), text(source, source_len));
+    if status != 0 {
+        failure(handle, "Module registration failed");
+    }
+    return status as c_int;
 }
 
 export c("hao_embed_install_std") fn embed_install_std(handle: c_size_t, directory: *const c_uchar, directory_len: c_size_t): c_int {
-    if handle == 0 or bytes_valid(directory, directory_len) == 0 {
+    if handle == 0 {
         return 1;
     }
+    if bytes_valid(directory, directory_len) == 0 {
+        invalid_buffer(handle);
+        return 1;
+    }
+    clear_error(handle);
     const runtime = Runtime { handle: handle };
-    return install_from(&runtime, text(directory, directory_len)) as c_int;
+    const status = install_from(&runtime, text(directory, directory_len));
+    if status != 0 {
+        failure(handle, "Standard module installation failed");
+    }
+    return status as c_int;
 }

@@ -15,6 +15,9 @@ int main(int argc, char **argv) {
     if (hao_embed_register_module(runtime, NULL, 1, (const unsigned char *)"", 0) == 0) return 6;
     if (hao_embed_register_module(runtime, (const unsigned char *)"x", 1, NULL, 1) == 0) return 7;
     if (hao_embed_install_std(runtime, NULL, 1) == 0) return 8;
+    if (hao_embed_install_std(runtime, (const unsigned char *)"/missing-hao-modules", 20) == 0) return 19;
+    if (!hao_embed_last_error(runtime, error, sizeof(error)) ||
+        strcmp((const char *)error, "Standard module installation failed")) return 20;
     HaoRuntimeHandle other = hao_embed_new();
     if (!other || other == runtime) return 9;
     const char *other_source = "export const answer = 7;";
@@ -40,6 +43,10 @@ int main(int argc, char **argv) {
     int status = hao_embed_install_std(runtime, (const unsigned char *)argv[1], strlen(argv[1]));
     if (!status) status = hao_embed_register_module(runtime, (const unsigned char *)module_name,
         strlen(module_name), (const unsigned char *)module_source, strlen(module_source));
+    if (!status && hao_embed_register_module(runtime, (const unsigned char *)module_name,
+        strlen(module_name), (const unsigned char *)module_source, strlen(module_source)) == 0) return 21;
+    if (!status && (!hao_embed_last_error(runtime, error, sizeof(error)) ||
+        strcmp((const char *)error, "Module registration failed"))) return 22;
     if (!status) status = hao_embed_eval(runtime, (const unsigned char *)source,
         strlen(source), (const unsigned char *)filename, strlen(filename));
     if (!status) status = hao_embed_run_until_idle(runtime);

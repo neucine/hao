@@ -27,10 +27,10 @@ int hao_embed_register_module(HaoRuntimeHandle runtime, const unsigned char *spe
                               size_t specifier_len, const unsigned char *source, size_t source_len);
 int hao_embed_run_until_idle(HaoRuntimeHandle runtime);
 
-/* Last evaluation or event loop error. Returns the full byte length, excluding
+/* Last operation error. Returns the full byte length, excluding
    the terminator. Copies at most capacity - 1 bytes and terminates when output
    and capacity are nonzero. A zero return means no error is stored. The message
-   is replaced by the next evaluation or event loop call. */
+   is replaced or cleared by the next operation. */
 size_t hao_embed_last_error(HaoRuntimeHandle runtime, unsigned char *output,
                             size_t capacity);
 
