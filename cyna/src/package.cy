@@ -67,19 +67,27 @@ fn import_field(value: &const Value, outer: string, inner: string): ?string {
 fn package_name(specifier: string): string {
     const bytes = specifier.bytes();
     var index: usize = 0;
-    var scope_slash = false;
-    const is_scoped = specifier.starts_with("@");
-    while index < bytes.len() {
-        const byte = bytes[index];
-        if byte == 47 {
-            if is_scoped and not scope_slash {
-                scope_slash = true;
-            } else {
+    if specifier.starts_with("@") {
+        while index < bytes.len() and bytes[index] != 47 {
+            index = index + 1;
+        }
+        if index == bytes.len() { return specifier.clone(); }
+        index = index + 1;
+        while index < bytes.len() {
+            if bytes[index] == 47 or bytes[index] == 58 {
                 return specifier.slice(0, index);
             }
-        } else if byte == 58 {
-            return specifier.slice(0, index);
+            index = index + 1;
         }
+        return specifier.clone();
+    }
+    while index < bytes.len() {
+        if bytes[index] == 58 { return specifier.slice(0, index); }
+        index = index + 1;
+    }
+    index = 0;
+    while index < bytes.len() {
+        if bytes[index] == 47 { return specifier.slice(0, index); }
         index = index + 1;
     }
     return specifier.clone();
@@ -121,10 +129,13 @@ fn supported_entry(path: string, package_type: ?string): bool {
 }
 
 fn find_entry(root: string, entry: string, package_type: ?string): ?string {
-    if not entry.starts_with("./") or entry.contains("..") {
+    if entry.len() == 0 or entry.starts_with("/") or entry.contains("..") {
         return none;
     }
-    const relative = entry.slice(2, entry.len());
+    var relative = entry.clone();
+    if entry.starts_with("./") {
+        relative = entry.slice(2, entry.len());
+    }
     const extensions: [9]string = ["", ".ts", ".js", ".mts", ".mjs", ".dylib", ".so", ".dll", ".node"];
     for extension in extensions {
         const candidate = $"{relative}{extension}";

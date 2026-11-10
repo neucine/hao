@@ -714,6 +714,18 @@ printf '{"type":"module","main":"./index.js"}\n' > "$fixture_dir/app/node_module
 printf 'export const scoped = 7;\n' > "$fixture_dir/app/node_modules/@scope/tool/index.js"
 printf 'import { value } from "demo"; import { extra } from "demo/extra"; import { scoped } from "@scope/tool"; console.log(value, extra, scoped);\n' > "$fixture_dir/app/packages.ts"
 test "$("$runtime" "$fixture_dir/app/packages.ts")" = '42 3 7'
+mkdir -p "$fixture_dir/app/node_modules/colon/child"
+printf '{"exports":{"./native":"./wrong.mjs"}}\n' > "$fixture_dir/app/node_modules/colon/package.json"
+printf 'export const selected = "wrong";\n' > "$fixture_dir/app/node_modules/colon/wrong.mjs"
+printf '{"exports":{"./native":"./native.mjs"}}\n' > "$fixture_dir/app/node_modules/colon/child/package.json"
+printf 'export const selected = "child";\n' > "$fixture_dir/app/node_modules/colon/child/native.mjs"
+printf 'import { selected } from "colon/child:native"; console.log(selected);\n' > "$fixture_dir/app/colon.ts"
+test "$("$runtime" "$fixture_dir/app/colon.ts")" = 'child'
+mkdir -p "$fixture_dir/app/node_modules/plain"
+printf '{"type":"module","main":"index.js"}\n' > "$fixture_dir/app/node_modules/plain/package.json"
+printf 'export const selected = "plain";\n' > "$fixture_dir/app/node_modules/plain/index.js"
+printf 'import { selected } from "plain"; console.log(selected);\n' > "$fixture_dir/app/plain.ts"
+test "$("$runtime" "$fixture_dir/app/plain.ts")" = 'plain'
 printf '{"exports":"./index.mjs"}\n' > "$fixture_dir/vendor/external/package.json"
 printf 'export const value = 11;\n' > "$fixture_dir/vendor/external/index.mjs"
 printf 'import { value } from "external"; console.log("external", value);\n' > "$fixture_dir/app/external.ts"
