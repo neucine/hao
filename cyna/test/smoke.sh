@@ -643,6 +643,7 @@ int hao_search_value(void) { return 29; }
 char hao_char_255(void) { return (char)255; }
 char *hao_mutable_char_pointer(void) { static char value[] = "mutable"; return value; }
 const char *hao_const_char_pointer(void) { return "constant"; }
+void hao_fill_bytes(uint8_t *data, size_t length) { for (size_t i = 0; i < length; ++i) data[i] = (uint8_t)(i + 1); }
 uint64_t hao_high_bit(uint64_t value) { return value >> 63; }
 static char hao_long_text[1024 * 1024 + 18];
 const char *hao_long_string(void) {
@@ -724,6 +725,33 @@ console.log(typeof forward.hao_box_open());
 forward.close();
 EOF
 test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-duplicate.ts")" = "$(printf 'rejected\nrejected\nrejected\nrejected\nrejected\nrejected\nnumber')"
+cat > "$fixture_dir/ffi-policy-validation.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+import { getEnv } from 'std:process';
+const path = `${getEnv('HAO_FFI_TEST_PATH')}/libhao_search_fixture.dylib`;
+const cases: [string, any][] = [
+  ['typedef struct HaoBox HaoBox; void hao_box_close(void *box);',
+    { handles: { HaoBox: { close: 'hao_box_close' } } }],
+  ['void hao_box_close(void *box);',
+    { functions: { hao_box_close: { buffers: { missing: { length: 'box', element: 'u8' } } } } }],
+  ['void hao_box_close(void *box);',
+    { functions: { hao_box_close: { buffers: { box: { length: 'missing', element: 'u8' } } } } }],
+  ['int32_t hao_fail_with_code(int32_t code);',
+    { functions: { hao_fail_with_code: { buffers: { code: { length: 'code', element: 'u8' } } } } }],
+];
+for (const [declarations, options] of cases) {
+  try { const library = cdecl(path, declarations, options); library.close(); console.log('accepted'); }
+  catch { console.log('rejected'); }
+}
+const valid = cdecl(path, 'void hao_fill_bytes(uint8_t *data, size_t length);', {
+  functions: { hao_fill_bytes: { buffers: { data: { length: 'length', element: 'u8', direction: 'out' } } } },
+});
+const bytes = new Uint8Array(3);
+valid.hao_fill_bytes(bytes);
+console.log(Array.from(bytes).join(','));
+valid.close();
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-policy-validation.ts")" = "$(printf 'rejected\nrejected\nrejected\nrejected\n1,2,3')"
 cat > "$fixture_dir/ffi-u64.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 import { getEnv } from 'std:process';

@@ -37,6 +37,7 @@ export function parse(declarations: string, opts: any): Prepared {
   }
   const functions: FunctionSpec[] = [];
   const typeReferences: string[] = [];
+  const declarationTypes = new Map<string, { params: { name: string; type: string }[] }>();
   const opaqueTypes = new Set<string>();
   const pods: Record<string, PodSpec> = {};
   const podBodies: Record<string, string> = {};
@@ -72,6 +73,7 @@ export function parse(declarations: string, opts: any): Prepared {
     if (!match) throw invalidArg(`invalid C declaration: ${statement}`);
     if (functions.some(item => item.name === match[2])) throw invalidArg(`duplicate C function: ${match[2]}`);
     const params: Parameter[] = [];
+    const rawParams: { name: string; type: string }[] = [];
     if (match[3].trim() && match[3].trim() !== 'void') {
       for (const rawParam of match[3].split(',')) {
         const param = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
@@ -80,10 +82,12 @@ export function parse(declarations: string, opts: any): Prepared {
         const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
         const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;
         params.push({ name: param[2], type: ffiType(param[1]), pod });
+        rawParams.push({ name: param[2], type: param[1].trim() });
         typeReferences.push(param[1]);
       }
     }
     functions.push({ name: match[2], params, returns: ffiType(match[1], true) });
+    declarationTypes.set(match[2], { params: rawParams });
     typeReferences.push(match[1]);
   }
   if (!functions.length) throw invalidArg('cdecl requires at least one function');
@@ -99,13 +103,23 @@ export function parse(declarations: string, opts: any): Prepared {
   for (const name of Object.keys(opts?.functions ?? {})) {
     if (!functions.some(item => item.name === name)) throw invalidArg(`unknown C function policy: ${name}`);
     const policy = opts.functions[name];
+    const fn = functions.find(item => item.name === name)!;
     if (policy?.returns?.out) {
       const out = functions.find(item => item.name === name)!.params.find(param => param.name === policy.returns.out);
       if (!out || out.type !== 'ptr') throw invalidArg(`invalid C output parameter: ${policy.returns.out}`);
     }
     if (policy?.returns?.kind === 'handle' &&
-        (!opaqueTypes.has(policy.returns.type) || functions.find(item => item.name === name)!.returns !== 'ptr')) {
+        (!opaqueTypes.has(policy.returns.type) || fn.returns !== 'ptr')) {
       throw invalidArg(`invalid C handle return policy: ${name}`);
+    }
+    for (const [pointerName, buffer] of Object.entries(policy?.buffers ?? {}) as [string, any][]) {
+      const pointer = fn.params.find(param => param.name === pointerName);
+      const length = fn.params.find(param => param.name === buffer?.length);
+      const rawLength = declarationTypes.get(name)!.params.find(param => param.name === buffer?.length)?.type;
+      if (!pointer || pointer.type !== 'ptr' && pointer.type !== 'cstring' || !length ||
+          rawLength?.replace(/^const\s+/, '') !== 'size_t') {
+        throw invalidArg(`invalid C buffer policy: ${name}.${pointerName}`);
+      }
     }
     const message = policy?.errors?.message;
     if (message != null && typeof message !== 'string') {
@@ -118,8 +132,14 @@ export function parse(declarations: string, opts: any): Prepared {
     }
   }
   for (const [type, policy] of Object.entries(opts?.handles ?? {}) as [string, any][]) {
-    if (!opaqueTypes.has(type) || (policy?.close != null &&
-        !functions.some(item => item.name === policy.close))) throw invalidArg(`invalid C handle policy: ${type}`);
+    if (!opaqueTypes.has(type)) throw invalidArg(`invalid C handle policy: ${type}`);
+    if (policy?.close != null) {
+      const close = declarationTypes.get(policy.close);
+      if (!close || !/^\s*(?:const\s+)?[A-Za-z_]\w*\s*\*\s*(?:const\s*)?$/.test(close.params[0]?.type ?? '') ||
+          close.params[0].type.replace(/\bconst\b|\*/g, '').trim() !== type) {
+        throw invalidArg(`invalid C close function: ${type}`);
+      }
+    }
   }
   return { symbols: functions.map(item => item.name), functions, policies: opts ?? {}, pods };
 }
