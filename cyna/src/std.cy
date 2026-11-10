@@ -64,6 +64,24 @@ pub fn install_from(runtime: &const Runtime, module_directory: string): i32 {
     if install_one(runtime, module_directory.clone(), "std:ffi/native", "ffi_native.ts") != 0 {
         return 1;
     }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c_abi/ast", "ffi_c_abi_ast.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c_abi/metadata", "ffi_c_abi_metadata.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c_abi/errors", "ffi_c_abi_errors.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c_abi/lower", "ffi_c_abi_lower.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c_abi/parser", "ffi_c_abi_parser.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c_abi/struct_runtime", "ffi_c_abi_struct_runtime.ts") != 0 {
+        return 1;
+    }
     if install_one(runtime, module_directory.clone(), "std:ffi/c/native", "ffi_c_native.ts") != 0 {
         return 1;
     }

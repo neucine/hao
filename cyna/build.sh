@@ -34,6 +34,12 @@ PY
 cp cyna/src/std/ffi/index.ts cyna/build/modules/ffi.ts
 cp cyna/src/std/ffi/c.ts cyna/build/modules/ffi_c.ts
 cp cyna/src/std/ffi/native.ts cyna/build/modules/ffi_native.ts
+cp cyna/src/std/ffi/c_abi/ast.ts cyna/build/modules/ffi_c_abi_ast.ts
+cp cyna/src/std/ffi/c_abi/metadata.ts cyna/build/modules/ffi_c_abi_metadata.ts
+cp cyna/src/std/ffi/c_abi/errors.ts cyna/build/modules/ffi_c_abi_errors.ts
+cp cyna/src/std/ffi/c_abi/lower.ts cyna/build/modules/ffi_c_abi_lower.ts
+cp cyna/src/std/ffi/c_abi/parser.ts cyna/build/modules/ffi_c_abi_parser.ts
+cp cyna/src/std/ffi/c_abi/struct_runtime.ts cyna/build/modules/ffi_c_abi_struct_runtime.ts
 cp cyna/src/std/ffi/c_native.ts cyna/build/modules/ffi_c_native.ts
 cp cyna/src/std/test/native.ts cyna/build/modules/test_native.ts
 cp cyna/src/std/test/index.ts cyna/build/modules/test.ts
