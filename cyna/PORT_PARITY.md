@@ -30,6 +30,14 @@ that adapter.
 
 ## Open behavior checks
 
+- The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
+  `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
+  serviced turn even when its final handle closes. `Loop.run_until_idle` also
+  drains QuickJS jobs between turns. The smoke suite covers timer cancellation,
+  callback errors, and a Promise job between two timer callbacks. This checks
+  the timer path; other libuv handle types and shutdown ordering still need
+  comparison.
+
 - HTTP client trace context was a confirmed difference: with the same local
   HTTP server, `await trace('parent', async () => { await get(url);
   trace('child', () => {}); })` produced `{"sameTrace":true,"parented":true}`
