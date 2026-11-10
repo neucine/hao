@@ -3,6 +3,7 @@ import { run } from 'std:process'
 import { getEnv } from 'std:process'
 import fs from 'std:fs'
 import { get, post, download } from 'std:http'
+import { requestNative } from 'std:http/native'
 
 const serverScript = 'test/e2e/http/server.py'
 
@@ -56,6 +57,16 @@ describe('http module', () => {
     expect(response.headers['X-Hao-Test']).toBe('yes')
     expect(response.json<{ ok: boolean; path: string }>().path).toContain('q=hello%20world')
     expect(response.text()).toContain('"ok": true')
+  })
+
+  test('accepts a legacy native request and a large output allowance', async () => {
+    const raw: any = await requestNative({
+      url: `${serverUrl}/json`, method: 'GET', headers: [],
+      maxBytes: 1_073_741_825, redirect: 'follow',
+    })
+    expect(raw.status).toBe(200)
+    expect(raw.ok).toBe(true)
+    expect(raw.bodyText).toContain('"ok": true')
   })
 
   test('performs a POST request with JSON body helpers', async () => {

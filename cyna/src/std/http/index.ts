@@ -1,76 +1,165 @@
-import { serve } from 'std:http/server';
-export { serve };
+import { requestNative } from "std:http/native";
+import { serve } from "std:http/server";
+
 type HeaderValue = string | string[];
 type HeadersRecord = Record<string, HeaderValue>;
 
-function fail(message: string): never { throw new Error(message); }
-function normalize(url: string, options: any = {}) {
-  if (typeof url !== 'string' || !url) fail('http.request requires a non-empty URL string');
-  if (!options || typeof options !== 'object') fail('http.request options must be an object');
-  if (options.timeoutMs != null) fail('http.request timeoutMs is not implemented yet');
-  if (options.body != null && options.json != null) fail('http.request accepts either body or json, not both');
-  const maxBytes = options.maxBytes ?? 1024 * 1024 * 1024;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1024 * 1024 * 1024) fail('http.request maxBytes must be between 1 and 1073741824');
-  const redirect = options.redirect ?? 'follow';
-  if (redirect !== 'follow' && redirect !== 'manual') fail('Invalid http.request redirect mode');
-  let fullUrl = url;
-  if (options.query) {
-    const parts: string[] = [];
-    for (const [key, value] of Object.entries(options.query)) {
-      if (value == null) continue;
-      if (!['string', 'number', 'boolean'].includes(typeof value)) fail(`http.request query value for ${key} is invalid`);
-      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-    }
-    if (parts.length) fullUrl += (url.includes('?') ? '&' : '?') + parts.join('&');
-  }
-  const headers: [string, string][] = [];
-  if (options.headers) {
-    for (const [key, raw] of Object.entries(options.headers as HeadersRecord)) {
-      if (!key || key.includes('\r') || key.includes('\n') || key.includes(':')) fail('http.request header name is invalid');
-      const values = Array.isArray(raw) ? raw : [raw];
-      for (const value of values) {
-        if (typeof value !== 'string' || value.includes('\r') || value.includes('\n')) fail(`http.request header ${key} must contain only valid string values`);
-        headers.push([key, value]);
-      }
-    }
-  }
-  let method = options.method;
-  if (method == null) method = options.body != null || options.json != null ? 'POST' : 'GET';
-  if (typeof method !== 'string' || !method.trim()) fail('http.request method must be a non-empty string');
-  let body: string | Uint8Array | undefined;
-  if (options.json != null) {
-    body = JSON.stringify(options.json);
-    if (!headers.some(([key]) => key.toLowerCase() === 'content-type')) headers.push(['content-type', 'application/json']);
-  } else if (typeof options.body === 'string') body = options.body;
-  else if (options.body instanceof Uint8Array) body = options.body;
-  else if (options.body instanceof ArrayBuffer) body = new Uint8Array(options.body);
-  else if (options.body != null) fail('http.request body must be a string, Uint8Array, or ArrayBuffer');
-  return { url: fullUrl, method: method.trim().toUpperCase(), headers, body, maxBytes, redirect };
+function fail(message: string): never {
+  throw new Error(message);
 }
 
-export function request(url: string, options?: any) {
-  const normalized = normalize(url, options);
-  return Promise.resolve().then(async () => {
-    const raw = await globalThis.__hao_http_requestNative(normalized);
-    return {
-      status: raw.status, ok: raw.status >= 200 && raw.status < 300,
-      statusText: raw.statusText, headers: raw.headers, url: raw.url,
-      text() { return raw.bodyText; },
-      json() { return JSON.parse(raw.bodyText); },
-      bytes() { return raw.bodyBytes.slice(0); },
-    };
-  });
+function assertUrl(url: string) {
+  if (typeof url !== "string" || url.length === 0) {
+    fail("http.request requires a non-empty URL string");
+  }
 }
-export function get(url: string, options?: any) { return request(url, { ...options, method: 'GET' }); }
-export function post(url: string, options?: any) { return request(url, { ...options, method: 'POST' }); }
-export function download(url: string, path: string, options?: any) {
-  if (typeof path !== 'string' || !path || path.includes('\0')) fail('http.download requires a destination path');
-  if (options?.body != null || options?.json != null || options?.method != null) fail('http.download supports bodiless GET only');
-  const normalized = normalize(url, { ...options, method: 'GET' });
-  normalized.redirect = 'follow';
-  return Promise.resolve().then(async () => ({
-    ...await globalThis.__hao_http_requestNative({ ...normalized, downloadPath: path }),
-    path,
+
+function normalizeMethod(method: unknown, hasBody: boolean): string {
+  if (method == null) return hasBody ? "POST" : "GET";
+  if (typeof method !== "string") {
+    fail("http.request method must be a string");
+  }
+  const normalized = method.trim().toUpperCase();
+  if (!normalized) {
+    fail("http.request method must be a non-empty string");
+  }
+  return normalized;
+}
+
+function appendQuery(url: string, query: Record<string, unknown> | undefined): string {
+  if (!query) return url;
+  const parts: string[] = [];
+  for (const [key, raw] of Object.entries(query)) {
+    if (raw == null) continue;
+    if (typeof raw !== "string" && typeof raw !== "number" && typeof raw !== "boolean") {
+      fail(`http.request query value for ${key} must be string, number, boolean, null, or undefined`);
+    }
+    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(raw))}`);
+  }
+  if (parts.length === 0) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${parts.join("&")}`;
+}
+
+function normalizeHeaders(headers: HeadersRecord | undefined): [string, string][] {
+  if (!headers) return [];
+  const out: [string, string][] = [];
+  for (const [key, raw] of Object.entries(headers)) {
+    if (typeof key !== "string" || key.length === 0) {
+      fail("http.request header names must be non-empty strings");
+    }
+    if (typeof raw === "string") {
+      out.push([key, raw]);
+      continue;
+    }
+    if (Array.isArray(raw)) {
+      for (const value of raw) {
+        if (typeof value !== "string") {
+          fail(`http.request header ${key} must contain only string values`);
+        }
+        out.push([key, value]);
+      }
+      continue;
+    }
+    fail(`http.request header ${key} must be a string or string[]`);
+  }
+  return out;
+}
+
+function ensureUint8Array(body: Uint8Array | ArrayBuffer): Uint8Array {
+  if (body instanceof Uint8Array) return body;
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  fail("http.request body must be a string, Uint8Array, or ArrayBuffer");
+}
+
+function normalize(url: string, opts?: any) {
+  assertUrl(url);
+  const options = opts ?? {};
+  if (options == null || typeof options !== "object") {
+    fail("http.request options must be an object when provided");
+  }
+  if (options.timeoutMs != null) {
+    fail("http.request timeoutMs is not implemented yet");
+  }
+  if (options.body != null && options.json != null) {
+    fail("http.request accepts either body or json, not both");
+  }
+
+  const maxBytes = options.maxBytes ?? 1024 * 1024 * 1024;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) fail('http.request maxBytes must be a positive safe integer');
+  const redirect = options.redirect ?? 'follow';
+  if (redirect !== 'follow' && redirect !== 'manual') fail('Invalid http.request redirect mode');
+  const fullUrl = appendQuery(url, options.query);
+  const headers = normalizeHeaders(options.headers);
+  const normalized: any = {
+    url: fullUrl,
+    maxBytes, redirect,
+    method: normalizeMethod(options.method, options.body != null || options.json != null),
+    headers,
+  };
+
+  if (options.json != null) {
+    normalized.bodyText = JSON.stringify(options.json);
+    const hasContentType = headers.some(([key]) => key.toLowerCase() === "content-type");
+    if (!hasContentType) {
+      normalized.headers = headers.concat([["content-type", "application/json"]]);
+    }
+  } else if (typeof options.body === "string") {
+    normalized.bodyText = options.body;
+  } else if (options.body != null) {
+    normalized.bodyBytes = ensureUint8Array(options.body);
+  }
+
+  return normalized;
+}
+
+function decorateResponse(raw: any) {
+  return {
+    status: raw.status,
+    ok: raw.ok,
+    statusText: raw.statusText,
+    headers: raw.headers,
+    url: raw.url,
+    text(): string {
+      return raw.bodyText;
+    },
+    json<T = unknown>(): T {
+      return JSON.parse(raw.bodyText) as T;
+    },
+    bytes(): Uint8Array {
+      return raw.bodyBytes.slice(0);
+    },
+  };
+}
+
+let dispatch = (request: any) => Promise.resolve().then(() => requestNative(request));
+
+function request(url: string, opts?: any) {
+  const normalized = normalize(url, opts);
+  return dispatch(normalized).then((raw: any) => decorateResponse(raw));
+}
+
+function get(url: string, opts?: any) {
+  return request(url, { ...(opts ?? {}), method: "GET" });
+}
+
+function post(url: string, opts?: any) {
+  return request(url, { ...(opts ?? {}), method: "POST" });
+}
+
+/** Stream a GET response to disk with bounded buffers and atomic replacement. */
+function download(url: string, path: string, opts?: any) {
+  if (typeof path !== "string" || !path || path.includes("\0")) fail("http.download requires a destination path");
+  const maxBytes = opts?.maxBytes ?? 1024 * 1024 * 1024;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) fail("http.download maxBytes must be a positive safe integer");
+  if (opts?.body != null || opts?.json != null || opts?.method != null) fail("http.download supports bodiless GET only");
+  const normalized = normalize(url, { ...opts, method: "GET" });
+  normalized.downloadPath = path;
+  normalized.maxBytes = maxBytes;
+  return dispatch(normalized).then((raw: any) => ({
+    status: raw.status, statusText: raw.statusText, ok: raw.ok,
+    headers: raw.headers, url: raw.url, path, bytesWritten: raw.bytesWritten, sha256: raw.sha256,
   }));
 }
+
+export { request, get, post, download, serve };
 export default { request, get, post, download, serve };

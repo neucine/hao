@@ -295,9 +295,9 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
     if (redirect) { job->manual_redirect = strcmp(redirect, "manual") == 0; free(redirect); }
     JSValue limit = JS_GetPropertyStr(ctx, options, "maxBytes");
     int64_t max_bytes = 0;
-    JS_ToInt64(ctx, &max_bytes, limit);
+    int limit_status = JS_ToInt64(ctx, &max_bytes, limit);
     JS_FreeValue(ctx, limit);
-    if (!job->url || !job->method || max_bytes < 1 || max_bytes > 1024 * 1024 * 1024) return false;
+    if (!job->url || !job->method || limit_status < 0 || max_bytes < 1) return false;
     job->response.limit = (size_t)max_bytes;
     JSValue path = JS_GetPropertyStr(ctx, options, "downloadPath");
     if (JS_IsString(path)) {
