@@ -6,11 +6,36 @@
     "strict": true,
     "noEmit": true,
     "lib": ["ESNext"],
+    "baseUrl": ".",
+    "paths": {
+      "std:ffi": ["cyna/src/std/ffi/index.ts"],
+      "std:ffi/c": ["cyna/src/std/ffi/c.ts"],
+      "std:ffi/c/native": ["types/std/ffi/c_native.d.ts"],
+      "std:ffi/c_abi/*": ["cyna/src/std/ffi/c_abi/*.ts"],
+      "std:ffi/native": ["types/std/ffi/native.d.ts"],
+      "std:fs": ["cyna/src/std/fs/index.ts"],
+      "std:fs/native": ["types/std/fs/native.d.ts"],
+      "std:http": ["cyna/src/std/http/index.ts"],
+      "std:http/native": ["types/std/http/native.d.ts"],
+      "std:http/server": ["cyna/src/std/http/server.ts"],
+      "std:plot": ["cyna/src/std/plot/index.ts"],
+      "std:process": ["cyna/src/std/process/index.ts"],
+      "std:process/native": ["types/std/process/native.d.ts"],
+      "std:runtime": ["cyna/src/std/runtime/index.ts"],
+      "std:telemetry": ["cyna/src/std/telemetry/index.ts"],
+      "std:telemetry/native": ["types/std/telemetry/native.d.ts"],
+      "std:telemetry/dashboard": ["types/std/telemetry/dashboard.d.ts"],
+      "std:test": ["cyna/src/std/test/index.ts"],
+      "std:test/native": ["types/std/test/native.d.ts"],
+      "std:util": ["cyna/src/std/util/index.ts"],
+      "std:util/native": ["types/std/util/native.d.ts"]
+    },
     "allowImportingTsExtensions": true,
     "skipLibCheck": true
   },
   "include": [
     "test/e2e/**/*.ts",
+    "cyna/src/std/**/*.ts",
     "types/**/*.d.ts",
     "types/std/**/*.d.ts"
   ]
