@@ -507,6 +507,13 @@ closeNative(handle);
 try { callNative(handle, 'cos', [0]); } catch (error) { console.log(error.name, error.message); }
 EOF
 test "$("$runtime" "$fixture_dir/ffi-closed.ts")" = 'TypeError FFI: library has been closed'
+cat > "$fixture_dir/ffi-arity.ts" <<'EOF'
+import { openNative, callNative, closeNative } from 'std:ffi/native';
+for (const invoke of [() => openNative('m'), () => callNative(0, 'cos'), () => closeNative()]) {
+  try { invoke(); } catch (error) { console.log(error.name, error.message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/ffi-arity.ts")" = "$(printf 'TypeError dlopen requires 2 arguments: library name and descriptor\nTypeError ffi.callNative requires handle, symbol, and args\nTypeError ffi.closeNative requires a handle')"
 cat > "$fixture_dir/ffi-search.c" <<'EOF'
 #include <stdint.h>
 int hao_search_value(void) { return 29; }

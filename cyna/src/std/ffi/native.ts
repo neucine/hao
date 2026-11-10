@@ -2,6 +2,7 @@ type Descriptor = Record<string, { args: string[]; returns: string }>;
 const types = new Set(['void', 'bool', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64', 'f32', 'f64', 'ptr', 'cstring', 'buffer']);
 
 export function openNative(name: string, descriptor: Descriptor): number {
+  if (arguments.length < 2) throw new TypeError('dlopen requires 2 arguments: library name and descriptor');
   if (typeof name !== 'string' || !name) throw Error('dlopen: invalid library name');
   if (!descriptor || typeof descriptor !== 'object' || Array.isArray(descriptor)) {
     throw Error('dlopen: descriptor must be an object');
@@ -23,8 +24,10 @@ export function openNative(name: string, descriptor: Descriptor): number {
   }
 }
 export function callNative(handle: number, symbol: string, args: unknown[]): unknown {
+  if (arguments.length < 3) throw new TypeError('ffi.callNative requires handle, symbol, and args');
   return globalThis.__hao_ffi_call(handle, symbol, args);
 }
 export function closeNative(handle: number): void {
+  if (arguments.length < 1) throw new TypeError('ffi.closeNative requires a handle');
   globalThis.__hao_ffi_close(handle);
 }
