@@ -42,6 +42,22 @@ if "$runtime" "$fixture_dir/app/unexported.ts" > "$fixture_dir/stdout" 2> "$fixt
 fi
 grep -q 'Cannot resolve package: demo/private' "$fixture_dir/stderr"
 
+cat > "$fixture_dir/process.ts" <<'EOF'
+import { getEnv, run } from 'std:process';
+console.log('env', getEnv('HAO_CYNA_TEST'));
+const output = await run({ cmd: 'sh', args: ['-c', 'printf hello; printf warn >&2'] });
+console.log('run', output.stdout, output.stderr, output.exitCode);
+const value = await run("printf '{\"value\":42}'").json();
+console.log('json', value.value);
+const unchecked = await run({ cmd: 'sh', args: ['-c', 'exit 7'], check: false });
+console.log('unchecked', unchecked.exitCode);
+try { await run({ cmd: 'sh', args: ['-c', 'exit 9'] }); } catch (error) { console.log('checked', error.exitCode); }
+try { await run({ cmd: 'sh', args: ['-c', 'printf 12345'], maxOutputBytes: 3 }); } catch (error) { console.log('limited', error.message); }
+EOF
+process_actual=$(HAO_CYNA_TEST=works "$runtime" "$fixture_dir/process.ts")
+process_expected=$(printf 'env works\nrun hello warn 0\njson 42\nunchecked 7\nchecked 9\nlimited process output exceeds maxOutputBytes')
+test "$process_actual" = "$process_expected"
+
 printf 'console.log("before"); const cancelled = setTimeout(() => console.log("cancelled"), 1); clearTimeout(cancelled); setTimeout(() => { console.log("after"); Promise.resolve().then(() => console.log("microtask")); }, 1);\n' > "$fixture_dir/timer.ts"
 timer_actual=$("$runtime" "$fixture_dir/timer.ts")
 timer_expected=$(printf 'before\nafter\nmicrotask')

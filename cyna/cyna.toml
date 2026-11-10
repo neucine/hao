@@ -5,7 +5,7 @@ type = "exe"
 entry = "src/main.cy"
 
 [c]
-sources = ["bridge.c", "fs_bridge.c"]
+sources = ["bridge.c", "fs_bridge.c", "process_bridge.c"]
 include_paths = ["../zig-pkg/N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp", "../zig-pkg/N-V-__8AABtNRAB58M85Dm0p6z6iRHP3Zz3eyo08HU4EF5mq/include"]
 
 [link]

@@ -41,6 +41,7 @@ extern char *hao_transpile_types_for_path(const char *source, const char *source
 extern char *hao_transpiler_last_error(void);
 extern void hao_transpiler_free(char *text);
 extern void hao_install_fs_globals(JSContext *ctx, JSValue global);
+extern void hao_install_process_globals(JSContext *ctx, JSValue global);
 extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                                unsigned char *output, size_t capacity);
 
@@ -359,6 +360,7 @@ uintptr_t hao_runtime_new(void) {
     JS_SetPropertyStr(host->context, global, "setTimeout", JS_NewCFunction(host->context, hao_set_timeout, "setTimeout", 2));
     JS_SetPropertyStr(host->context, global, "clearTimeout", JS_NewCFunction(host->context, hao_clear_timeout, "clearTimeout", 1));
     hao_install_fs_globals(host->context, global);
+    hao_install_process_globals(host->context, global);
     JS_FreeValue(host->context, global);
     return (uintptr_t)host;
 }
