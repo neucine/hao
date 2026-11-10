@@ -41,6 +41,7 @@ extern JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
 extern void hao_addon_cleanup(JSContext *ctx);
 extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                                unsigned char *output, size_t capacity);
+extern int hao_install_runtime_error(JSContext *ctx);
 void hao_runtime_free(uintptr_t handle);
 
 static void hao_print_value(JSContext *ctx, JSValueConst error) {
@@ -179,19 +180,11 @@ uintptr_t hao_runtime_new(void) {
     hao_install_telemetry_globals(host->context, global);
     hao_install_ffi_globals(host->context, global);
     JS_FreeValue(host->context, global);
-    const char *runtime_error_source =
-        "globalThis.RuntimeError = class RuntimeError extends Error {"
-        "constructor(code, message) { super(message); this.name = 'RuntimeError'; this.code = code; }"
-        "};";
-    JSValue runtime_error_result = JS_Eval(host->context, runtime_error_source,
-        strlen(runtime_error_source), "<runtime-errors>", JS_EVAL_TYPE_GLOBAL);
-    if (JS_IsException(runtime_error_result)) {
+    if (hao_install_runtime_error(host->context) != 0) {
         hao_print_exception(host->context);
-        JS_FreeValue(host->context, runtime_error_result);
         hao_runtime_free((uintptr_t)host);
         return 0;
     }
-    JS_FreeValue(host->context, runtime_error_result);
     return (uintptr_t)host;
 }
 
