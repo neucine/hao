@@ -51,6 +51,12 @@ that adapter.
   including lifecycle and error propagation, using independent consumers.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
   the Zig kernel beyond the current kernel integration test.
+  The Cyna wire layer validates the HMAC and discards malformed multipart
+  messages; its C wire test now checks recovery after a bad signature, an extra
+  frame, and an oversized frame. The Cyna kernel also handles completion,
+  inspection, history, silent execution, and user expressions beyond the Zig
+  handler's request set. Those additions need their own behavior review and
+  do not establish parity for the shared request types.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
 
