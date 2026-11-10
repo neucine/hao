@@ -339,6 +339,34 @@ console.log(page.missed, page.records.length, page.records[0].sequence, page.nex
 EOF
 test "$("$runtime" "$fixture_dir/telemetry-ring.ts")" = 'false 3 2 4'
 test "$(RUNTIME_TELEMETRY_TRACE_RECORDS=8 "$runtime" "$fixture_dir/telemetry-ring.ts")" = 'true 3 513 515'
+cat > "$fixture_dir/telemetry-active-parent.ts" <<'EOF'
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+trace('root', () => trace('active-child', () => {
+  for (let i = 0; i < 520; i++) trace(`finished-${i}`, () => {});
+  trace('grandchild', () => {});
+  const records = snapshotTraceRecordsNative(0, 2000).records;
+  const root = records.find(record => record.name === 'root')!;
+  const child = records.find(record => record.name === 'active-child')!;
+  const grandchild = records.find(record => record.name === 'grandchild')!;
+  console.log(grandchild.trace_id === root.trace_id, grandchild.parent_span_id === child.span_id);
+}));
+EOF
+test "$("$runtime" "$fixture_dir/telemetry-active-parent.ts")" = 'true true'
+cat > "$fixture_dir/telemetry-ended-parent.ts" <<'EOF'
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+trace('root', () => trace('ended-child', () => setTimeout(() => {
+  trace('delayed-grandchild', () => {});
+  const records = snapshotTraceRecordsNative(0, 2000).records;
+  const root = records.find(record => record.name === 'root')!;
+  const child = records.find(record => record.name === 'ended-child')!;
+  const grandchild = records.find(record => record.name === 'delayed-grandchild')!;
+  console.log(grandchild.trace_id === root.trace_id, grandchild.parent_span_id === child.span_id);
+}, 1)));
+for (let i = 0; i < 520; i++) trace(`finished-${i}`, () => {});
+EOF
+test "$("$runtime" "$fixture_dir/telemetry-ended-parent.ts")" = 'true true'
 if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/trace-config.stdout" 2> "$fixture_dir/trace-config.stderr"; then
     echo 'expected zero trace capacity to fail' >&2
     exit 1

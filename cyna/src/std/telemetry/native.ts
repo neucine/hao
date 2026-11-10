@@ -44,19 +44,23 @@ const spans = new Map<number, Span>();
 const spanTraceIds = new Map<number, number>();
 const records: TraceRecord[] = [];
 const traceCapacity = globalThis.__hao_trace_capacity;
-const scopes = new Map<number, number | null>();
+type Context = { span: number | null; trace: number | null };
+const scopes = new Map<number, Context>();
 let nextSpanId = 1;
 let nextSequence = 1;
 let nextScopeId = 1;
 let currentSpan: number | null = null;
+let currentTraceId: number | null = null;
 const scheduleTimeout = globalThis.setTimeout;
 globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ...args: any[]) => {
   if (typeof callback !== 'function') return scheduleTimeout(callback, delay);
   const parent = currentSpan;
+  const traceId = currentTraceId;
   return scheduleTimeout(() => {
-    const previous = currentSpan;
+    const previous = { span: currentSpan, trace: currentTraceId };
     currentSpan = parent;
-    try { callback(...args); } finally { currentSpan = previous; }
+    currentTraceId = traceId;
+    try { callback(...args); } finally { currentSpan = previous.span; currentTraceId = previous.trace; }
   }, delay);
 }) as typeof setTimeout;
 function hex(id: number | null, width: number): string { return (id ?? 0).toString(16).padStart(width, '0'); }
@@ -80,26 +84,37 @@ export function snapshotTraceRecordsNative(since = 0, limit = 100) {
 function createSpan(name: string, parent: number | null): number {
   if (typeof name !== 'string' || !name) throw Error('trace name must be a non-empty string');
   const id = nextSpanId++;
-  const traceId = parent === null ? id : spanTraceIds.get(parent) ?? parent;
+  const traceId = parent === null ? id :
+    parent === currentSpan && currentTraceId !== null ? currentTraceId : spanTraceIds.get(parent) ?? parent;
   const span = { id, traceId, name, parent, start: Date.now() };
   spans.set(id, span);
   spanTraceIds.set(id, traceId);
-  if (spanTraceIds.size > 512) spanTraceIds.delete(spanTraceIds.keys().next().value!);
+  trimTraceIds();
   recordSpan(span, 'span_start');
   return id;
+}
+function trimTraceIds(): void {
+  if (spanTraceIds.size <= 512) return;
+  for (const id of spanTraceIds.keys()) {
+    if (!spans.has(id)) spanTraceIds.delete(id);
+    if (spanTraceIds.size <= 512) break;
+  }
 }
 export function startTraceNative(name: string): number { return createSpan(name, currentSpan); }
 export function startRootTraceNative(name: string): number { return createSpan(name, null); }
 export function enterTraceNative(id: number): number {
   if (!spans.has(id)) throw Error('unknown trace span');
   const scope = nextScopeId++;
-  scopes.set(scope, currentSpan);
+  scopes.set(scope, { span: currentSpan, trace: currentTraceId });
   currentSpan = id;
+  currentTraceId = spans.get(id)!.traceId;
   return scope;
 }
 export function exitTraceNative(scope: number): void {
   if (!scopes.has(scope)) throw Error('unknown trace scope');
-  currentSpan = scopes.get(scope)!;
+  const previous = scopes.get(scope)!;
+  currentSpan = previous.span;
+  currentTraceId = previous.trace;
   scopes.delete(scope);
 }
 export function endTraceNative(id: number, status: 'ok' | 'err' | 'unset' = 'ok'): void {
@@ -107,4 +122,5 @@ export function endTraceNative(id: number, status: 'ok' | 'err' | 'unset' = 'ok'
   if (!span) throw Error('unknown trace span');
   recordSpan(span, 'span_end', status);
   spans.delete(id);
+  trimTraceIds();
 }
