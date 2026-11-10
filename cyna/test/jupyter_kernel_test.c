@@ -112,6 +112,28 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"text/plain\":\"18\"")) saw_18 = 1;
     }
     if (!status && (!saw_name || !saw_18)) status = 16;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"class Box { value() { return 5; } }; new Box().value()\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 28;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"class Box { value() { return 7; } }; new Box().value()\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 29;
+    int saw_5 = 0, saw_7 = 0;
+    for (int i = 0; !status && i < 12 && (!saw_5 || !saw_7); i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 30; break; }
+        if (strstr(content, "\"text/plain\":\"5\"")) saw_5 = 1;
+        if (strstr(content, "\"text/plain\":\"7\"")) saw_7 = 1;
+    }
+    if (!status && (!saw_5 || !saw_7)) status = 31;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"import { name } from 'std:runtime'; name\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 32;
+    int saw_reimport = 0;
+    for (int i = 0; !status && i < 6 && !saw_reimport; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 33; break; }
+        if (strstr(content, "\"text/plain\":\"hao\"")) saw_reimport = 1;
+    }
+    if (!status && !saw_reimport) status = 34;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"({ repr() { return { mime: 'image/svg+xml', data: '<svg/>' }; } })\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\""))) status = 17;

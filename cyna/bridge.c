@@ -632,6 +632,15 @@ static char *hao_rewrite_cell_declarations(const char *source) {
         } else if (count >= 4 && !memcmp(line, "let ", 4)) {
             memcpy(output + at, "var ", 4); at += 4;
             memcpy(output + at, line + 4, count - 4); at += count - 4;
+        } else if (count >= 7 && !memcmp(line, "class ", 6)) {
+            size_t name_end = 6;
+            while (name_end < count && line[name_end] != ' ' && line[name_end] != '{' && line[name_end] != '\t') name_end++;
+            if (name_end > 6) {
+                memcpy(output + at, "var ", 4); at += 4;
+                memcpy(output + at, line + 6, name_end - 6); at += name_end - 6;
+                memcpy(output + at, " = ", 3); at += 3;
+            }
+            memcpy(output + at, line, count); at += count;
         } else {
             memcpy(output + at, line, count); at += count;
         }

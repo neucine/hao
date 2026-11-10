@@ -16,6 +16,7 @@ Notebook cells support `std:` and relative static imports. Objects with a
 results are published as Jupyter `display_data`. Promise results are awaited,
 including timer delayed resolution and rejection. Broader rich display parity
 is still pending.
+Top level `const`, `let`, and class declarations can be redefined in later cells.
 The build also produces a Cyna runtime static library with the C API in
 `include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 
