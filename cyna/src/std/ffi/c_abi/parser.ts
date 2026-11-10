@@ -40,7 +40,11 @@ export function parse(declarations: string, opts: any): Prepared {
   const pods: Record<string, PodSpec> = {};
   const podBodies: Record<string, string> = {};
   const withoutPods = source.replace(/typedef\s+struct\s*\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;/g,
-    (_whole, body: string, name: string) => { podBodies[name] = body; return ''; });
+    (_whole, body: string, name: string) => {
+      if (name in podBodies) throw invalidArg(`duplicate C type: ${name}`);
+      podBodies[name] = body;
+      return '';
+    });
   const resolving = new Set<string>();
   const resolvePod = (name: string): PodSpec | null => {
     if (pods[name]) return pods[name];
@@ -59,11 +63,13 @@ export function parse(declarations: string, opts: any): Prepared {
     if (statement.startsWith('typedef ')) {
       const declaration = /^typedef\s+struct\s+([A-Za-z_]\w*)\s+([A-Za-z_]\w*)$/.exec(statement);
       if (!declaration || declaration[1] !== declaration[2]) throw invalidArg(`unsupported C typedef: ${statement}`);
+      if (opaqueTypes.has(declaration[1]) || declaration[1] in podBodies) throw invalidArg(`duplicate C type: ${declaration[1]}`);
       opaqueTypes.add(declaration[1]);
       continue;
     }
     const match = /^([\s\S]+?[\s*])([A-Za-z_]\w*)\s*\(([^()]*)\)$/.exec(statement);
     if (!match) throw invalidArg(`invalid C declaration: ${statement}`);
+    if (functions.some(item => item.name === match[2])) throw invalidArg(`duplicate C function: ${match[2]}`);
     const params: Parameter[] = [];
     if (match[3].trim() && match[3].trim() !== 'void') {
       for (const rawParam of match[3].split(',')) {
