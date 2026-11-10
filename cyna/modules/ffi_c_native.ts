@@ -121,8 +121,14 @@ function parse(declarations: string, opts: any): Prepared {
         (!opaqueTypes.has(policy.returns.type) || functions.find(item => item.name === name)!.returns !== 'ptr')) {
       throw Error(`invalid C handle return policy: ${name}`);
     }
-    if (policy?.errors?.message && typeof policy.errors.message !== 'string') {
-      throw Error('C error message helpers are not ported yet');
+    const message = policy?.errors?.message;
+    if (message != null && typeof message !== 'string') {
+      if (!message || typeof message !== 'object' || typeof message.from !== 'string' ||
+          !functions.some(item => item.name === message.from) ||
+          message.arg != null && (typeof message.arg !== 'string' ||
+            !functions.find(item => item.name === name)!.params.some(param => param.name === message.arg))) {
+        throw Error(`invalid C error message source: ${name}`);
+      }
     }
   }
   for (const [type, policy] of Object.entries(opts?.handles ?? {}) as [string, any][]) {
@@ -276,7 +282,20 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
   if (errors?.kind === 'status' && raw !== (errors.ok ?? 0) ||
       errors?.kind === 'null' && (raw === null || raw === 0) ||
       errors?.kind === 'sentinel' && raw === errors.value) {
-    const error: any = new Error(typeof errors.message === 'string' ? errors.message : `${symbol} failed`);
+    let message = typeof errors.message === 'string' ? errors.message : `${symbol} failed`;
+    if (errors.message && typeof errors.message === 'object') {
+      const source = errors.message;
+      const helper = prepared.functions.find(item => item.name === source.from);
+      if (helper && helper.params.length <= 1 && (helper.params.length === 0 || source.arg)) {
+        const argument = source.arg === policy?.returns?.out ? native.out : values.get(source.arg);
+        try {
+          const supplied = globalThis.__hao_ffi_call(handle, source.from,
+            helper.params.length === 0 ? [] : [argument]);
+          if (typeof supplied === 'string') message = supplied;
+        } catch { /* retain the original call failure */ }
+      }
+    }
+    const error: any = new Error(message);
     if (errors.code) error.code = errors.code;
     throw error;
   }

@@ -115,6 +115,8 @@ argument classes and typed array pointers. The C declaration wrapper supports
 direct function declarations and pointer plus length buffer policies. Calls
 are limited to eight arguments. The C declaration wrapper supports one hidden
 pointer output parameter through `returns.out`, including status error policies.
+Error policies can call a declared C helper for the message, using a named
+argument from the failed call.
 Opaque struct typedefs and returned handle policies are supported, including
 configured close functions. POD struct pointers stage scalar and nested fields
 with C alignment and copy changed fields back to the JavaScript object. C
