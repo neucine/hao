@@ -151,7 +151,7 @@ EOF
 test "$("$runtime" "$fixture_dir/http-in-process.ts")" = '/one POST true'
 
 test_summary=$("$runtime" test "$repo_root/test/e2e/test" | tail -1)
-test "$test_summary" = '30 passed, 0 failed, 7 skipped'
+test "$test_summary" = '31 passed, 0 failed, 7 skipped'
 cat > "$fixture_dir/expected-failure.test.ts" <<'EOF'
 import { test, expect } from 'std:test';
 test('failure changes exit status', () => expect(1).toBe(2));
@@ -161,6 +161,32 @@ if "$runtime" test "$fixture_dir/expected-failure.test.ts" > "$fixture_dir/test-
     exit 1
 fi
 grep -q '0 passed, 1 failed, 0 skipped' "$fixture_dir/test-output"
+cat > "$fixture_dir/hook-failure.test.ts" <<'EOF'
+import { describe, test, beforeAll, beforeEach, afterEach, afterAll } from 'std:test';
+describe('blocked', () => {
+  beforeAll(() => { throw Error('setup failed'); });
+  afterAll(() => console.log('blocked cleanup'));
+  test('first', () => {});
+  test('second', () => {});
+});
+describe('partial setup', () => {
+  beforeEach(() => console.log('outer setup'));
+  afterEach(() => console.log('outer cleanup'));
+  describe('inner', () => {
+    beforeEach(() => { throw Error('inner setup failed'); });
+    afterEach(() => console.log('inner cleanup'));
+    test('body', () => console.log('body should not run'));
+  });
+});
+EOF
+if "$runtime" test "$fixture_dir/hook-failure.test.ts" > "$fixture_dir/hook-output" 2> "$fixture_dir/hook-stderr"; then
+    exit 1
+fi
+grep -q '0 passed, 2 failed, 1 skipped' "$fixture_dir/hook-output"
+grep -q 'outer cleanup' "$fixture_dir/hook-output"
+if grep -q 'inner cleanup\|body should not run' "$fixture_dir/hook-output"; then
+    exit 1
+fi
 cat > "$fixture_dir/capture-child.ts" <<'EOF'
 console.log('child output');
 console.error('child warning');

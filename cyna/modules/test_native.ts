@@ -58,7 +58,7 @@ function qualifiedName(item: Case): string {
   return [...chain(item.suite).map(part => part.name).filter(Boolean), item.name].join(' > ');
 }
 async function hooks(nodes: Suite[], kind: HookKind): Promise<void> {
-  for (const node of nodes) for (const hook of node.hooks[kind]) {
+  for (const node of nodes) for (const hook of kind === 'after_each' ? [...node.hooks[kind]].reverse() : node.hooks[kind]) {
     globalThis.__hao_test_filePath = hook.file;
     await hook.fn();
   }
@@ -70,6 +70,7 @@ export async function runRegistered(): Promise<void> {
   const hasOnly = cases.some(item => item.mode === 'only');
   const grep = globalThis.__hao_test_grep;
   const entered = new Set<Suite>();
+  const blocked = new Set<Suite>();
   let passed = 0, failed = 0, skipped = 0;
   console.log(`Found ${cases.length} test case(s)`);
   for (const item of cases) {
@@ -82,16 +83,35 @@ export async function runRegistered(): Promise<void> {
     }
     const nodes = chain(item.suite);
     let error: unknown = null;
+    let caseFailed = false;
+    let completedScopes = 0;
+    let blockedCase = false;
     try {
       for (const node of nodes) {
-        if (!entered.has(node)) { entered.add(node); await hooks([node], 'before_all'); }
+        if (blocked.has(node)) {
+          skipped++;
+          console.log(`SKIP ${name} (beforeAll)`);
+          blockedCase = true;
+          break;
+        }
+        if (!entered.has(node)) {
+          entered.add(node);
+          try { await hooks([node], 'before_all'); }
+          catch (caught) { blocked.add(node); throw caught; }
+        }
       }
-      await hooks(nodes, 'before_each');
+      if (blockedCase) continue;
+      for (const node of nodes) {
+        await hooks([node], 'before_each');
+        completedScopes++;
+      }
       await item.fn();
-    } catch (caught) { error = caught; }
-    try { await hooks([...nodes].reverse(), 'after_each'); }
-    catch (caught) { if (!error) error = caught; }
-    if (error) {
+    } catch (caught) { error = caught; caseFailed = true; }
+    for (const node of nodes.slice(0, completedScopes).reverse()) {
+      try { await hooks([node], 'after_each'); }
+      catch (caught) { if (!caseFailed) { error = caught; caseFailed = true; } }
+    }
+    if (caseFailed) {
       failed++;
       console.log(`FAIL ${name}: ${error}`);
     } else {

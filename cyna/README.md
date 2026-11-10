@@ -55,7 +55,8 @@ created on the event loop thread after each transfer completes.
 `std:test` uses Hao's existing TypeScript assertion and mock APIs with a Cyna
 hosted suite registry. Run a file or directory with
 `./cyna/build/hao-cyna test [--grep pattern] <file-or-dir>...`. The runner
-supports async tests and hooks, skip and only modes, and a failing exit status.
+supports async tests and hooks, skip and only modes, a failing exit status,
+reverse cleanup hook order, and blocked suites after failed setup.
 `captureOutput` captures `console.log`, `console.error`, and `console.warn`
 from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The original runner's reporting and
