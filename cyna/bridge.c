@@ -2,6 +2,7 @@
 #include "src/runtime_allocator.h"
 #include <uv.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,9 +12,9 @@
 
 static bool positive_size_env(const char *name, size_t *out, bool *present) {
     const char *value = getenv(name);
-    *present = value && *value;
+    *present = value != NULL;
     if (!*present) return true;
-    if (*value == '-' || *value == '+' || *value == ' ') return false;
+    if (!*value || *value == '-' || isspace((unsigned char)*value)) return false;
     errno = 0;
     char *end = NULL;
     unsigned long long parsed = strtoull(value, &end, 10);

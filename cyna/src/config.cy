@@ -9,7 +9,11 @@ pub struct TelemetryConsoleSettings {
 }
 
 fn parse_port(raw: string): u16 ! ConfigError {
-    const bytes = raw.bytes();
+    var digits = raw.clone();
+    if digits.starts_with("+") {
+        digits = digits.slice(1, digits.len());
+    }
+    const bytes = digits.bytes();
     if bytes.len() == 0 {
         throw ConfigError.invalid_value;
     }
@@ -22,7 +26,7 @@ fn parse_port(raw: string): u16 ! ConfigError {
     if all_zero {
         return 0;
     }
-    const value = try parse_positive_usize(raw);
+    const value = try parse_positive_usize(digits);
     if value > 65535 {
         throw ConfigError.invalid_value;
     }

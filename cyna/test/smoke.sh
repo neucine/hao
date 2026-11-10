@@ -99,7 +99,18 @@ PY
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-limit.json")" = "$(printf 'tcp://127.0.0.1:1\n\nhmac-sha256')"
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
+test "$(RUNTIME_QJS_STACK_SIZE=+16777216 "$runtime" "$fixture_dir/main.ts")" = "$expected"
+test "$(RUNTIME_TELEMETRY_CONSOLE=0 RUNTIME_TELEMETRY_CONSOLE_PORT=+0 "$runtime" "$fixture_dir/main.ts")" = "$expected"
+test "$(RUNTIME_TELEMETRY_CONSOLE=0 RUNTIME_TELEMETRY_CONSOLE_PORT=+1 "$runtime" "$fixture_dir/main.ts")" = "$expected"
 if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
+    exit 1
+fi
+if RUNTIME_QJS_STACK_SIZE= "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
+    echo 'expected an explicitly empty stack size to fail' >&2
+    exit 1
+fi
+if RUNTIME_QJS_STACK_SIZE="$(printf '\t16777216')" "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
+    echo 'expected leading whitespace in stack size to fail' >&2
     exit 1
 fi
 cat > "$fixture_dir/settings.env" <<'EOF'
