@@ -1,5 +1,18 @@
-import { exists, read_bytes, write_bytes } from std.fs;
+import { exists, read_file, read_bytes, write_bytes } from std.fs;
 import { copy_bytes, copy_output, text_from_c } from .c_bytes;
+
+extern c("hao_fs_within_limit") fn within_limit(path: *const c_uchar, length: c_size_t, limit: c_size_t): c_int;
+
+pub fn read_file_limited(path: string, max_bytes: usize): ?string {
+    const bytes = path.bytes();
+    if within_limit(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
+        max_bytes as c_size_t) == 0 {
+        return none;
+    }
+    const source = read_file(path) catch (code) { return none; };
+    if source.len() > max_bytes { return none; }
+    return source;
+}
 
 export c("hao_fs_exists") fn fs_exists(path_pointer: *const c_uchar): c_int {
     const path = text_from_c(path_pointer);

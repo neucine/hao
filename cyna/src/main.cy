@@ -1,5 +1,5 @@
 import { args, exe_path } from std.process;
-import { read_file } from std.fs;
+import { read_file_limited } from .fs;
 import { Runtime } from .runtime;
 import { install } from .std;
 import { collect, sort } from .std.test_files;
@@ -19,11 +19,12 @@ fn usage(): void {
 }
 
 fn run_file(host: &const Runtime, path: string): i32 {
-    const source = read_file(path.clone()) catch (code) {
-        println("Unable to read script");
-        return 1;
-    };
-    return host.eval(source, path);
+    const source = read_file_limited(path.clone(), 10 * 1024 * 1024);
+    if source is content {
+        return host.eval(content, path);
+    }
+    println("Unable to read script");
+    return 1;
 }
 
 fn main(): i32 {

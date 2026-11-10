@@ -1,6 +1,7 @@
 #include <quickjs.h>
 #include "../../runtime_allocator.h"
 #include <stdint.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,15 @@
 extern int hao_fs_exists(const unsigned char *path);
 extern int hao_fs_read_into(const unsigned char *path, unsigned char *output, size_t capacity);
 extern int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);
+
+int hao_fs_within_limit(const unsigned char *path, size_t length, size_t limit) {
+    if (!path || length > PATH_MAX) return 0;
+    char buffer[PATH_MAX + 1];
+    memcpy(buffer, path, length);
+    buffer[length] = 0;
+    struct stat info;
+    return stat(buffer, &info) == 0 && info.st_size >= 0 && (uintmax_t)info.st_size <= limit;
+}
 
 unsigned char hao_byte_at(const unsigned char *pointer, size_t index) {
     return pointer[index];

@@ -23,6 +23,20 @@ expected=$(printf 'answer 42\ndrained')
 test "$actual" = "$expected"
 relative_actual=$(cd "$fixture_dir" && "$runtime" main.ts)
 test "$relative_actual" = "$expected"
+python3 - "$runtime" "$fixture_dir" <<'PY'
+from pathlib import Path
+import subprocess, sys
+path = Path(sys.argv[2]) / 'oversize.ts'
+path.write_bytes(b' ' * (10 * 1024 * 1024 + 1))
+result = subprocess.run([sys.argv[1], str(path)], capture_output=True, text=True)
+assert result.returncode == 1 and 'Unable to read script' in result.stdout, result
+dotenv = Path(sys.argv[2]) / 'oversize.env'
+dotenv.write_bytes(b'#' * (1024 * 1024 + 1))
+import os
+result = subprocess.run([sys.argv[1], str(Path(sys.argv[2]) / 'main.ts')],
+    env={**os.environ, 'DOTENV': str(dotenv)}, capture_output=True, text=True)
+assert result.returncode == 1 and 'Unable to load dotenv file' in result.stdout, result
+PY
 cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
 clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
     "$repo_root/cyna/embed/build/libhao-cyna-embed.a" \

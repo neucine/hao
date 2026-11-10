@@ -1,4 +1,5 @@
-import { exists, read_file } from std.fs;
+import { exists } from std.fs;
+import { read_file_limited } from .fs;
 import { dirname, join } from std.path;
 import { env_get } from std.process;
 import { Value, parse } from std.json;
@@ -127,10 +128,8 @@ fn find_entry(root: string, entry: string, package_type: ?string): ?string {
 
 fn resolve_in(root: string, subpath: string): ?string {
     const manifest_path = join2(root, "package.json");
-    const source = read_file(manifest_path) catch (code) {
-        return none;
-    };
-    if source.len() > 256 * 1024 {
+    const source = read_file_limited(manifest_path, 256 * 1024);
+    if source is none {
         return none;
     }
     const manifest = parse(source) catch (code) {

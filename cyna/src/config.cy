@@ -1,4 +1,5 @@
-import { exists, read_file } from std.fs;
+import { exists } from std.fs;
+import { read_file_limited } from .fs;
 import { env_get, env_set } from std.process;
 import { parse_bool, parse_positive_usize, ConfigError } from std.config;
 
@@ -139,10 +140,8 @@ pub fn load_dotenv(): i32 {
             return 0;
         }
     }
-    const content = read_file(path) catch (code) {
-        return 1;
-    };
-    if content.len() > 1024 * 1024 {
+    const content = read_file_limited(path, 1024 * 1024);
+    if content is none {
         return 1;
     }
     const bytes = content.bytes();
