@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:2", base); zmq_connect(control, endpoint);
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:3", base); zmq_connect(iopub, endpoint);
     usleep(300000);
-    char content[2048]; int status = 0;
+    char content[65536]; int status = 0;
     if (send_request(shell, "kernel_info_request", "{}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"implementation\":\"hao\"")) status = 5;
@@ -156,6 +156,15 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"image/svg+xml\":\"<svg/>\"")) saw_svg = 1;
     }
     if (!status && !saw_svg) status = 19;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"import { figure, plot, show } from 'std:plot'; figure({ width: 120, height: 80 }); plot([0, 1], [0, 1]); show()\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 38;
+    int saw_plot = 0;
+    for (int i = 0; !status && i < 6 && !saw_plot; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 39; break; }
+        if (strstr(content, "\"image/svg+xml\":\"<svg")) saw_plot = 1;
+    }
+    if (!status && !saw_plot) status = 40;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"Promise.resolve(41).then(value => value + 1)\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\""))) status = 21;
