@@ -8,6 +8,7 @@ export type MetricSnapshot = {
 declare global {
   var __hao_trace_capacity: number;
   var __hao_telemetry_monotonicNs: () => number;
+  var __hao_telemetry_randomHexId: (bytes: 8 | 16) => string;
   var __hao_telemetry_register: (definition: MetricDefinition) => number;
   var __hao_telemetry_add: (id: number, delta: number) => void;
   var __hao_telemetry_set: (id: number, value: number) => void;
@@ -37,36 +38,42 @@ export function clearMetricsNative(): void {
   globalThis.__hao_telemetry_clear();
 }
 
-type Span = { id: number; traceId: number; name: string; parent: number | null; start: number };
+type Span = { id: number; traceId: string; spanId: string; parentSpanId: string; name: string };
 type TraceAttributeValue = boolean | number | string;
 type TraceAttributes = Record<string, TraceAttributeValue>;
 type TraceRecord = { sequence: number; kind: 'span_start' | 'event' | 'span_end'; timestamp_ns: number;
   trace_id: string; span_id: string; parent_span_id: string; name: string;
   status: string; attributes: TraceAttributes };
 const spans = new Map<number, Span>();
-const spanTraceIds = new Map<number, number>();
+const spanTraceIds = new Map<number, string>();
+const spanIds = new Map<number, string>();
 const records: TraceRecord[] = [];
 const traceCapacity = globalThis.__hao_trace_capacity;
-type Context = { span: number | null; trace: number | null };
+type Context = { span: number | null; trace: string | null; spanId: string | null };
 const scopes = new Map<number, Context>();
 let nextSpanId = 1;
 let nextSequence = 1;
 let nextScopeId = 1;
 let currentSpan: number | null = null;
-let currentTraceId: number | null = null;
+let currentTraceId: string | null = null;
+let currentSpanId: string | null = null;
 const scheduleTimeout = globalThis.setTimeout;
 globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ...args: any[]) => {
   if (typeof callback !== 'function') return scheduleTimeout(callback, delay);
   const parent = currentSpan;
   const traceId = currentTraceId;
+  const spanId = currentSpanId;
   return scheduleTimeout(() => {
-    const previous = { span: currentSpan, trace: currentTraceId };
+    const previous = { span: currentSpan, trace: currentTraceId, spanId: currentSpanId };
     currentSpan = parent;
     currentTraceId = traceId;
-    try { callback(...args); } finally { currentSpan = previous.span; currentTraceId = previous.trace; }
+    currentSpanId = spanId;
+    try { callback(...args); } finally {
+      currentSpan = previous.span; currentTraceId = previous.trace; currentSpanId = previous.spanId;
+    }
   }, delay);
 }) as typeof setTimeout;
-function hex(id: number | null, width: number): string { return (id ?? 0).toString(16).padStart(width, '0'); }
+const rootSpanId = '0000000000000000';
 function utf8Length(value: string): number {
   let bytes = 0;
   for (const character of value) {
@@ -97,7 +104,8 @@ function recordSpan(span: Span, kind: 'span_start' | 'span_end' | 'event', statu
   if (utf8Length(name) > 96) throw Error('trace name too long');
   const copied = copyAttributes(attributes);
   records.push({ sequence: nextSequence++, kind, timestamp_ns: globalThis.__hao_telemetry_monotonicNs(),
-    trace_id: hex(span.traceId, 32), span_id: hex(span.id, 16), parent_span_id: hex(kind === 'event' ? null : span.parent, 16),
+    trace_id: span.traceId, span_id: span.spanId,
+    parent_span_id: kind === 'span_start' ? span.parentSpanId : rootSpanId,
     name, status, attributes: copied });
   if (records.length > traceCapacity) records.shift();
 }
@@ -115,20 +123,25 @@ export function snapshotTraceRecordsNative(since = 0, limit = 100) {
 function createSpan(name: string, parent: number | null, attributes: TraceAttributes = {}): number {
   if (typeof name !== 'string' || !name || utf8Length(name) > 96) throw Error('invalid trace name');
   const id = nextSpanId++;
-  const traceId = parent === null ? id :
-    parent === currentSpan && currentTraceId !== null ? currentTraceId : spanTraceIds.get(parent) ?? parent;
-  const span = { id, traceId, name, parent, start: Date.now() };
+  const traceId = parent === null ? globalThis.__hao_telemetry_randomHexId(16) :
+    parent === currentSpan && currentTraceId !== null ? currentTraceId :
+    spanTraceIds.get(parent) ?? globalThis.__hao_telemetry_randomHexId(16);
+  const spanId = globalThis.__hao_telemetry_randomHexId(8);
+  const parentSpanId = parent === null ? rootSpanId :
+    parent === currentSpan && currentSpanId !== null ? currentSpanId : spanIds.get(parent) ?? rootSpanId;
+  const span = { id, traceId, spanId, parentSpanId, name };
   spans.set(id, span);
   spanTraceIds.set(id, traceId);
+  spanIds.set(id, spanId);
   trimTraceIds();
   try { recordSpan(span, 'span_start', 'unset', name, attributes); }
-  catch (error) { spans.delete(id); spanTraceIds.delete(id); throw error; }
+  catch (error) { spans.delete(id); spanTraceIds.delete(id); spanIds.delete(id); throw error; }
   return id;
 }
 function trimTraceIds(): void {
   if (spanTraceIds.size <= 512) return;
   for (const id of spanTraceIds.keys()) {
-    if (!spans.has(id)) spanTraceIds.delete(id);
+    if (!spans.has(id)) { spanTraceIds.delete(id); spanIds.delete(id); }
     if (spanTraceIds.size <= 512) break;
   }
 }
@@ -143,9 +156,10 @@ export function addTraceEventNative(id: number, name: string, attributes: TraceA
 export function enterTraceNative(id: number): number {
   if (!spans.has(id)) throw Error('unknown trace span');
   const scope = nextScopeId++;
-  scopes.set(scope, { span: currentSpan, trace: currentTraceId });
+  scopes.set(scope, { span: currentSpan, trace: currentTraceId, spanId: currentSpanId });
   currentSpan = id;
   currentTraceId = spans.get(id)!.traceId;
+  currentSpanId = spans.get(id)!.spanId;
   return scope;
 }
 export function exitTraceNative(scope: number): void {
@@ -153,6 +167,7 @@ export function exitTraceNative(scope: number): void {
   const previous = scopes.get(scope)!;
   currentSpan = previous.span;
   currentTraceId = previous.trace;
+  currentSpanId = previous.spanId;
   scopes.delete(scope);
 }
 export function endTraceNative(id: number, status: 'ok' | 'err' | 'unset' = 'ok'): void {

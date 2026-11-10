@@ -218,8 +218,25 @@ static JSValue monotonic_time_ns(JSContext *ctx, JSValueConst this_val, int argc
     (void)this_val; (void)argc; (void)argv;
     return JS_NewFloat64(ctx, (double)uv_hrtime());
 }
+static JSValue random_hex_id(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    int32_t length;
+    if (argc < 1 || JS_ToInt32(ctx, &length, argv[0]) < 0) return JS_EXCEPTION;
+    if (length != 8 && length != 16) return JS_ThrowRangeError(ctx, "trace ID must use 8 or 16 bytes");
+    unsigned char bytes[16];
+    if (uv_random(NULL, NULL, bytes, (size_t)length, 0, NULL) != 0)
+        return JS_ThrowInternalError(ctx, "unable to generate trace ID");
+    static const char hex[] = "0123456789abcdef";
+    char encoded[32];
+    for (int32_t i = 0; i < length; i++) {
+        encoded[i * 2] = hex[bytes[i] >> 4];
+        encoded[i * 2 + 1] = hex[bytes[i] & 15];
+    }
+    return JS_NewStringLen(ctx, encoded, (size_t)length * 2);
+}
 void hao_install_telemetry_globals(JSContext *ctx, JSValue global) {
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_monotonicNs", JS_NewCFunction(ctx, monotonic_time_ns, "monotonicNs", 0));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_randomHexId", JS_NewCFunction(ctx, random_hex_id, "randomHexId", 1));
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_memorySnapshot", JS_NewCFunction(ctx, memory_snapshot, "memorySnapshot", 0));
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_register", JS_NewCFunction(ctx, metric_register_js, "register", 1));
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_add", JS_NewCFunctionMagic(ctx, metric_action_js, "add", 2, JS_CFUNC_generic_magic, 0));

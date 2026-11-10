@@ -319,6 +319,10 @@ for flag in ('1', 'true', 'yes', 'on'):
         assert [record['kind'] for record in traces['records'] if record['name'] == 'fixture-trace'] == ['span_start', 'span_end']
         assert [record['kind'] for record in traces['records'] if record['name'] in ('fixture-event', 'fixture-received')] == ['span_start', 'event', 'span_end']
         assert next(record for record in traces['records'] if record['name'] == 'fixture-received')['attributes']['bytes'] == 42
+        roots = [record for record in traces['records'] if record['kind'] == 'span_start']
+        assert len(roots) == 2 and roots[0]['trace_id'] != roots[1]['trace_id']
+        assert all(re.fullmatch('[0-9a-f]{32}', record['trace_id']) and
+                   re.fullmatch('[0-9a-f]{16}', record['span_id']) for record in traces['records'])
         later = json.loads(get('/api/traces?since=1&limit=1'))
         assert later['records'][0]['sequence'] == 2 and later['next_cursor'] == 2
         assert '<title>Hao Telemetry</title>' in get('/')
