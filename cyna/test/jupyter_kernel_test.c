@@ -47,6 +47,8 @@ static int receive_content(void *socket, char *out, size_t capacity) {
 
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
+    char *runtime = realpath(argv[1], NULL);
+    if (!runtime) return 2;
     alarm(15);
     char base[100], path[130], endpoint[150], json[1024];
     snprintf(base, sizeof(base), "/tmp/hao-kernel-test-%ld", (long)getpid());
@@ -54,8 +56,12 @@ int main(int argc, char **argv) {
     snprintf(json, sizeof(json), "{\"transport\":\"ipc\",\"ip\":\"%s\",\"shell_port\":1,\"control_port\":2,\"iopub_port\":3,\"stdin_port\":4,\"hb_port\":5,\"key\":\"secret\",\"signature_scheme\":\"hmac-sha256\"}", base);
     FILE *file = fopen(path, "wb"); if (!file) return 3;
     fwrite(json, 1, strlen(json), file); fclose(file);
+    char module_path[160];
+    snprintf(module_path, sizeof(module_path), "%s-value.ts", base);
+    file = fopen(module_path, "wb"); if (!file) return 3;
+    fputs("export const answer = 17;\n", file); fclose(file);
     pid_t child = fork();
-    if (child == 0) { execl(argv[1], argv[1], "jupyter", "--connection-file", path, (char *)NULL); _exit(127); }
+    if (child == 0) { if (chdir("/tmp") < 0) _exit(127); execl(runtime, runtime, "jupyter", "--connection-file", path, (char *)NULL); _exit(127); }
     if (child < 0) return 4;
     void *context = zmq_ctx_new();
     void *shell = zmq_socket(context, ZMQ_DEALER);
@@ -90,6 +96,21 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"text/plain\":\"22\"")) saw_22 = 1;
     }
     if (!status && (!saw_42 || !saw_22)) status = 11;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"import { name } from 'std:runtime'; name\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 13;
+    char import_request[400];
+    snprintf(import_request, sizeof(import_request), "{\"code\":\"import { answer } from './hao-kernel-test-%ld-value.ts'; answer + 1\"}", (long)getpid());
+    if (!status && (send_request(shell, "execute_request", import_request) < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) { fprintf(stderr, "import reply: %s\n", content); status = 14; }
+    int saw_name = 0, saw_18 = 0;
+    for (int i = 0; !status && i < 12 && (!saw_name || !saw_18); i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 15; break; }
+        if (strstr(content, "\"text/plain\":\"hao\"")) saw_name = 1;
+        if (strstr(content, "\"text/plain\":\"18\"")) saw_18 = 1;
+    }
+    if (!status && (!saw_name || !saw_18)) status = 16;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"throw new Error('broken')\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\""))) status = 12;
@@ -101,6 +122,8 @@ int main(int argc, char **argv) {
     if (!status && (!WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0)) status = 9;
     zmq_close(shell); zmq_close(control); zmq_close(iopub); zmq_ctx_term(context);
     unlink(path);
+    unlink(module_path);
+    free(runtime);
     for (int port = 1; port <= 5; port++) { snprintf(endpoint, sizeof(endpoint), "%s:%d", base, port); unlink(endpoint); }
     if (!status) puts("kernel ok");
     return status;

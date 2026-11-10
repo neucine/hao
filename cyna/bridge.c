@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct HaoSourceModule {
     char *name;
@@ -58,6 +59,8 @@ struct HaoTimer {
 };
 
 extern char *hao_transpile_types_for_path(const char *source, const char *source_path);
+extern char *hao_transform_module(const char *source, const char *source_path,
+                                  uint8_t isolated, const char *namespace_root);
 extern char *hao_transpiler_last_error(void);
 extern void hao_transpiler_free(char *text);
 extern void hao_install_fs_globals(JSContext *ctx, JSValue global);
@@ -614,6 +617,112 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
     return status;
 }
 
+static char *hao_rewrite_cell_declarations(const char *source) {
+    size_t length = strlen(source);
+    char *output = malloc(length * 2 + 1);
+    if (!output) return NULL;
+    size_t at = 0;
+    const char *line = source;
+    while (*line) {
+        const char *end = strchr(line, '\n');
+        size_t count = end ? (size_t)(end - line) : strlen(line);
+        if (count >= 6 && !memcmp(line, "const ", 6)) {
+            memcpy(output + at, "var ", 4); at += 4;
+            memcpy(output + at, line + 6, count - 6); at += count - 6;
+        } else if (count >= 4 && !memcmp(line, "let ", 4)) {
+            memcpy(output + at, "var ", 4); at += 4;
+            memcpy(output + at, line + 4, count - 4); at += count - 4;
+        } else {
+            memcpy(output + at, line, count); at += count;
+        }
+        if (end) { output[at++] = '\n'; line = end + 1; }
+        else break;
+    }
+    output[at] = 0;
+    return output;
+}
+
+static char *hao_prepare_cell(JSContext *ctx, const char *source, const char *filename) {
+    char *manifest_text = hao_transform_module(source, filename, 0, "__hao_jupyter_module_cache");
+    if (!manifest_text) {
+        char *error = hao_transpiler_last_error();
+        JS_ThrowSyntaxError(ctx, "%s", error ? error : "Cell transpilation failed");
+        if (error) hao_transpiler_free(error);
+        return NULL;
+    }
+    JSValue manifest = JS_ParseJSON(ctx, manifest_text, strlen(manifest_text), filename);
+    hao_transpiler_free(manifest_text);
+    if (JS_IsException(manifest)) return NULL;
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue cache = JS_GetPropertyStr(ctx, global, "__hao_jupyter_module_cache");
+    if (JS_IsUndefined(cache)) {
+        JS_FreeValue(ctx, cache);
+        cache = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, global, "__hao_jupyter_module_cache", JS_DupValue(ctx, cache));
+    }
+    JSValue imports = JS_GetPropertyStr(ctx, manifest, "imports");
+    JSValue count_value = JS_GetPropertyStr(ctx, imports, "length");
+    uint32_t count = 0;
+    JS_ToUint32(ctx, &count, count_value);
+    JS_FreeValue(ctx, count_value);
+    char *code = NULL;
+    for (uint32_t i = 0; i < count; i++) {
+        JSValue item = JS_GetPropertyUint32(ctx, imports, i);
+        JSValue source_value = JS_GetPropertyStr(ctx, item, "source");
+        JSValue slot_value = JS_GetPropertyStr(ctx, item, "slot");
+        const char *slot = JS_ToCString(ctx, slot_value);
+        if (!slot) goto import_done;
+        JSValue quoted = JS_JSONStringify(ctx, source_value, JS_UNDEFINED, JS_UNDEFINED);
+        const char *quoted_text = JS_IsException(quoted) ? NULL : JS_ToCString(ctx, quoted);
+        if (!quoted_text) { JS_FreeValue(ctx, quoted); goto import_done; }
+        size_t helper_len = strlen(quoted_text) + 100;
+        char *helper = malloc(helper_len);
+        if (helper) snprintf(helper, helper_len,
+            "import * as __hao_ns from %s; globalThis.__hao_jupyter_import = __hao_ns;", quoted_text);
+        JS_FreeCString(ctx, quoted_text);
+        JS_FreeValue(ctx, quoted);
+        if (!helper) { JS_ThrowOutOfMemory(ctx); goto import_done; }
+        char helper_name[4096];
+        snprintf(helper_name, sizeof(helper_name), "%s.import.%u.ts", filename, i);
+        JSValue imported = JS_Eval(ctx, helper, strlen(helper), helper_name, JS_EVAL_TYPE_MODULE);
+        free(helper);
+        if (JS_IsException(imported)) { JS_FreeValue(ctx, imported); goto import_done; }
+        JS_FreeValue(ctx, imported);
+        JSValue namespace_value = JS_GetPropertyStr(ctx, global, "__hao_jupyter_import");
+        if (JS_SetPropertyStr(ctx, cache, slot, namespace_value) < 0) goto import_done;
+        JS_FreeCString(ctx, slot);
+        JS_FreeValue(ctx, slot_value); JS_FreeValue(ctx, source_value); JS_FreeValue(ctx, item);
+        continue;
+import_done:
+        if (slot) JS_FreeCString(ctx, slot);
+        JS_FreeValue(ctx, slot_value); JS_FreeValue(ctx, source_value); JS_FreeValue(ctx, item);
+        goto done;
+    }
+    JSValue exports_slot_value = JS_GetPropertyStr(ctx, manifest, "exports_slot");
+    const char *exports_slot = JS_ToCString(ctx, exports_slot_value);
+    if (exports_slot) {
+        if (JS_SetPropertyStr(ctx, cache, exports_slot, JS_NewObject(ctx)) < 0) {
+            JS_FreeCString(ctx, exports_slot);
+            JS_FreeValue(ctx, exports_slot_value);
+            goto done;
+        }
+        JS_FreeCString(ctx, exports_slot);
+    } else { JS_FreeValue(ctx, exports_slot_value); goto done; }
+    JS_FreeValue(ctx, exports_slot_value);
+    JSValue code_value = JS_GetPropertyStr(ctx, manifest, "code");
+    const char *raw_code = JS_ToCString(ctx, code_value);
+    if (raw_code) {
+        code = hao_rewrite_cell_declarations(raw_code);
+        JS_FreeCString(ctx, raw_code);
+        if (!code) JS_ThrowOutOfMemory(ctx);
+    }
+    JS_FreeValue(ctx, code_value);
+done:
+    JS_FreeValue(ctx, imports); JS_FreeValue(ctx, cache);
+    JS_FreeValue(ctx, global); JS_FreeValue(ctx, manifest);
+    return code;
+}
+
 char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_len,
                             const char *filename, size_t filename_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
@@ -623,22 +732,30 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
     if (!input || !name) { free(input); free(name); return NULL; }
     memcpy(input, source, source_len); input[source_len] = 0;
     memcpy(name, filename, filename_len); name[filename_len] = 0;
+    if (name[0] == '<') {
+        char cwd[4096];
+        if (!getcwd(cwd, sizeof(cwd))) { free(input); free(name); return NULL; }
+        size_t needed = strlen(cwd) + filename_len + 10;
+        char *absolute = malloc(needed);
+        if (!absolute) { free(input); free(name); return NULL; }
+        snprintf(absolute, needed, "%s/.%s.ts", cwd, name);
+        free(name);
+        name = absolute;
+    }
     host->capture_stdout_len = host->capture_stderr_len = 0;
     host->capture_target = 3;
     host->capture_active = true;
     JSContext *ctx = host->context;
-    char *transformed = hao_transpile_types_for_path(input, name);
+    char *transformed = hao_prepare_cell(ctx, input, name);
     free(input);
     JSValue result = JS_UNDEFINED;
     JSValue exception = JS_UNDEFINED;
     if (transformed) {
         result = JS_Eval(ctx, transformed, strlen(transformed), name, JS_EVAL_TYPE_GLOBAL);
-        hao_transpiler_free(transformed);
+        free(transformed);
         if (JS_IsException(result)) exception = JS_GetException(ctx);
     } else {
-        char *message = hao_transpiler_last_error();
-        exception = JS_NewString(ctx, message ? message : "Cell transpilation failed");
-        if (message) hao_transpiler_free(message);
+        exception = JS_GetException(ctx);
     }
     free(name);
     if (JS_IsUndefined(exception)) {
