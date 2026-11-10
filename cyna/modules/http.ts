@@ -50,8 +50,8 @@ function normalize(url: string, options: any = {}) {
 
 export function request(url: string, options?: any) {
   const normalized = normalize(url, options);
-  return Promise.resolve().then(() => {
-    const raw = globalThis.__hao_http_requestNative(normalized);
+  return Promise.resolve().then(async () => {
+    const raw = await globalThis.__hao_http_requestNative(normalized);
     return {
       status: raw.status, ok: raw.status >= 200 && raw.status < 300,
       statusText: raw.statusText, headers: raw.headers, url: raw.url,
@@ -68,8 +68,8 @@ export function download(url: string, path: string, options?: any) {
   if (options?.body != null || options?.json != null || options?.method != null) fail('http.download supports bodiless GET only');
   const normalized = normalize(url, { ...options, method: 'GET' });
   normalized.redirect = 'follow';
-  return Promise.resolve().then(() => ({
-    ...globalThis.__hao_http_requestNative({ ...normalized, downloadPath: path }),
+  return Promise.resolve().then(async () => ({
+    ...await globalThis.__hao_http_requestNative({ ...normalized, downloadPath: path }),
     path,
   }));
 }

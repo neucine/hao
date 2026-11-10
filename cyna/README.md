@@ -35,9 +35,9 @@ responses, and up to three redirects. Downloads stream to a temporary file in
 the destination directory, hash decoded bytes, and atomically replace the
 destination after a successful response. `serve` uses libuv sockets and Hao's
 TypeScript HTTP/1.x framing and validation, with bounded bodies, connection
-limits, and request deadlines. Client transport currently blocks the runtime
-while a request runs, so a Cyna hosted server cannot be called by its own
-client in the same process yet.
+limits, and request deadlines. Client requests and downloads use libuv workers,
+so timers and servers continue running during transfers. QuickJS values are
+created on the event loop thread after each transfer completes.
 
 `std:test` uses Hao's existing TypeScript assertion and mock APIs with a Cyna
 hosted suite registry. Run a file or directory with

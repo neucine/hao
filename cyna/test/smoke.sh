@@ -83,6 +83,20 @@ python3 "$repo_root/cyna/test/http_server.py" "$runtime" > "$fixture_dir/server-
 grep -q 'HTTP server behavior checks passed' "$fixture_dir/server-behavior"
 (cd "$repo_root" && python3 test/e2e/http/server-wire.py "$runtime") > "$fixture_dir/server-wire"
 grep -q 'wire framing and deadline checks passed' "$fixture_dir/server-wire"
+cat > "$fixture_dir/http-in-process.ts" <<'EOF'
+import { serve, get, post } from 'std:http';
+const server = serve({ port: 0, async handler(request) {
+  await new Promise(resolve => setTimeout(resolve, 2));
+  return { json: { method: request.method, path: request.url } };
+} });
+const base = `http://127.0.0.1:${server.port}`;
+let timerFired = false;
+setTimeout(() => { timerFired = true; }, 1);
+const [first, second] = await Promise.all([get(base + '/one'), post(base + '/two')]);
+console.log(first.json().path, second.json().method, timerFired);
+server.close();
+EOF
+test "$("$runtime" "$fixture_dir/http-in-process.ts")" = '/one POST true'
 
 test_summary=$("$runtime" test "$repo_root/test/e2e/test" | tail -1)
 test "$test_summary" = '30 passed, 0 failed, 7 skipped'
