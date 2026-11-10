@@ -28,6 +28,19 @@ plot_actual=$("$runtime" "$fixture_dir/plot.ts")
 plot_expected=$(printf 'true\ntrue')
 test "$plot_actual" = "$plot_expected"
 
+cat > "$fixture_dir/util.ts" <<'EOF'
+import util, { inspect, setInspectOptions, getInspectOptions } from 'std:util';
+console.log(inspect({ xs: [1, 2, 3], ok: true }));
+setInspectOptions({ maxArrayLength: 2 });
+console.log(inspect([1, 2, 3]), getInspectOptions().maxArrayLength);
+console.log(util.inspect({ repr() { return { mime: 'image/svg+xml', data: '<svg />' }; }, toString() { return 'fallback'; } }));
+const cycle: any = {}; cycle.self = cycle;
+console.log(inspect(cycle));
+EOF
+util_actual=$("$runtime" "$fixture_dir/util.ts")
+util_expected=$(printf '{ xs: [ 1, 2, 3 ], ok: true }\n[ 1, 2, ... 1 more items ] 2\n<svg />\n{ self: [Circular] }')
+test "$util_actual" = "$util_expected"
+
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
 printf 'export const value: number = 42;\n' > "$fixture_dir/app/node_modules/demo/index.ts"

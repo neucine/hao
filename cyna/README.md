@@ -2,7 +2,7 @@
 
 This is the Cyna implementation under development. It currently runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
-exposes `std:runtime`, `std:fs`, `std:process`, and `std:plot`, and supports
+exposes `std:runtime`, `std:fs`, `std:process`, `std:plot`, and `std:util`, and supports
 `console.log`, timers, and QuickJS promise jobs. Native addons, libuv I/O beyond
 timers, and the remaining `std:` modules still need to move from the Zig runtime.
 
