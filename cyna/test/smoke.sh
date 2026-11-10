@@ -208,6 +208,18 @@ EOF
 http_actual=$("$runtime" "$fixture_dir/http.ts")
 http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\nhttp response exceeds maxBytes')
 test "$http_actual" = "$http_expected"
+cat > "$fixture_dir/http-native-limits.ts" <<'EOF'
+import { requestNative } from 'std:http/native';
+for (const maxBytes of [0, 0.5, 1.5, Infinity, NaN]) {
+  try {
+    await requestNative({ url: 'http://127.0.0.1:1/', method: 'GET', headers: [], maxBytes });
+    console.log('accepted');
+  } catch (error) {
+    console.log(error.name, error.message);
+  }
+}
+EOF
+test "$("$runtime" "$fixture_dir/http-native-limits.ts")" = "$(printf 'TypeError http.request options are invalid\n%.0s' 1 2 3 4 5)"
 cat > "$fixture_dir/download.ts" <<EOF
 import { download } from 'std:http';
 import fs from 'std:fs';

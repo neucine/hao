@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 #include <openssl/evp.h>
 #include <ctype.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -295,10 +296,16 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
     char *redirect = copy_property(ctx, options, "redirect");
     if (redirect) { job->manual_redirect = strcmp(redirect, "manual") == 0; hao_free(redirect); }
     JSValue limit = JS_GetPropertyStr(ctx, options, "maxBytes");
-    int64_t max_bytes = 0;
-    int limit_status = JS_ToInt64(ctx, &max_bytes, limit);
+    double max_bytes = 1024.0 * 1024.0 * 1024.0;
+    if (!JS_IsUndefined(limit) &&
+        (JS_ToFloat64(ctx, &max_bytes, limit) < 0 || !isfinite(max_bytes) ||
+         max_bytes < 1 || max_bytes > 9007199254740991.0 || floor(max_bytes) != max_bytes ||
+         max_bytes >= (double)SIZE_MAX)) {
+        JS_FreeValue(ctx, limit);
+        return false;
+    }
     JS_FreeValue(ctx, limit);
-    if (!job->url || !job->method || limit_status < 0 || max_bytes < 1) return false;
+    if (!job->url || !job->method) return false;
     job->response.limit = (size_t)max_bytes;
     JSValue path = JS_GetPropertyStr(ctx, options, "downloadPath");
     if (JS_IsString(path)) {
@@ -376,7 +383,7 @@ static JSValue request_native(JSContext *ctx, JSValueConst this_val, int argc, J
     job->reject = JS_UNDEFINED;
     if (!parse_options(job, argv[0])) {
         destroy_job(job);
-        return JS_ThrowTypeError(ctx, "invalid http request options");
+        return JS_ThrowTypeError(ctx, "http.request options are invalid");
     }
     JSValue functions[2];
     JSValue promise = JS_NewPromiseCapability(ctx, functions);
