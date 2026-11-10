@@ -743,6 +743,16 @@ printf '{"exports":"./foo..bar.mjs"}\n' > "$fixture_dir/app/node_modules/dotted/
 printf 'export const dotted = 23;\n' > "$fixture_dir/app/node_modules/dotted/foo..bar.mjs"
 printf 'import { dotted } from "dotted"; console.log(dotted);\n' > "$fixture_dir/app/dotted.ts"
 test "$("$runtime" "$fixture_dir/app/dotted.ts")" = '23'
+mkdir -p "$fixture_dir/app/node_modules/shadowed"
+printf '{"exports":"./entry"}\n' > "$fixture_dir/app/node_modules/shadowed/package.json"
+printf 'plain file\n' > "$fixture_dir/app/node_modules/shadowed/entry"
+printf 'export const value = 99;\n' > "$fixture_dir/app/node_modules/shadowed/entry.ts"
+printf 'import { value } from "shadowed"; console.log(value);\n' > "$fixture_dir/app/shadowed.ts"
+if "$runtime" "$fixture_dir/app/shadowed.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
+    echo 'expected the first existing package entry to block later extensions' >&2
+    exit 1
+fi
+grep -q 'Cannot resolve package: shadowed' "$fixture_dir/stderr"
 mkdir -p "$fixture_dir/app/node_modules/colon/child"
 printf '{"exports":{"./native":"./wrong.mjs"}}\n' > "$fixture_dir/app/node_modules/colon/package.json"
 printf 'export const selected = "wrong";\n' > "$fixture_dir/app/node_modules/colon/wrong.mjs"

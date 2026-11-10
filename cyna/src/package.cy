@@ -155,12 +155,11 @@ fn find_entry(root: string, entry: string, package_type: ?string): ?string {
     const extensions: [9]string = ["", ".ts", ".js", ".mts", ".mjs", ".dylib", ".so", ".dll", ".node"];
     for extension in extensions {
         const candidate = $"{relative}{extension}";
-        if supported_entry(candidate, package_type) {
-            const path = join2(root, candidate);
-            const found = exists(path) catch (code) => false;
-            if found {
-                return path;
-            }
+        const path = join2(root, candidate);
+        const found = exists(path) catch (code) => false;
+        if found {
+            if supported_entry(candidate, package_type) { return path; }
+            return none;
         }
     }
     return none;
