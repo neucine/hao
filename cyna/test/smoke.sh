@@ -25,6 +25,9 @@ clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_wire_test.c" \
     "$repo_root/cyna/jupyter_wire_bridge.c" -L /opt/homebrew/lib -lzmq \
     -o "$fixture_dir/jupyter-wire-test"
 test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'
+clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_kernel_test.c" \
+    -L /opt/homebrew/lib -lzmq -o "$fixture_dir/jupyter-kernel-test"
+test "$("$fixture_dir/jupyter-kernel-test" "$runtime")" = 'kernel ok'
 cat > "$fixture_dir/jupyter-connection.json" <<'EOF'
 {"shell_port":57503,"control_port":57504,"iopub_port":57505,"stdin_port":57506,"hb_port":57507}
 EOF

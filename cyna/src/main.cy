@@ -4,6 +4,7 @@ import { Runtime } from .runtime;
 import { install } from .std_modules;
 import { collect } from .test_files;
 import { load_dotenv } from .config;
+import { run as run_jupyter } from .jupyter;
 
 fn run_file(host: &const Runtime, path: string): i32 {
     const source = read_file(path.clone()) catch (code) {
@@ -20,16 +21,23 @@ fn main(): i32 {
     }
     const arguments = args();
     if arguments.len() < 2 {
-        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>...");
+        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>... | hao jupyter --connection-file <file>");
         return 2;
     }
     if arguments.len() == 2 and (arguments[1] == "--version" or arguments[1] == "-v") {
         println("hao 0.1.2 (Cyna runtime preview)");
         return 0;
     }
+    if arguments[1] == "jupyter" {
+        if arguments.len() == 4 and arguments[2] == "--connection-file" {
+            return run_jupyter(arguments[3].clone());
+        }
+        println("Usage: hao jupyter --connection-file <file>");
+        return 2;
+    }
     const is_test = arguments[1] == "test";
     if not is_test and arguments.len() != 2 {
-        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>...");
+        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>... | hao jupyter --connection-file <file>");
         return 2;
     }
     var test_files: List<string> = list<string>();

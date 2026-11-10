@@ -1,3 +1,5 @@
+import { text_from_c } from .c_bytes;
+
 extern c("hao_runtime_new") fn runtime_new(): c_size_t;
 extern c("hao_runtime_free") fn runtime_free(handle: c_size_t): void;
 extern c("hao_runtime_eval") fn runtime_eval(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): c_int;
@@ -7,6 +9,8 @@ extern c("hao_runtime_register") fn runtime_register(handle: c_size_t, name: *co
 extern c("hao_runtime_start_tests") fn runtime_start_tests(handle: c_size_t, grep: *const c_uchar, grep_len: c_size_t): c_int;
 extern c("hao_runtime_test_failures") fn runtime_test_failures(handle: c_size_t): c_int;
 extern c("hao_runtime_set_executable") fn runtime_set_executable(handle: c_size_t, path: *const c_uchar, path_len: c_size_t): c_int;
+extern c("hao_runtime_eval_cell") fn runtime_eval_cell(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): ?*const c_uchar;
+extern c("hao_runtime_free_text") fn runtime_free_text(text: *const c_uchar): void;
 
 pub struct Runtime {
     pub handle: c_size_t;
@@ -29,6 +33,19 @@ pub struct Runtime {
         const source_bytes = source.bytes();
         const name_bytes = filename.bytes();
         return runtime_eval(self.handle, source_bytes.ptr as! *const c_uchar, source_bytes.len() as c_size_t, name_bytes.ptr as! *const c_uchar, name_bytes.len() as c_size_t) as i32;
+    }
+
+    pub fn eval_cell(self: &const Runtime, source: string, filename: string): ?string {
+        const source_bytes = source.bytes();
+        const name_bytes = filename.bytes();
+        if runtime_eval_cell(self.handle, source_bytes.ptr as! *const c_uchar,
+            source_bytes.len() as c_size_t, name_bytes.ptr as! *const c_uchar,
+            name_bytes.len() as c_size_t) is pointer {
+            const packet = text_from_c(pointer);
+            runtime_free_text(pointer);
+            return packet;
+        }
+        return none;
     }
 
     pub fn run_until_idle(self: &const Runtime): i32 {

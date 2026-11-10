@@ -189,6 +189,21 @@ int hao_jupyter_wire_field(uintptr_t handle, int field, unsigned char *out, size
     return (int)value->length;
 }
 
+size_t hao_jupyter_wire_field_length(uintptr_t handle, int field) {
+    HaoWire *wire = (HaoWire *)handle;
+    if (!wire) return 0;
+    const HaoFrame *value = field == HAO_HEADER ? &wire->header : field == HAO_CONTENT ? &wire->content : NULL;
+    return value && value->data ? value->length : 0;
+}
+
+const unsigned char *hao_jupyter_wire_field_view(uintptr_t handle, int field) {
+    HaoWire *wire = (HaoWire *)handle;
+    if (!wire) return NULL;
+    const HaoFrame *value = field == HAO_HEADER ? &wire->header : field == HAO_CONTENT ? &wire->content : NULL;
+    if (!value || !value->data) return NULL;
+    return (const unsigned char *)value->data;
+}
+
 static int send_frame(void *socket, const void *data, size_t length, int more) {
     return zmq_send(socket, data, length, more ? ZMQ_SNDMORE : 0) < 0 ? -1 : 0;
 }

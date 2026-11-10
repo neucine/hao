@@ -614,6 +614,65 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
     return status;
 }
 
+char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_len,
+                            const char *filename, size_t filename_len) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    if (!host || source_len > 1024 * 1024 || filename_len > 4096 || host->capture_active) return NULL;
+    char *input = malloc(source_len + 1);
+    char *name = malloc(filename_len + 1);
+    if (!input || !name) { free(input); free(name); return NULL; }
+    memcpy(input, source, source_len); input[source_len] = 0;
+    memcpy(name, filename, filename_len); name[filename_len] = 0;
+    host->capture_stdout_len = host->capture_stderr_len = 0;
+    host->capture_target = 3;
+    host->capture_active = true;
+    JSContext *ctx = host->context;
+    char *transformed = hao_transpile_types_for_path(input, name);
+    free(input);
+    JSValue result = JS_UNDEFINED;
+    JSValue exception = JS_UNDEFINED;
+    if (transformed) {
+        result = JS_Eval(ctx, transformed, strlen(transformed), name, JS_EVAL_TYPE_GLOBAL);
+        hao_transpiler_free(transformed);
+        if (JS_IsException(result)) exception = JS_GetException(ctx);
+    } else {
+        char *message = hao_transpiler_last_error();
+        exception = JS_NewString(ctx, message ? message : "Cell transpilation failed");
+        if (message) hao_transpiler_free(message);
+    }
+    free(name);
+    if (JS_IsUndefined(exception)) {
+        JSContext *job_ctx = NULL;
+        for (int i = 0; i < 10000; i++) {
+            int jobs = JS_ExecutePendingJob(host->runtime, &job_ctx);
+            if (jobs < 0) { exception = JS_GetException(job_ctx); break; }
+            int io = uv_run(host->loop, UV_RUN_NOWAIT);
+            if (jobs == 0 && io == 0) break;
+        }
+    }
+    host->capture_active = false;
+    JSValue packet = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, packet, "stdout", JS_NewStringLen(ctx, host->capture_stdout, host->capture_stdout_len));
+    JS_SetPropertyStr(ctx, packet, "stderr", JS_NewStringLen(ctx, host->capture_stderr, host->capture_stderr_len));
+    const char *value = JS_IsUndefined(exception) ? JS_ToCString(ctx, result) : JS_ToCString(ctx, exception);
+    JS_SetPropertyStr(ctx, packet, "value", value ? JS_NewString(ctx, value) : JS_NULL);
+    JS_SetPropertyStr(ctx, packet, "error", JS_NewBool(ctx, !JS_IsUndefined(exception)));
+    JS_SetPropertyStr(ctx, packet, "has_value", JS_NewBool(ctx, JS_IsUndefined(exception) && !JS_IsUndefined(result) && !JS_IsNull(result)));
+    if (value) JS_FreeCString(ctx, value);
+    JS_FreeValue(ctx, result);
+    JS_FreeValue(ctx, exception);
+    JSValue encoded = JS_JSONStringify(ctx, packet, JS_UNDEFINED, JS_UNDEFINED);
+    JS_FreeValue(ctx, packet);
+    if (JS_IsException(encoded)) { JS_FreeValue(ctx, encoded); return NULL; }
+    const char *text = JS_ToCString(ctx, encoded);
+    char *copy = text ? strdup(text) : NULL;
+    if (text) JS_FreeCString(ctx, text);
+    JS_FreeValue(ctx, encoded);
+    return copy;
+}
+
+void hao_runtime_free_text(const char *text) { free((void *)text); }
+
 int hao_runtime_start_tests(uintptr_t handle, const char *grep, size_t grep_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
     JSContext *ctx = host->context;
