@@ -45,6 +45,14 @@ extern int hao_resolve_package(const unsigned char *base, const unsigned char *s
 extern int hao_install_runtime_error(JSContext *ctx);
 void hao_runtime_free(uintptr_t handle);
 
+void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t port) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    JSValue global = JS_GetGlobalObject(host->context);
+    JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_enabled", JS_NewBool(host->context, enabled));
+    JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_port", JS_NewUint32(host->context, port));
+    JS_FreeValue(host->context, global);
+}
+
 static void hao_print_value(JSContext *ctx, JSValueConst error) {
     JSValue stack = JS_GetPropertyStr(ctx, error, "stack");
     const char *text = JS_ToCString(ctx, error);

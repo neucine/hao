@@ -298,29 +298,36 @@ setTimeout(() => {}, 1500);
 EOF
 python3 - "$runtime" "$fixture_dir/telemetry-console.ts" <<'PY'
 import json, os, re, subprocess, sys, urllib.request
-env = dict(os.environ, RUNTIME_TELEMETRY_CONSOLE='1', RUNTIME_TELEMETRY_CONSOLE_PORT='0')
-process = subprocess.Popen([sys.argv[1], sys.argv[2]], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-try:
-    line = process.stderr.readline()
-    match = re.search(r'http://127\.0\.0\.1:(\d+)/', line)
-    assert match, line
-    base = 'http://127.0.0.1:' + match.group(1)
-    def get(path):
-        with urllib.request.urlopen(base + path, timeout=2) as response:
-            return response.read().decode()
-    assert json.loads(get('/api/health')) == {'ok': True}
-    assert any(metric['scope'] == 'fixture' and metric['value'] == 3 for metric in json.loads(get('/api/metrics')))
-    traces = json.loads(get('/api/traces?since=0&limit=10'))
-    assert [record['kind'] for record in traces['records'] if record['name'] == 'fixture-trace'] == ['span_start', 'span_end']
-    later = json.loads(get('/api/traces?since=1&limit=1'))
-    assert later['records'][0]['sequence'] == 2 and later['next_cursor'] == 2
-    assert '<title>Hao Telemetry</title>' in get('/')
-    assert process.wait(timeout=5) == 0
-finally:
-    if process.poll() is None:
-        process.terminate()
-        process.wait(timeout=5)
+for flag in ('1', 'true', 'yes', 'on'):
+    env = dict(os.environ, RUNTIME_TELEMETRY_CONSOLE=flag, RUNTIME_TELEMETRY_CONSOLE_PORT='00')
+    process = subprocess.Popen([sys.argv[1], sys.argv[2]], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        line = process.stderr.readline()
+        match = re.search(r'http://127\.0\.0\.1:(\d+)/', line)
+        assert match, (flag, line)
+        base = 'http://127.0.0.1:' + match.group(1)
+        def get(path):
+            with urllib.request.urlopen(base + path, timeout=2) as response:
+                return response.read().decode()
+        assert json.loads(get('/api/health')) == {'ok': True}
+        assert any(metric['scope'] == 'fixture' and metric['value'] == 3 for metric in json.loads(get('/api/metrics')))
+        traces = json.loads(get('/api/traces?since=0&limit=10'))
+        assert [record['kind'] for record in traces['records'] if record['name'] == 'fixture-trace'] == ['span_start', 'span_end']
+        later = json.loads(get('/api/traces?since=1&limit=1'))
+        assert later['records'][0]['sequence'] == 2 and later['next_cursor'] == 2
+        assert '<title>Hao Telemetry</title>' in get('/')
+        assert process.wait(timeout=5) == 0
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=5)
 PY
+if RUNTIME_TELEMETRY_CONSOLE=maybe "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/invalid-console.stdout" 2> "$fixture_dir/invalid-console.stderr"; then
+    exit 1
+fi
+if RUNTIME_TELEMETRY_CONSOLE_PORT=65536 "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/invalid-port.stdout" 2> "$fixture_dir/invalid-port.stderr"; then
+    exit 1
+fi
 cat > "$fixture_dir/telemetry-timer.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';

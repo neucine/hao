@@ -3,6 +3,7 @@ import { Loop } from .async.loop;
 import { install as install_console } from .global.console;
 import { install as install_timer } from .global.timer;
 import { eval as eval_module, register_source } from .modules;
+import { telemetry_console_settings } from .config;
 
 extern c("hao_runtime_new") fn runtime_new(): c_size_t;
 extern c("hao_runtime_free") fn runtime_free(handle: c_size_t): void;
@@ -12,11 +13,15 @@ extern c("hao_runtime_discard_test_file") fn runtime_discard_test_file(handle: c
 extern c("hao_runtime_set_executable") fn runtime_set_executable(handle: c_size_t, path: *const c_uchar, path_len: c_size_t): c_int;
 extern c("hao_runtime_eval_cell") fn runtime_eval_cell(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): ?*const c_uchar;
 extern c("hao_runtime_free_text") fn runtime_free_text(text: *const c_uchar): void;
+extern c("hao_runtime_set_telemetry_console") fn runtime_set_telemetry_console(handle: c_size_t, enabled: c_int, port: c_ushort): void;
 
 pub struct Runtime {
     pub handle: c_size_t;
 
     pub fn init(): ?Runtime {
+        const console = telemetry_console_settings() catch (code) {
+            return none;
+        };
         const handle = runtime_new();
         if handle == 0 {
             return none;
@@ -25,6 +30,11 @@ pub struct Runtime {
             runtime_free(handle);
             return none;
         }
+        var console_enabled: c_int = 0;
+        if console.enabled {
+            console_enabled = 1;
+        }
+        runtime_set_telemetry_console(handle, console_enabled, console.port as c_ushort);
         return Runtime {
             handle: handle
         };

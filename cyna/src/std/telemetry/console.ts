@@ -1,13 +1,14 @@
 import { serve } from 'std:http/server';
-import { getEnv } from 'std:process';
 import { snapshotMetricsNative, snapshotTraceRecordsNative } from 'std:telemetry/native';
 import { dashboard } from 'std:telemetry/dashboard';
 
-const enabled = getEnv('RUNTIME_TELEMETRY_CONSOLE');
-if (enabled === '1' || enabled === 'true') {
-  const configured = getEnv('RUNTIME_TELEMETRY_CONSOLE_PORT') ?? '0';
-  const port = Number(configured);
-  if (!Number.isInteger(port) || port < 0 || port > 65535) throw Error('Invalid telemetry console port');
+declare global {
+  var __hao_telemetry_console_enabled: boolean;
+  var __hao_telemetry_console_port: number;
+}
+
+if (globalThis.__hao_telemetry_console_enabled) {
+  const port = globalThis.__hao_telemetry_console_port;
   const server = serve({ hostname: '127.0.0.1', port, unref: true, handler(request: any) {
     const path = request.url.split('?')[0];
     if (request.method !== 'GET') return { status: 405, json: { error: 'method_not_allowed' } };

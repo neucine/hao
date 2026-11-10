@@ -1,5 +1,44 @@
 import { exists, read_file } from std.fs;
 import { env_get, env_set } from std.process;
+import { parse_bool, parse_positive_usize, ConfigError } from std.config;
+
+pub struct TelemetryConsoleSettings {
+    pub enabled: bool;
+    pub port: u16;
+}
+
+fn parse_port(raw: string): u16 ! ConfigError {
+    const bytes = raw.bytes();
+    if bytes.len() == 0 {
+        throw ConfigError.invalid_value;
+    }
+    var all_zero = true;
+    for byte in bytes {
+        if byte != 48 {
+            all_zero = false;
+        }
+    }
+    if all_zero {
+        return 0;
+    }
+    const value = try parse_positive_usize(raw);
+    if value > 65535 {
+        throw ConfigError.invalid_value;
+    }
+    return value as u16;
+}
+
+pub fn telemetry_console_settings(): TelemetryConsoleSettings ! ConfigError {
+    var enabled = false;
+    var port: u16 = 0;
+    if env_get("RUNTIME_TELEMETRY_CONSOLE") is raw_enabled {
+        enabled = try parse_bool(raw_enabled);
+    }
+    if env_get("RUNTIME_TELEMETRY_CONSOLE_PORT") is raw_port {
+        port = try parse_port(raw_port);
+    }
+    return TelemetryConsoleSettings { enabled: enabled, port: port };
+}
 
 fn space(byte: u8): bool {
     return byte == 32 or byte == 9 or byte == 13;
