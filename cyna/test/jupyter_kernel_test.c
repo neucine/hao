@@ -83,6 +83,8 @@ int main(int argc, char **argv) {
     if (send_request(shell, "kernel_info_request", "{}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"implementation\":\"hao\"")) status = 5;
+    if (!status && (receive_content(iopub, content, sizeof(content)) < 0 ||
+        receive_content(iopub, content, sizeof(content)) < 0)) status = 20;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"let x: number = 21; x * 2\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\""))) status = 6;
@@ -111,6 +113,15 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"text/plain\":\"18\"")) saw_18 = 1;
     }
     if (!status && (!saw_name || !saw_18)) status = 16;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"({ repr() { return { mime: 'image/svg+xml', data: '<svg/>' }; } })\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 17;
+    int saw_svg = 0;
+    for (int i = 0; !status && i < 6 && !saw_svg; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 18; break; }
+        if (strstr(content, "\"image/svg+xml\":\"<svg/>\"")) saw_svg = 1;
+    }
+    if (!status && !saw_svg) status = 19;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"throw new Error('broken')\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\""))) status = 12;

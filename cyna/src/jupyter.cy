@@ -83,8 +83,15 @@ fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, co
         } else {
             if boolean(&packet, "has_value") {
                 const escaped_value = json_string(value);
-                const result = $"\{\"execution_count\":{count},\"data\":\{\"text/plain\":{escaped_value}\},\"metadata\":\{\}\}";
-                if wire.send(4, "execute_result", result) != 0 { return 1; }
+                const mime = text_or_empty(field(&packet, "mime"));
+                if mime != "" and mime != "text/plain" {
+                    const escaped_mime = json_string(mime);
+                    const display = $"\{\"data\":\{{escaped_mime}:{escaped_value}\},\"metadata\":\{\},\"transient\":\{\}\}";
+                    if wire.send(4, "display_data", display) != 0 { return 1; }
+                } else {
+                    const result = $"\{\"execution_count\":{count},\"data\":\{\"text/plain\":{escaped_value}\},\"metadata\":\{\}\}";
+                    if wire.send(4, "execute_result", result) != 0 { return 1; }
+                }
             }
             const reply = $"\{\"status\":\"ok\",\"execution_count\":{count},\"user_expressions\":\{\}\}";
             if wire.send(3, "execute_reply", reply) != 0 { return 1; }

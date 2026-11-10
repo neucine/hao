@@ -11,8 +11,10 @@ and kernel dispatcher. A native adapter binds the five ZeroMQ sockets, checks
 HMAC signatures, and exchanges bounded multipart messages. Basic TypeScript
 cells share a persistent QuickJS context. `jupyter install` writes a kernelspec
 under the user's Jupyter directory; `HAO_JUPYTER_KERNEL_DIR` overrides that path.
-Notebook cells support `std:` and relative static imports. Rich display values
-and asynchronous cell results are still pending.
+Notebook cells support `std:` and relative static imports. Objects with a
+`repr({ mode: "text" })` method can return text or `{ mime, data }`; nontext
+results are published as Jupyter `display_data`. Asynchronous cell results and
+broader rich display parity are still pending.
 The build also produces a Cyna runtime static library with the C API in
 `include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 
