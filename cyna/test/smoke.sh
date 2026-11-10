@@ -61,6 +61,24 @@ EOF
 http_actual=$("$runtime" "$fixture_dir/http.ts")
 http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\nhttp response exceeds maxBytes')
 test "$http_actual" = "$http_expected"
+cat > "$fixture_dir/download.ts" <<EOF
+import { download } from 'std:http';
+import fs from 'std:fs';
+const path = '$fixture_dir/download.bin';
+fs.writeFileSync(path, 'original');
+const result = await download('http://127.0.0.1:$server_port/download-redirect', path, { maxBytes: 4194304 });
+console.log(result.status, result.bytesWritten, result.sha256, fs.statSync(path).size);
+try { await download('http://127.0.0.1:$server_port/large', path, { maxBytes: 10 }); } catch (_) { console.log('limited', fs.statSync(path).size); }
+try { await download('http://127.0.0.1:$server_port/missing', path); } catch (_) { console.log('missing', fs.statSync(path).size); }
+try { await download('http://127.0.0.1:$server_port/truncated', path); } catch (_) { console.log('truncated', fs.statSync(path).size); }
+try { await download('http://127.0.0.1:$server_port/empty', '$fixture_dir/absent/file'); } catch (_) { console.log('parent', fs.statSync(path).size); }
+const compressed = await download('http://127.0.0.1:$server_port/compressed', path, { maxBytes: 200000 });
+console.log('compressed', compressed.bytesWritten, fs.statSync(path).size);
+EOF
+download_actual=$("$runtime" "$fixture_dir/download.ts")
+download_expected=$(printf '200 4194304 2b07811057df887086f06a67edc6ebf911de8b6741156e7a2eb1416a4b8b1b2e 4194304\nlimited 4194304\nmissing 4194304\ntruncated 4194304\nparent 4194304\ncompressed 200000 200000')
+test "$download_actual" = "$download_expected"
+test "$(find "$fixture_dir" -name 'download.bin.hao-*' | wc -l | tr -d ' ')" = 0
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

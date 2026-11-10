@@ -61,4 +61,14 @@ export function request(url: string, options?: any) {
 }
 export function get(url: string, options?: any) { return request(url, { ...options, method: 'GET' }); }
 export function post(url: string, options?: any) { return request(url, { ...options, method: 'POST' }); }
-export default { request, get, post };
+export function download(url: string, path: string, options?: any) {
+  if (typeof path !== 'string' || !path || path.includes('\0')) fail('http.download requires a destination path');
+  if (options?.body != null || options?.json != null || options?.method != null) fail('http.download supports bodiless GET only');
+  const normalized = normalize(url, { ...options, method: 'GET' });
+  normalized.redirect = 'follow';
+  return Promise.resolve().then(() => ({
+    ...globalThis.__hao_http_requestNative({ ...normalized, downloadPath: path }),
+    path,
+  }));
+}
+export default { request, get, post, download };

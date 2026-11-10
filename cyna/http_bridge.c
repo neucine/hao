@@ -1,10 +1,12 @@
 #include <quickjs.h>
 #include <curl/curl.h>
+#include <CommonCrypto/CommonDigest.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct {
     unsigned char *body;
@@ -13,13 +15,23 @@ typedef struct {
     JSValue headers;
     char status_text[128];
     int failed;
+    FILE *download_file;
+    CC_SHA256_CTX digest;
+    int skip_body;
 } HaoHttpResponse;
 
 static size_t hao_http_body(char *data, size_t size, size_t count, void *opaque) {
     HaoHttpResponse *response = opaque;
     if (size && count > SIZE_MAX / size) return 0;
     size_t length = size * count;
+    if (response->skip_body) return length;
     if (length > response->limit - response->length) { response->failed = 1; return 0; }
+    if (response->download_file) {
+        if (length && fwrite(data, 1, length, response->download_file) != length) { response->failed = 3; return 0; }
+        CC_SHA256_Update(&response->digest, data, (CC_LONG)length);
+        response->length += length;
+        return length;
+    }
     if (response->length + length > response->capacity) {
         size_t capacity = response->capacity ? response->capacity : 4096;
         while (capacity < response->length + length) {
@@ -41,6 +53,12 @@ static size_t hao_http_header(char *data, size_t size, size_t count, void *opaqu
     if (size && count > SIZE_MAX / size) return 0;
     size_t length = size * count;
     if (length >= 5 && memcmp(data, "HTTP/", 5) == 0) {
+        response->skip_body = 0;
+        char *status_start = memchr(data, ' ', length);
+        if (status_start && data + length - status_start >= 4) {
+            long status = strtol(status_start + 1, NULL, 10);
+            response->skip_body = status >= 100 && status < 200 || status >= 300 && status < 400;
+        }
         JS_FreeValue(response->ctx, response->headers);
         response->headers = JS_NewObject(response->ctx);
         char *space = memchr(data, ' ', length);
@@ -80,6 +98,7 @@ static JSValue hao_http_request(JSContext *ctx, JSValueConst this_val, int argc,
     JSValue max_value = JS_GetPropertyStr(ctx, argv[0], "maxBytes");
     JSValue body_value = JS_GetPropertyStr(ctx, argv[0], "body");
     JSValue headers_value = JS_GetPropertyStr(ctx, argv[0], "headers");
+    JSValue download_value = JS_GetPropertyStr(ctx, argv[0], "downloadPath");
     const char *url = JS_ToCString(ctx, url_value);
     const char *method = JS_ToCString(ctx, method_value);
     const char *redirect = JS_ToCString(ctx, redirect_value);
@@ -90,9 +109,22 @@ static JSValue hao_http_request(JSContext *ctx, JSValueConst this_val, int argc,
     const char *body_text = NULL;
     size_t body_length = 0;
     JSValue body_buffer = JS_UNDEFINED;
+    const char *download_path = JS_IsString(download_value) ? JS_ToCString(ctx, download_value) : NULL;
+    char *temporary_path = NULL;
     HaoHttpResponse response = { .limit = max_bytes > 0 ? (size_t)max_bytes : 0, .ctx = ctx, .headers = JS_NewObject(ctx) };
     JSValue result = JS_EXCEPTION;
     if (!url || !method || !redirect || !response.limit) goto done;
+    if (download_path) {
+        size_t path_length = strlen(download_path);
+        temporary_path = malloc(path_length + 17);
+        if (!temporary_path) { result = JS_ThrowOutOfMemory(ctx); goto done; }
+        snprintf(temporary_path, path_length + 17, "%s.hao-XXXXXX", download_path);
+        int fd = mkstemp(temporary_path);
+        if (fd < 0) { result = JS_ThrowInternalError(ctx, "unable to create download file"); goto done; }
+        response.download_file = fdopen(fd, "wb");
+        if (!response.download_file) { close(fd); result = JS_ThrowInternalError(ctx, "unable to open download file"); goto done; }
+        CC_SHA256_Init(&response.digest);
+    }
     curl = curl_easy_init();
     if (!curl) goto done;
     curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -162,6 +194,44 @@ static JSValue hao_http_request(JSContext *ctx, JSValueConst this_val, int argc,
     char *effective_url = NULL;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective_url);
+    if (download_path) {
+        if (status < 200 || status >= 300) {
+            result = JS_ThrowInternalError(ctx, "http.download requires a successful response");
+            goto done;
+        }
+        if (fflush(response.download_file) != 0 || fsync(fileno(response.download_file)) != 0) {
+            result = JS_ThrowInternalError(ctx, "unable to finish download file");
+            goto done;
+        }
+        if (fclose(response.download_file) != 0) {
+            response.download_file = NULL;
+            result = JS_ThrowInternalError(ctx, "unable to close download file");
+            goto done;
+        }
+        response.download_file = NULL;
+        if (rename(temporary_path, download_path) != 0) {
+            result = JS_ThrowInternalError(ctx, "unable to replace download destination");
+            goto done;
+        }
+        unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+        char hex[CC_SHA256_DIGEST_LENGTH * 2 + 1];
+        const char digits[] = "0123456789abcdef";
+        CC_SHA256_Final(digest, &response.digest);
+        for (size_t i = 0; i < CC_SHA256_DIGEST_LENGTH; i++) {
+            hex[i * 2] = digits[digest[i] >> 4];
+            hex[i * 2 + 1] = digits[digest[i] & 15];
+        }
+        hex[sizeof(hex) - 1] = 0;
+        result = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, result, "status", JS_NewInt32(ctx, (int)status));
+        JS_SetPropertyStr(ctx, result, "statusText", JS_NewString(ctx, response.status_text));
+        JS_SetPropertyStr(ctx, result, "ok", JS_TRUE);
+        JS_SetPropertyStr(ctx, result, "headers", JS_DupValue(ctx, response.headers));
+        JS_SetPropertyStr(ctx, result, "url", JS_NewString(ctx, effective_url ? effective_url : url));
+        JS_SetPropertyStr(ctx, result, "bytesWritten", JS_NewFloat64(ctx, (double)response.length));
+        JS_SetPropertyStr(ctx, result, "sha256", JS_NewString(ctx, hex));
+        goto done;
+    }
     result = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, result, "status", JS_NewInt32(ctx, (int)status));
     JS_SetPropertyStr(ctx, result, "statusText", JS_NewString(ctx, response.status_text));
@@ -176,6 +246,9 @@ static JSValue hao_http_request(JSContext *ctx, JSValueConst this_val, int argc,
     JS_SetPropertyStr(ctx, result, "bodyBytes", bytes);
     JS_FreeValue(ctx, array_buffer); JS_FreeValue(ctx, uint8_array); JS_FreeValue(ctx, global);
  done:
+    if (response.download_file) fclose(response.download_file);
+    if (temporary_path) { unlink(temporary_path); free(temporary_path); }
+    if (download_path) JS_FreeCString(ctx, download_path);
     if (body_text && JS_IsString(body_value)) JS_FreeCString(ctx, body_text);
     if (url) JS_FreeCString(ctx, url);
     if (method) JS_FreeCString(ctx, method);
@@ -185,7 +258,7 @@ static JSValue hao_http_request(JSContext *ctx, JSValueConst this_val, int argc,
     free(response.body);
     JS_FreeValue(ctx, response.headers);
     JS_FreeValue(ctx, url_value); JS_FreeValue(ctx, method_value); JS_FreeValue(ctx, redirect_value);
-    JS_FreeValue(ctx, max_value); JS_FreeValue(ctx, body_value); JS_FreeValue(ctx, body_buffer); JS_FreeValue(ctx, headers_value);
+    JS_FreeValue(ctx, max_value); JS_FreeValue(ctx, body_value); JS_FreeValue(ctx, body_buffer); JS_FreeValue(ctx, headers_value); JS_FreeValue(ctx, download_value);
     return result;
 }
 
