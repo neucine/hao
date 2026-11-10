@@ -16,6 +16,8 @@ Notebook cells support `std:` and relative static imports. Objects with a
 results are published as Jupyter `display_data`. Promise results are awaited,
 including timer delayed resolution and rejection. Broader rich display parity
 is still pending.
+Silent notebook requests execute without publishing cell input, streams, or
+results and return a null execution count without advancing visible history.
 Ordinary objects use `std:util.inspect` for their text result.
 Top level `const`, `let`, and class declarations can be redefined in later cells.
 JavaScript execution errors include their stack in the Jupyter error reply.

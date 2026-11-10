@@ -88,9 +88,35 @@ int main(int argc, char **argv) {
             receive_content(shell, content, sizeof(content)) < 0 ||
             receive_content(iopub, content, sizeof(content)) < 0) status = 20;
     }
+    int info_idle = 0;
+    for (int i = 0; !status && i < 4 && !info_idle; i++) {
+        if (strstr(content, "\"execution_state\":\"idle\"")) { info_idle = 1; break; }
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 41; break; }
+    }
+    if (!status && !info_idle) status = 42;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"globalThis.__silentValue = 9; console.log('hidden'); 123\",\"silent\":true}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"execution_count\":null"))) status = 43;
+    int silent_idle = 0;
+    for (int i = 0; !status && i < 4 && !silent_idle; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 44; break; }
+        if (strstr(content, "\"code\"") || strstr(content, "\"text\"") || strstr(content, "\"data\"")) { status = 45; break; }
+        if (strstr(content, "\"execution_state\":\"idle\"")) silent_idle = 1;
+    }
+    if (!status && !silent_idle) status = 46;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"throw Error('silent failure')\",\"silent\":true}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"error\"") || !strstr(content, "\"execution_count\":null"))) status = 47;
+    silent_idle = 0;
+    for (int i = 0; !status && i < 4 && !silent_idle; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 48; break; }
+        if (strstr(content, "\"ename\"") || strstr(content, "\"traceback\"")) { status = 49; break; }
+        if (strstr(content, "\"execution_state\":\"idle\"")) silent_idle = 1;
+    }
+    if (!status && !silent_idle) status = 50;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"let x: number = 21; x * 2\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
-        !strstr(content, "\"status\":\"ok\""))) status = 6;
+        !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"execution_count\":1"))) status = 6;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"x + 1\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\""))) status = 7;

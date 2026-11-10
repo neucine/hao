@@ -56,32 +56,38 @@ fn send_stream(wire: &const Wire, name: string, output: string): i32 {
     return wire.send(4, "stream", $"\{\"name\":{escaped_name},\"text\":{escaped_output}\}");
 }
 
-fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, count: u32): i32 {
+fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, count: u32, serial: u32, silent: bool): i32 {
     const code = field(content, "code");
     if code is none { return 1; }
     if send_status(wire, "busy") != 0 { return 1; }
-    const escaped_code = json_string(code);
-    const input = $"\{\"code\":{escaped_code},\"execution_count\":{count}\}";
-    if wire.send(4, "execute_input", input) != 0 { return 1; }
-    const filename = $"<hao-jupyter-cell-{count}>";
+    if not silent {
+        const escaped_code = json_string(code);
+        const input = $"\{\"code\":{escaped_code},\"execution_count\":{count}\}";
+        if wire.send(4, "execute_input", input) != 0 { return 1; }
+    }
+    const filename = $"<hao-jupyter-cell-{serial}>";
     const packet_text = runtime.eval_cell(code, filename);
     if packet_text is none { return 1; }
     const packet = parse_json(packet_text) catch (error) { return 1; };
-    if field(&packet, "stdout") is output {
-        if send_stream(wire, "stdout", output) != 0 { return 1; }
-    }
-    if field(&packet, "stderr") is output {
-        if send_stream(wire, "stderr", output) != 0 { return 1; }
+    if not silent {
+        if field(&packet, "stdout") is output {
+            if send_stream(wire, "stdout", output) != 0 { return 1; }
+        }
+        if field(&packet, "stderr") is output {
+            if send_stream(wire, "stderr", output) != 0 { return 1; }
+        }
     }
     if field(&packet, "value") is value {
         if boolean(&packet, "error") {
             const escaped = json_string(value);
             const error_content = $"\{\"ename\":\"Error\",\"evalue\":{escaped},\"traceback\":[{escaped}]\}";
-            if wire.send(4, "error", error_content) != 0 { return 1; }
-            const reply = $"\{\"status\":\"error\",\"execution_count\":{count},\"ename\":\"Error\",\"evalue\":{escaped},\"traceback\":[{escaped}]\}";
+            if not silent and wire.send(4, "error", error_content) != 0 { return 1; }
+            var reply_count = $"{count}";
+            if silent { reply_count = "null"; }
+            const reply = $"\{\"status\":\"error\",\"execution_count\":{reply_count},\"ename\":\"Error\",\"evalue\":{escaped},\"traceback\":[{escaped}]\}";
             if wire.send(3, "execute_reply", reply) != 0 { return 1; }
         } else {
-            if boolean(&packet, "has_value") {
+            if not silent and boolean(&packet, "has_value") {
                 const escaped_value = json_string(value);
                 const mime = text_or_empty(field(&packet, "mime"));
                 if mime != "" and mime != "text/plain" {
@@ -93,7 +99,9 @@ fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, co
                     if wire.send(4, "execute_result", result) != 0 { return 1; }
                 }
             }
-            const reply = $"\{\"status\":\"ok\",\"execution_count\":{count},\"user_expressions\":\{\}\}";
+            var reply_count = $"{count}";
+            if silent { reply_count = "null"; }
+            const reply = $"\{\"status\":\"ok\",\"execution_count\":{reply_count},\"user_expressions\":\{\}\}";
             if wire.send(3, "execute_reply", reply) != 0 { return 1; }
         }
     }
@@ -112,6 +120,7 @@ pub fn run(path: string): i32 {
             defer host.deinit();
             if install(&host) != 0 { return 1; }
             var count: u32 = 0;
+            var serial: u32 = 0;
             while true {
                 const channel = transport.poll(100);
                 if channel == 0 or channel == 1 or channel == -1 { continue; }
@@ -134,8 +143,10 @@ pub fn run(path: string): i32 {
                     } else if kind == "comm_info_request" {
                         if transport.send(3, "comm_info_reply", "{\"comms\":{},\"status\":\"ok\"}") != 0 { return 1; }
                     } else if kind == "execute_request" {
-                        count = count + 1;
-                        if execute(&transport, &host, &content, count) != 0 { return 1; }
+                        serial = serial + 1;
+                        const silent = boolean(&content, "silent");
+                        if not silent { count = count + 1; }
+                        if execute(&transport, &host, &content, count, serial, silent) != 0 { return 1; }
                     }
                 }
             }
