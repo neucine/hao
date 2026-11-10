@@ -179,7 +179,8 @@ int main(int argc, char **argv) {
         !strstr(content, "\"status\":\"error\""))) status = 27;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"throw new Error('broken')\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
-        !strstr(content, "\"status\":\"error\""))) status = 12;
+        !strstr(content, "\"status\":\"error\"") ||
+        !strstr(content, "Error: broken") || !strstr(content, "at <"))) status = 12;
     if (!status && (send_request(control, "shutdown_request", "{}") < 0 ||
         receive_content(control, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\""))) status = 8;

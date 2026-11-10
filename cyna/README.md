@@ -18,6 +18,7 @@ including timer delayed resolution and rejection. Broader rich display parity
 is still pending.
 Ordinary objects use `std:util.inspect` for their text result.
 Top level `const`, `let`, and class declarations can be redefined in later cells.
+JavaScript execution errors include their stack in the Jupyter error reply.
 The build also produces a Cyna runtime static library with the C API in
 `include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 

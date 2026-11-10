@@ -775,6 +775,37 @@ static JSValue hao_cell_repr(JSContext *ctx, JSValueConst value, JSValue *mime) 
     return JS_DupValue(ctx, value);
 }
 
+static JSValue hao_cell_error_text(JSContext *ctx, JSValueConst exception) {
+    if (!JS_IsObject(exception)) return JS_DupValue(ctx, exception);
+    JSValue name_value = JS_GetPropertyStr(ctx, exception, "name");
+    JSValue message_value = JS_GetPropertyStr(ctx, exception, "message");
+    JSValue stack_value = JS_GetPropertyStr(ctx, exception, "stack");
+    const char *name = JS_IsNull(name_value) || JS_IsUndefined(name_value) ? NULL : JS_ToCString(ctx, name_value);
+    const char *message = JS_IsNull(message_value) || JS_IsUndefined(message_value) ? NULL : JS_ToCString(ctx, message_value);
+    const char *stack = JS_IsNull(stack_value) || JS_IsUndefined(stack_value) ? NULL : JS_ToCString(ctx, stack_value);
+    JSValue text = JS_DupValue(ctx, exception);
+    if (name || message || stack) {
+        const char *label = name ? name : "Error";
+        size_t length = strlen(label) + (message ? strlen(message) + 2 : 0) +
+                        (stack ? strlen(stack) + 1 : 0) + 1;
+        char *buffer = malloc(length);
+        if (buffer) {
+            snprintf(buffer, length, "%s%s%s%s%s", label, message ? ": " : "",
+                     message ? message : "", stack ? "\n" : "", stack ? stack : "");
+            JS_FreeValue(ctx, text);
+            text = JS_NewString(ctx, buffer);
+            free(buffer);
+        }
+    }
+    if (name) JS_FreeCString(ctx, name);
+    if (message) JS_FreeCString(ctx, message);
+    if (stack) JS_FreeCString(ctx, stack);
+    JS_FreeValue(ctx, name_value);
+    JS_FreeValue(ctx, message_value);
+    JS_FreeValue(ctx, stack_value);
+    return text;
+}
+
 static bool hao_cell_is_promise_like(JSContext *ctx, JSValueConst value) {
     if (!JS_IsObject(value)) return false;
     JSValue then = JS_GetPropertyStr(ctx, value, "then");
@@ -894,7 +925,7 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
     JS_SetPropertyStr(ctx, packet, "stdout", JS_NewStringLen(ctx, host->capture_stdout, host->capture_stdout_len));
     JS_SetPropertyStr(ctx, packet, "stderr", JS_NewStringLen(ctx, host->capture_stderr, host->capture_stderr_len));
     JSValue mime = JS_UNDEFINED;
-    JSValue display = JS_IsUndefined(exception) ? hao_cell_repr(ctx, result, &mime) : JS_DupValue(ctx, exception);
+    JSValue display = JS_IsUndefined(exception) ? hao_cell_repr(ctx, result, &mime) : hao_cell_error_text(ctx, exception);
     if (JS_IsException(display)) {
         JS_FreeValue(ctx, display);
         display = JS_GetException(ctx);
