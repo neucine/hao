@@ -110,12 +110,22 @@ static int read_frame(void *socket, HaoFrame *out, int *more) {
     zmq_msg_t message;
     if (zmq_msg_init(&message) < 0) return -1;
     int size = zmq_msg_recv(&message, socket, 0);
+    *more = size < 0 ? 0 : zmq_msg_more(&message);
     if (size < 0 || size > HAO_MAX_FRAME) { zmq_msg_close(&message); return -1; }
     out->data = copy_text(zmq_msg_data(&message), (size_t)size);
     out->length = (size_t)size;
-    *more = zmq_msg_more(&message);
     zmq_msg_close(&message);
     return out->data ? 0 : -1;
+}
+
+static void discard_remaining(void *socket, int more) {
+    while (more) {
+        zmq_msg_t message;
+        if (zmq_msg_init(&message) < 0) return;
+        if (zmq_msg_recv(&message, socket, 0) < 0) { zmq_msg_close(&message); return; }
+        more = zmq_msg_more(&message);
+        zmq_msg_close(&message);
+    }
 }
 
 static size_t signature(const HaoWire *wire, const HaoFrame frames[4], char out[65]) {
@@ -135,9 +145,11 @@ static int receive_message(HaoWire *wire, void *socket, int channel) {
     HaoFrame frame = {0};
     int more = 0;
     while (1) {
-        if (read_frame(socket, &frame, &more) < 0) return -1;
+        if (read_frame(socket, &frame, &more) < 0) { discard_remaining(socket, more); clear_message(wire); return -1; }
         if (frame.length == 9 && memcmp(frame.data, "<IDS|MSG>", 9) == 0) { hao_free(frame.data); break; }
-        if (wire->identity_count == HAO_MAX_IDENTITIES || !more) { hao_free(frame.data); return -1; }
+        if (wire->identity_count == HAO_MAX_IDENTITIES || !more) {
+            hao_free(frame.data); discard_remaining(socket, more); clear_message(wire); return -1;
+        }
         wire->identities[wire->identity_count++] = frame;
     }
     HaoFrame fields[5] = {{0}};
@@ -153,6 +165,7 @@ static int receive_message(HaoWire *wire, void *socket, int channel) {
     return channel;
 bad:
     for (size_t i = 0; i < 5; i++) hao_free(fields[i].data);
+    discard_remaining(socket, more);
     clear_message(wire);
     return -1;
 }
