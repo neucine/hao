@@ -581,6 +581,11 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
             if (jobs == 0 && io == 0) break;
         }
     }
+    if (host->has_rejection) {
+        if (JS_IsUndefined(exception)) exception = JS_DupValue(host->rejection_context, host->rejection);
+        JS_FreeValue(host->rejection_context, host->rejection);
+        host->has_rejection = false;
+    }
     host->capture_active = false;
     JSValue packet = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, packet, "stdout", JS_NewStringLen(ctx, host->capture_stdout, host->capture_stdout_len));

@@ -248,6 +248,10 @@ int main(int argc, char **argv) {
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"Promise.reject(new Error('async broken'))\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\""))) status = 27;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"Promise.reject(new Error('detached broken')); 42\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"error\"") ||
+        !strstr(content, "detached broken"))) status = 64;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"throw new Error('broken')\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\"") ||
