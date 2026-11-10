@@ -756,6 +756,70 @@ static JSValue hao_cell_repr(JSContext *ctx, JSValueConst value, JSValue *mime) 
     return JS_DupValue(ctx, value);
 }
 
+static bool hao_cell_is_promise_like(JSContext *ctx, JSValueConst value) {
+    if (!JS_IsObject(value)) return false;
+    JSValue then = JS_GetPropertyStr(ctx, value, "then");
+    bool found = JS_IsFunction(ctx, then);
+    JS_FreeValue(ctx, then);
+    return found;
+}
+
+static JSValue hao_cell_await(JSContext *ctx, HaoRuntime *host, JSValueConst promise) {
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue state = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, state, "settled", JS_NewBool(ctx, false));
+    JS_SetPropertyStr(ctx, state, "ok", JS_NewBool(ctx, false));
+    JS_SetPropertyStr(ctx, global, "__hao_nb_async_state", JS_DupValue(ctx, state));
+    JS_SetPropertyStr(ctx, global, "__hao_nb_async_promise", JS_DupValue(ctx, promise));
+    static const char bootstrap[] =
+        "Promise.resolve(globalThis.__hao_nb_async_promise).then("
+        "value => { const s = globalThis.__hao_nb_async_state; s.value = value; s.ok = true; s.settled = true; },"
+        "error => { const s = globalThis.__hao_nb_async_state; s.value = error; s.settled = true; });";
+    JSValue setup = JS_Eval(ctx, bootstrap, sizeof(bootstrap) - 1,
+                            "<hao-jupyter-await>", JS_EVAL_TYPE_GLOBAL);
+    JSValue outcome = JS_UNDEFINED;
+    if (JS_IsException(setup)) {
+        outcome = setup;
+    } else {
+        JS_FreeValue(ctx, setup);
+        bool completed = false;
+        for (int i = 0; i < 10000; i++) {
+            JSValue settled = JS_GetPropertyStr(ctx, state, "settled");
+            int ready = JS_ToBool(ctx, settled);
+            JS_FreeValue(ctx, settled);
+            if (ready) {
+                JSValue ok = JS_GetPropertyStr(ctx, state, "ok");
+                int success = JS_ToBool(ctx, ok);
+                JS_FreeValue(ctx, ok);
+                outcome = JS_GetPropertyStr(ctx, state, "value");
+                if (!success) JS_Throw(ctx, JS_DupValue(ctx, outcome));
+                if (!success) { JS_FreeValue(ctx, outcome); outcome = JS_EXCEPTION; }
+                completed = true;
+                break;
+            }
+            JSContext *job_ctx = NULL;
+            if (JS_ExecutePendingJob(host->runtime, &job_ctx) < 0) {
+                JSValue error = JS_GetException(job_ctx);
+                JS_Throw(ctx, error);
+                outcome = JS_EXCEPTION;
+                completed = true;
+                break;
+            }
+            uv_run(host->loop, UV_RUN_NOWAIT);
+            usleep(1000);
+        }
+        if (!completed) {
+            JS_ThrowInternalError(ctx, "Promise did not settle");
+            outcome = JS_EXCEPTION;
+        }
+    }
+    JS_SetPropertyStr(ctx, global, "__hao_nb_async_state", JS_UNDEFINED);
+    JS_SetPropertyStr(ctx, global, "__hao_nb_async_promise", JS_UNDEFINED);
+    JS_FreeValue(ctx, state);
+    JS_FreeValue(ctx, global);
+    return outcome;
+}
+
 char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_len,
                             const char *filename, size_t filename_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
@@ -787,6 +851,12 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
         result = JS_Eval(ctx, transformed, strlen(transformed), name, JS_EVAL_TYPE_GLOBAL);
         free(transformed);
         if (JS_IsException(result)) exception = JS_GetException(ctx);
+        else if (hao_cell_is_promise_like(ctx, result)) {
+            JSValue settled = hao_cell_await(ctx, host, result);
+            JS_FreeValue(ctx, result);
+            result = settled;
+            if (JS_IsException(result)) exception = JS_GetException(ctx);
+        }
     } else {
         exception = JS_GetException(ctx);
     }

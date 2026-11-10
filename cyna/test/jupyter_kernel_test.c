@@ -78,13 +78,12 @@ int main(int argc, char **argv) {
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:1", base); zmq_connect(shell, endpoint);
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:2", base); zmq_connect(control, endpoint);
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:3", base); zmq_connect(iopub, endpoint);
-    usleep(100000);
+    usleep(300000);
     char content[2048]; int status = 0;
     if (send_request(shell, "kernel_info_request", "{}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"implementation\":\"hao\"")) status = 5;
-    if (!status && (receive_content(iopub, content, sizeof(content)) < 0 ||
-        receive_content(iopub, content, sizeof(content)) < 0)) status = 20;
+    if (!status && receive_content(iopub, content, sizeof(content)) < 0) status = 20;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"let x: number = 21; x * 2\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\""))) status = 6;
@@ -122,6 +121,27 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"image/svg+xml\":\"<svg/>\"")) saw_svg = 1;
     }
     if (!status && !saw_svg) status = 19;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"Promise.resolve(41).then(value => value + 1)\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 21;
+    int saw_async_42 = 0;
+    for (int i = 0; !status && i < 6 && !saw_async_42; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 22; break; }
+        if (strstr(content, "\"text/plain\":\"42\"")) saw_async_42 = 1;
+    }
+    if (!status && !saw_async_42) status = 23;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"new Promise(resolve => setTimeout(() => resolve(23), 10))\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 24;
+    int saw_delayed_23 = 0;
+    for (int i = 0; !status && i < 6 && !saw_delayed_23; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 25; break; }
+        if (strstr(content, "\"text/plain\":\"23\"")) saw_delayed_23 = 1;
+    }
+    if (!status && !saw_delayed_23) status = 26;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"Promise.reject(new Error('async broken'))\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"error\""))) status = 27;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"throw new Error('broken')\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\""))) status = 12;

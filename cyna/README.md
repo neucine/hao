@@ -13,8 +13,9 @@ cells share a persistent QuickJS context. `jupyter install` writes a kernelspec
 under the user's Jupyter directory; `HAO_JUPYTER_KERNEL_DIR` overrides that path.
 Notebook cells support `std:` and relative static imports. Objects with a
 `repr({ mode: "text" })` method can return text or `{ mime, data }`; nontext
-results are published as Jupyter `display_data`. Asynchronous cell results and
-broader rich display parity are still pending.
+results are published as Jupyter `display_data`. Promise results are awaited,
+including timer delayed resolution and rejection. Broader rich display parity
+is still pending.
 The build also produces a Cyna runtime static library with the C API in
 `include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 
