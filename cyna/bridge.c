@@ -157,9 +157,8 @@ uintptr_t hao_runtime_new(void) {
         free(host);
         return 0;
     }
-    host->loop = malloc(uv_loop_size());
-    if (!host->loop || uv_loop_init(host->loop) != 0) {
-        free(host->loop);
+    host->loop = hao_async_uv_new();
+    if (!host->loop) {
         JS_FreeContext(host->context);
         JS_FreeRuntime(host->runtime);
         free(host);
@@ -200,9 +199,7 @@ void hao_runtime_free(uintptr_t handle) {
     hao_addon_cleanup(host->context);
     hao_metric_cleanup(host->context);
     hao_cleanup_timers(host);
-    uv_run(host->loop, UV_RUN_DEFAULT);
-    uv_loop_close(host->loop);
-    free(host->loop);
+    hao_async_uv_free(host->loop);
     free(host->capture_stdout);
     free(host->capture_stderr);
     free(host->embed_error);
@@ -500,7 +497,7 @@ static JSValue hao_cell_await(JSContext *ctx, HaoRuntime *host, JSValueConst pro
                 completed = true;
                 break;
             }
-            uv_run(host->loop, UV_RUN_NOWAIT);
+            hao_async_uv_run_nowait(host->loop);
             usleep(1000);
         }
         if (!completed) {
@@ -561,7 +558,7 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
         for (int i = 0; i < 10000; i++) {
             int jobs = JS_ExecutePendingJob(host->runtime, &job_ctx);
             if (jobs < 0) { exception = JS_GetException(job_ctx); break; }
-            int io = uv_run(host->loop, UV_RUN_NOWAIT);
+            int io = hao_async_uv_run_nowait(host->loop);
             if (jobs == 0 && io == 0) break;
         }
     }
@@ -681,8 +678,7 @@ int hao_runtime_drain(uintptr_t handle) {
 
 int hao_runtime_run_turn(uintptr_t handle) {
     HaoRuntime *host = (HaoRuntime *)handle;
-    if (uv_loop_alive(host->loop) == 0) return 0;
-    int result = uv_run(host->loop, UV_RUN_ONCE);
+    int result = hao_async_uv_run_once(host->loop);
     if (result < 0) return -1;
     if (host->has_callback_error) {
         hao_print_value(host->context, host->callback_error);
@@ -690,5 +686,5 @@ int hao_runtime_run_turn(uintptr_t handle) {
         host->has_callback_error = false;
         return -1;
     }
-    return 1;
+    return result;
 }

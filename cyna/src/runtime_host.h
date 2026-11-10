@@ -16,6 +16,11 @@ typedef struct HaoSourceModule {
 
 typedef struct HaoTimer HaoTimer;
 
+uv_loop_t *hao_async_uv_new(void);
+void hao_async_uv_free(uv_loop_t *loop);
+int hao_async_uv_run_once(uv_loop_t *loop);
+int hao_async_uv_run_nowait(uv_loop_t *loop);
+
 typedef struct HaoRuntime {
     JSRuntime *runtime;
     JSContext *context;
