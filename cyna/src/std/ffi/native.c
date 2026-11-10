@@ -210,7 +210,7 @@ static JSValue result_value(JSContext *ctx, HaoType type, HaoValue value) {
         case HAO_CSTRING: {
             if (!value.ptr) return JS_NULL;
             const char *text = value.ptr;
-            return JS_NewStringLen(ctx, text, strnlen(text, 1024 * 1024));
+            return JS_NewStringLen(ctx, text, strlen(text));
         }
     }
     return JS_UNDEFINED;

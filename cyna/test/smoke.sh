@@ -522,8 +522,15 @@ EOF
 test "$("$runtime" "$fixture_dir/ffi-missing-symbol.ts")" = 'InternalError dlopen: symbol not found'
 cat > "$fixture_dir/ffi-search.c" <<'EOF'
 #include <stdint.h>
+#include <string.h>
 int hao_search_value(void) { return 29; }
 uint64_t hao_high_bit(uint64_t value) { return value >> 63; }
+static char hao_long_text[1024 * 1024 + 18];
+const char *hao_long_string(void) {
+    memset(hao_long_text, 'x', sizeof(hao_long_text) - 1);
+    hao_long_text[sizeof(hao_long_text) - 1] = 0;
+    return hao_long_text;
+}
 int hao_make_handle(void **out) { *out = (void *)0x1234; return 0; }
 int hao_fail_handle(void **out) { *out = (void *)0x1234; return 5; }
 int hao_fail_with_code(int code) { return code ? -1 : 0; }
@@ -546,11 +553,13 @@ import { getEnv } from 'std:process';
 const path = getEnv('HAO_FFI_TEST_PATH');
 const library = dlopen(`${path}/libhao_search_fixture.dylib`, {
   hao_high_bit: { args: ['u64'], returns: 'u64' },
+  hao_long_string: { args: [], returns: 'cstring' },
 });
 console.log(library.hao_high_bit(9223372036854775808n));
+console.log(library.hao_long_string().length);
 library.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-u64.ts")" = '1'
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-u64.ts")" = "$(printf '1\n1048593')"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
