@@ -815,6 +815,12 @@ EOF
 process_actual=$(HAO_CYNA_TEST=works "$runtime" "$fixture_dir/process.ts")
 process_expected=$(printf 'env works\nrun hello warn 0\njson 42\nunchecked 7\nsignaled null 15\ncwd /private/tmp\nlargeLimit ok\ncoerced 42,true,null\nchecked 9\nlimited process.run failed')
 test "$process_actual" = "$process_expected"
+cat > "$fixture_dir/process-nul.ts" <<'EOF'
+import { run } from 'std:process';
+const result = await run({ cmd: 'sh', args: ['-c', "printf 'a\\000b'; printf 'c\\000d' >&2"], check: false });
+console.log(result.stdout.length, result.stderr.length, result.stdout, result.stderr);
+EOF
+test "$("$runtime" "$fixture_dir/process-nul.ts")" = '1 1 a c'
 cat > "$fixture_dir/process-errors.ts" <<'EOF'
 import { runNative, getEnvNative } from 'std:process/native';
 for (const invoke of [() => getEnvNative(), () => runNative({ cmd: 'sh', maxOutputBytes: 0 }),

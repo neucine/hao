@@ -122,8 +122,8 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
     const char *options = JS_ToCStringLen(ctx, &json_len, json);
     JS_FreeValue(ctx, json);
     if (!options) return JS_EXCEPTION;
-    unsigned char *stdout_buffer = hao_alloc(capacity);
-    unsigned char *stderr_buffer = hao_alloc(capacity);
+    unsigned char *stdout_buffer = hao_alloc(capacity + 1);
+    unsigned char *stderr_buffer = hao_alloc(capacity + 1);
     if (!stdout_buffer || !stderr_buffer) {
         hao_free(stdout_buffer);
         hao_free(stderr_buffer);
@@ -141,9 +141,11 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
         if (status == 3) return JS_ThrowInternalError(ctx, "process.run failed");
         return JS_ThrowInternalError(ctx, "process.run failed");
     }
+    stdout_buffer[run.stdout_len] = 0;
+    stderr_buffer[run.stderr_len] = 0;
     JSValue result = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, result, "stdout", JS_NewStringLen(ctx, (const char *)stdout_buffer, run.stdout_len));
-    JS_SetPropertyStr(ctx, result, "stderr", JS_NewStringLen(ctx, (const char *)stderr_buffer, run.stderr_len));
+    JS_SetPropertyStr(ctx, result, "stdout", JS_NewString(ctx, (const char *)stdout_buffer));
+    JS_SetPropertyStr(ctx, result, "stderr", JS_NewString(ctx, (const char *)stderr_buffer));
     JS_SetPropertyStr(ctx, result, "exitCode", run.has_exit_code ? JS_NewInt32(ctx, run.exit_code) : JS_NULL);
     JS_SetPropertyStr(ctx, result, "signal", run.has_signal ? JS_NewInt32(ctx, run.signal) : JS_NULL);
     hao_free(stdout_buffer);
