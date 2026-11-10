@@ -1,6 +1,5 @@
-import { read_file } from std.fs;
 import { Value, parse as parse_json } from std.json;
-import { within_limit } from .fs_limit;
+import { read_limited } from .fs_limit;
 
 pub struct Connection {
     pub transport: string;
@@ -75,11 +74,18 @@ fn or_default(value: ?string, fallback: string): string {
 
 pub fn parse(path: string): ?Connection {
     const bytes = path.bytes();
-    if within_limit(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t, 64 * 1024) == 0 {
-        return none;
+    var content: List<u8> = list<u8>();
+    content.reserve(64 * 1024);
+    var index: usize = 0;
+    while index < 64 * 1024 {
+        content.push(0);
+        index = index + 1;
     }
-    const source = read_file(path) catch (code) { return none; };
-    if source.len() > 64 * 1024 { return none; }
+    const view = content[..];
+    const length = read_limited(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
+        view.ptr as! *c_uchar, view.len() as c_size_t);
+    if length < 0 { return none; }
+    const source = string.from(view[0..length as usize]);
     const value = parse_json(source) catch (code) { return none; };
     const shell_port = port_field(&value, "shell_port");
     const control_port = port_field(&value, "control_port");
