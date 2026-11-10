@@ -79,27 +79,31 @@ export c("hao_process_run_json") fn run_json(options_pointer: *const c_uchar, op
             for value in values {
                 const value_bytes = value.bytes();
                 for byte in value_bytes {
-                    if byte == 0 { return 1; }
+                    if byte == 0 { break; }
                     argument_bytes.push(byte);
                 }
                 argument_bytes.push(0);
             }
             const program_bytes = program.bytes();
+            var program_len: usize = 0;
             for byte in program_bytes {
-                if byte == 0 { return 1; }
+                if byte == 0 { break; }
+                program_len = program_len + 1;
             }
             if field(&options, "cwd") is directory {
                 const cwd_bytes = directory.bytes();
+                var cwd_len: usize = 0;
                 for byte in cwd_bytes {
-                    if byte == 0 { return 1; }
+                    if byte == 0 { break; }
+                    cwd_len = cwd_len + 1;
                 }
-                return execute(program_bytes.ptr as! *const c_uchar, program_bytes.len() as c_size_t,
+                return execute(program_bytes.ptr as! *const c_uchar, program_len as c_size_t,
                     argument_bytes.view().ptr as! *const c_uchar, argument_bytes.len() as c_size_t, values.len() as c_size_t,
-                    cwd_bytes.ptr as! *const c_uchar, cwd_bytes.len() as c_size_t,
+                    cwd_bytes.ptr as! *const c_uchar, cwd_len as c_size_t,
                     stdout_output, stderr_output, capacity, result);
             }
             const empty = "".bytes();
-            return execute(program_bytes.ptr as! *const c_uchar, program_bytes.len() as c_size_t,
+            return execute(program_bytes.ptr as! *const c_uchar, program_len as c_size_t,
                 argument_bytes.view().ptr as! *const c_uchar, argument_bytes.len() as c_size_t, values.len() as c_size_t,
                 empty.ptr as! *const c_uchar, 0, stdout_output, stderr_output, capacity, result);
         }

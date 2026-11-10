@@ -821,6 +821,12 @@ const result = await run({ cmd: 'sh', args: ['-c', "printf 'a\\000b'; printf 'c\
 console.log(result.stdout.length, result.stderr.length, result.stdout, result.stderr);
 EOF
 test "$("$runtime" "$fixture_dir/process-nul.ts")" = '1 1 a c'
+cat > "$fixture_dir/process-input-nul.ts" <<'EOF'
+import { run } from 'std:process';
+const result = await run({ cmd: 'sh\0other', args: ['-c', 'printf ok\0bad'], cwd: '/tmp\0missing' });
+console.log(result.stdout, result.exitCode);
+EOF
+test "$("$runtime" "$fixture_dir/process-input-nul.ts")" = 'ok 0'
 cat > "$fixture_dir/process-errors.ts" <<'EOF'
 import { runNative, getEnvNative } from 'std:process/native';
 for (const invoke of [() => getEnvNative(), () => runNative({ cmd: 'sh', maxOutputBytes: 0 }),
