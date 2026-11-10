@@ -201,11 +201,13 @@ function openWithSearch(name: string, search: any): number {
   }
   const strategy = search.strategy ?? 'runtime-default';
   const paths: string[] = search.paths ?? [];
-  const basename = `lib${name}.dylib`;
+  const basenames = [`lib${name}.dylib`, `lib${name}.so`];
   const fromPaths = (): number | null => {
     for (const path of paths) {
-      const handle = open(`${path.replace(/\/$/, '')}/${basename}`);
-      if (handle !== null) return handle;
+      for (const basename of basenames) {
+        const handle = open(`${path.replace(/\/$/, '')}/${basename}`);
+        if (handle !== null) return handle;
+      }
     }
     return null;
   };

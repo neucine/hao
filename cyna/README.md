@@ -107,6 +107,8 @@ callbacks retain the trace parent active when scheduled. Set
 port. The console serves Hao's dashboard, health, metrics, and trace endpoints.
 The Cyna trace endpoint retains 512 start and end records with sequence cursors
 and reports overwritten history. Span events and attributes remain to be ported.
+On glibc Linux, allocator gauges use `mallinfo2`; the peak is the highest
+sampled active value.
 
 `std:ffi` binds typed dynamic symbols through libffi, including mixed numeric
 argument classes and typed array pointers. The C declaration wrapper supports
@@ -119,6 +121,7 @@ with C alignment and copy changed fields back to the JavaScript object. C
 declarations support `runtime-default`,
 `relative-first`, and `system-first` library search strategies with explicit
 search directories.
+Library searches accept `.dylib` and `.so` names in configured directories.
 
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust

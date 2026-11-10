@@ -1,5 +1,9 @@
 #include <quickjs.h>
+#if defined(__APPLE__)
 #include <malloc/malloc.h>
+#elif defined(__GLIBC__)
+#include <malloc.h>
+#endif
 #include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
@@ -161,8 +165,19 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     (void)this_val; (void)argc; (void)argv;
     JSMemoryUsage usage;
     JS_ComputeMemoryUsage(JS_GetRuntime(ctx), &usage);
+    size_t allocator_active = 0, allocator_peak = 0;
+#if defined(__APPLE__)
     malloc_statistics_t zone;
     malloc_zone_statistics(malloc_default_zone(), &zone);
+    allocator_active = zone.size_in_use;
+    allocator_peak = zone.max_size_in_use;
+#elif defined(__GLIBC__)
+    struct mallinfo2 info = mallinfo2();
+    allocator_active = info.uordblks;
+    static size_t sampled_peak = 0;
+    if (allocator_active > sampled_peak) sampled_peak = allocator_active;
+    allocator_peak = sampled_peak;
+#endif
     JSValue result = JS_NewObject(ctx);
     if (JS_IsException(result)) return result;
 #define GAUGE(name, value) JS_SetPropertyStr(ctx, result, name, JS_NewFloat64(ctx, (double)(value)))
@@ -189,8 +204,8 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     GAUGE("qjs_fast_array_element_count", usage.fast_array_elements);
     GAUGE("qjs_binary_object_count", usage.binary_object_count);
     GAUGE("qjs_binary_object_bytes", usage.binary_object_size);
-    GAUGE("allocator_active_bytes", zone.size_in_use);
-    GAUGE("allocator_peak_bytes", zone.max_size_in_use);
+    GAUGE("allocator_active_bytes", allocator_active);
+    GAUGE("allocator_peak_bytes", allocator_peak);
 #undef GAUGE
     return result;
 }

@@ -444,6 +444,8 @@ console.log(tree.tag, tree.point.x, tree.point.y, tree.tail);
 nested.close();
 EOF
 test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29\n37\n4 12\n7 3.75\n2 11 4 9')"
+mv "$fixture_dir/libhao_search_fixture.dylib" "$fixture_dir/libhao_search_fixture.so"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29\n37\n4 12\n7 3.75\n2 11 4 9')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

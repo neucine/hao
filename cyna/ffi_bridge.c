@@ -106,7 +106,11 @@ static JSValue open_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     if (!strchr(name, '/') && !strchr(name, '.')) {
         path = malloc(length + 10);
         if (!path) { JS_FreeCString(ctx, name); return JS_ThrowOutOfMemory(ctx); }
+#if defined(__APPLE__)
         snprintf(path, length + 10, "lib%s.dylib", name);
+#else
+        snprintf(path, length + 10, "lib%s.so", name);
+#endif
     }
     void *handle = dlopen(path ? path : name, RTLD_NOW | RTLD_LOCAL);
     free(path);
