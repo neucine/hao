@@ -18,6 +18,11 @@ printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name
 standard_actual=$("$runtime" "$fixture_dir/standard.ts")
 test "$standard_actual" = 'hao std: hao'
 
+printf "import fs from 'std:fs'; const path = '%s/data.txt'; console.log(fs.existsSync(path)); fs.writeFileSync(path, 'hello'); console.log(fs.existsSync(path), fs.readFileSync(path), fs.statSync(path).size);\n" "$fixture_dir" > "$fixture_dir/filesystem.ts"
+filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
+filesystem_expected=$(printf 'false\ntrue hello 5')
+test "$filesystem_actual" = "$filesystem_expected"
+
 printf 'console.log("before"); const cancelled = setTimeout(() => console.log("cancelled"), 1); clearTimeout(cancelled); setTimeout(() => { console.log("after"); Promise.resolve().then(() => console.log("microtask")); }, 1);\n' > "$fixture_dir/timer.ts"
 timer_actual=$("$runtime" "$fixture_dir/timer.ts")
 timer_expected=$(printf 'before\nafter\nmicrotask')
