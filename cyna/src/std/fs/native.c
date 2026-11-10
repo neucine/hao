@@ -41,7 +41,7 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
         return JS_ThrowInternalError(ctx, "failed to read file");
     }
     size_t capacity = (size_t)info.st_size;
-    unsigned char *buffer = hao_alloc(capacity ? capacity : 1);
+    unsigned char *buffer = hao_alloc(capacity + 1);
     if (!buffer) {
         JS_FreeCString(ctx, path);
         return JS_ThrowOutOfMemory(ctx);
@@ -52,7 +52,8 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
         hao_free(buffer);
         return JS_ThrowInternalError(ctx, "failed to read file");
     }
-    JSValue result = JS_NewStringLen(ctx, (const char *)buffer, (size_t)length);
+    buffer[length] = 0;
+    JSValue result = JS_NewString(ctx, (const char *)buffer);
     hao_free(buffer);
     return result;
 }
@@ -69,7 +70,7 @@ static JSValue hao_fs_write_file_sync(JSContext *ctx, JSValueConst this_val, int
         JS_FreeCString(ctx, path);
         return JS_EXCEPTION;
     }
-    int status = hao_fs_write((const unsigned char *)path, (const unsigned char *)data, length);
+    int status = hao_fs_write((const unsigned char *)path, (const unsigned char *)data, strlen(data));
     JS_FreeCString(ctx, data);
     JS_FreeCString(ctx, path);
     if (status != 0) return JS_ThrowInternalError(ctx, "failed to write file");

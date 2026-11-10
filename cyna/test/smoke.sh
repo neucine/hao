@@ -175,6 +175,9 @@ printf "import fs from 'std:fs'; const path = '%s/data.txt'; console.log(fs.exis
 filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
 filesystem_expected=$(printf 'false\ntrue hello 5')
 test "$filesystem_actual" = "$filesystem_expected"
+printf 'a\000b' > "$fixture_dir/external-nul.txt"
+printf "import { readFileSync, writeFileSync, statSync } from 'std:fs'; writeFileSync('%s/written-nul.txt', 'a\\\\0b'); console.log(statSync('%s/written-nul.txt').size, readFileSync('%s/external-nul.txt').length);\n" "$fixture_dir" "$fixture_dir" "$fixture_dir" > "$fixture_dir/filesystem-nul.ts"
+test "$("$runtime" "$fixture_dir/filesystem-nul.ts")" = '1 1'
 python3 - "$fixture_dir/oversize-read.bin" <<'PY'
 import sys
 with open(sys.argv[1], 'wb') as output:
