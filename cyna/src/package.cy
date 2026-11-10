@@ -10,6 +10,19 @@ fn join2(first: string, second: string): string {
     return join(parts[..]);
 }
 
+fn trim_root(value: string): string {
+    const bytes = value.bytes();
+    var start: usize = 0;
+    var end = bytes.len();
+    while start < end and (bytes[start] == 32 or bytes[start] == 9 or bytes[start] == 13 or bytes[start] == 10) {
+        start = start + 1;
+    }
+    while end > start and (bytes[end - 1] == 32 or bytes[end - 1] == 9 or bytes[end - 1] == 13 or bytes[end - 1] == 10) {
+        end = end - 1;
+    }
+    return value.slice(start, end);
+}
+
 fn field(value: &const Value, key: string): ?string {
     switch value {
         .object(object) => {
@@ -146,32 +159,6 @@ fn resolve_in(root: string, subpath: string): ?string {
     return none;
 }
 
-fn search_root(root: string, name: string, subpath: string): ?string {
-    const package_root = join2(root, name);
-    return resolve_in(package_root, subpath);
-}
-
-fn search_env_roots(name: string, subpath: string): ?string {
-    if env_get("RUNTIME_PACKAGE_PATH") is roots {
-        var start: usize = 0;
-        const bytes = roots.bytes();
-        var index: usize = 0;
-        while index <= bytes.len() {
-            if index == bytes.len() or bytes[index] == 58 {
-                if index > start {
-                    const root = roots.slice(start, index);
-                    if search_root(root, name, subpath) is found {
-                        return found;
-                    }
-                }
-                start = index + 1;
-            }
-            index = index + 1;
-        }
-    }
-    return none;
-}
-
 fn resolve(base: string, specifier: string): ?string {
     const name = package_name(specifier);
     if name.len() == 0 or name == "std" {
@@ -181,14 +168,32 @@ fn resolve(base: string, specifier: string): ?string {
     if name.len() < specifier.len() {
         subpath = specifier.slice(name.len() + 1, specifier.len());
     }
-    if search_env_roots(name, subpath) is found {
-        return found;
+    if env_get("RUNTIME_PACKAGE_PATH") is roots {
+        var start: usize = 0;
+        const bytes = roots.bytes();
+        var index: usize = 0;
+        while index <= bytes.len() {
+            if index == bytes.len() or bytes[index] == 58 {
+                const root = trim_root(roots.slice(start, index));
+                if root.len() > 0 {
+                    const package_root = join2(root, name);
+                    const found = exists(package_root.clone()) catch (code) => false;
+                    if found {
+                        return resolve_in(package_root, subpath);
+                    }
+                }
+                start = index + 1;
+            }
+            index = index + 1;
+        }
     }
     var directory = dirname(base);
     while directory.len() > 0 {
         const node_modules = join2(directory, "node_modules");
-        if search_root(node_modules, name, subpath) is found {
-            return found;
+        const package_root = join2(node_modules, name);
+        const found = exists(package_root.clone()) catch (code) => false;
+        if found {
+            return resolve_in(package_root, subpath);
         }
         const parent = dirname(directory);
         if parent == directory {

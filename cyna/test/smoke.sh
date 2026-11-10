@@ -718,6 +718,19 @@ printf '{"exports":"./index.mjs"}\n' > "$fixture_dir/vendor/external/package.jso
 printf 'export const value = 11;\n' > "$fixture_dir/vendor/external/index.mjs"
 printf 'import { value } from "external"; console.log("external", value);\n' > "$fixture_dir/app/external.ts"
 test "$(RUNTIME_PACKAGE_PATH="$fixture_dir/vendor" "$runtime" "$fixture_dir/app/external.ts")" = 'external 11'
+test "$(RUNTIME_PACKAGE_PATH="  $fixture_dir/vendor  " "$runtime" "$fixture_dir/app/external.ts")" = 'external 11'
+mkdir -p "$fixture_dir/vendor/priority" "$fixture_dir/app/node_modules/priority"
+printf '{"exports":{".":"./index.mjs"}}\n' > "$fixture_dir/vendor/priority/package.json"
+printf 'export const source = "vendor";\n' > "$fixture_dir/vendor/priority/index.mjs"
+printf '{"exports":{"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/priority/package.json"
+printf 'export const source = "local";\n' > "$fixture_dir/app/node_modules/priority/extra.mjs"
+printf 'import { source } from "priority/extra"; console.log(source);\n' > "$fixture_dir/app/priority.ts"
+test "$("$runtime" "$fixture_dir/app/priority.ts")" = 'local'
+if RUNTIME_PACKAGE_PATH="$fixture_dir/vendor" "$runtime" "$fixture_dir/app/priority.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
+    echo 'expected the first package to block an unexported subpath' >&2
+    exit 1
+fi
+grep -q 'Cannot resolve package: priority/extra' "$fixture_dir/stderr"
 printf 'import "demo/private";\n' > "$fixture_dir/app/unexported.ts"
 if "$runtime" "$fixture_dir/app/unexported.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
     echo 'expected an unexported package subpath to fail' >&2
