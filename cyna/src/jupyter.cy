@@ -79,7 +79,7 @@ fn number_field(value: &const Value, key: string, fallback: u32): u32 {
     return fallback;
 }
 
-fn history_reply(history: &const List<HistoryEntry>, content: &const Value): string {
+fn history_reply(history: &const List<HistoryEntry>, content: &const Value, count: u32): string {
     const access = text_or_empty(field(content, "hist_access_type"));
     const n = number_field(content, "n", 10);
     const start = number_field(content, "start", 1);
@@ -87,7 +87,12 @@ fn history_reply(history: &const List<HistoryEntry>, content: &const Value): str
     var result = "{\"status\":\"ok\",\"history\":[";
     var index: usize = 0;
     var first = true;
-    for entry in history {
+    while index < history.len() {
+        var slot = index;
+        if history.len() == 128 {
+            slot = (count as usize + index) % 128;
+        }
+        const entry = history[slot];
         var include = false;
         if access == "range" {
             include = entry.line >= start and entry.line < stop;
@@ -106,6 +111,14 @@ fn history_reply(history: &const List<HistoryEntry>, content: &const Value): str
         index = index + 1;
     }
     return $"{result}]\}";
+}
+
+fn remember(history: &List<HistoryEntry>, line: u32, code: string): void {
+    if history.len() >= 128 {
+        history[((line - 1) % 128) as usize] = HistoryEntry { line: line, code: code };
+    } else {
+        history.push(HistoryEntry { line: line, code: code });
+    }
 }
 
 fn json_string(text: string): string {
@@ -250,7 +263,10 @@ pub fn run(path: string): i32 {
                 const content = parse_json(content_text) catch (error) { continue; };
                 if field(&header, "msg_type") is kind {
                     if kind == "shutdown_request" and channel == 2 {
-                        if transport.send(2, "shutdown_reply", "{\"status\":\"ok\",\"restart\":false}") != 0 { return 1; }
+                        var restart = "false";
+                        if boolean(&content, "restart") { restart = "true"; }
+                        const reply = $"\{\"status\":\"ok\",\"restart\":{restart}\}";
+                        if transport.send(2, "shutdown_reply", reply) != 0 { return 1; }
                         return 0;
                     }
                     if channel != 3 { continue; }
@@ -269,14 +285,14 @@ pub fn run(path: string): i32 {
                     } else if kind == "inspect_request" {
                         if transport.send(3, "inspect_reply", "{\"status\":\"ok\",\"found\":false,\"data\":{},\"metadata\":{}}") != 0 { return 1; }
                     } else if kind == "history_request" {
-                        if transport.send(3, "history_reply", history_reply(&history, &content)) != 0 { return 1; }
+                        if transport.send(3, "history_reply", history_reply(&history, &content, count)) != 0 { return 1; }
                     } else if kind == "execute_request" {
                         serial = serial + 1;
                         const silent = boolean(&content, "silent");
                         if not silent and not is_false(&content, "store_history") {
                             count = count + 1;
                             if field(&content, "code") is code {
-                                history.push(HistoryEntry { line: count, code: code });
+                                remember(&history, count, code);
                             }
                         }
                         if execute(&transport, &host, &content, count, serial, silent) != 0 { return 1; }

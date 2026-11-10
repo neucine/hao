@@ -23,7 +23,8 @@ advancing the execution count.
 `user_expressions` evaluate against the persistent notebook context after a
 successful cell and return individual result or error entries in the reply.
 The kernel replies to completion and inspection requests with empty matches
-or inspection data, and serves tail and range history for stored notebook cells.
+or inspection data, and serves tail and range history for the 128 most recent
+stored notebook cells. Shutdown replies echo the requested restart flag.
 Ordinary objects use `std:util.inspect` for their text result.
 Top level `const`, `let`, and class declarations can be redefined in later cells.
 JavaScript execution errors include their stack in the Jupyter error reply.

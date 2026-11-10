@@ -246,9 +246,24 @@ int main(int argc, char **argv) {
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\"") ||
         !strstr(content, "Error: broken") || !strstr(content, "at <"))) status = 12;
-    if (!status && (send_request(control, "shutdown_request", "{}") < 0 ||
+    for (int i = 0; !status && i < 130; i++) {
+        char request[128];
+        snprintf(request, sizeof(request), "{\"code\":\"globalThis.__histWrap = %d\"}", i);
+        if (send_request(shell, "execute_request", request) < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"status\":\"ok\"")) status = 60;
+    }
+    if (!status && (send_request(shell, "history_request", "{\"hist_access_type\":\"tail\",\"n\":2}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "globalThis.__histWrap = 128") ||
+        !strstr(content, "globalThis.__histWrap = 129") ||
+        strstr(content, "globalThis.__histWrap = 127"))) status = 61;
+    if (!status && (send_request(shell, "history_request", "{\"hist_access_type\":\"range\",\"start\":1,\"stop\":2}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"history\":[]"))) status = 62;
+    if (!status && (send_request(control, "shutdown_request", "{\"restart\":true}") < 0 ||
         receive_content(control, content, sizeof(content)) < 0 ||
-        !strstr(content, "\"status\":\"ok\""))) status = 8;
+        !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"restart\":true"))) status = 8;
     if (status) kill(child, SIGTERM);
     int child_status = 0; waitpid(child, &child_status, 0);
     if (!status && (!WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0)) status = 9;
