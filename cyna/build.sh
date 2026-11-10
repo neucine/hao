@@ -3,6 +3,12 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_root"
+required_cyna='cyna 0.5.1-beta.1'
+installed_cyna=$(cyna version 2>&1)
+if [ "$installed_cyna" != "$required_cyna" ]; then
+    echo "Hao Cyna port requires $required_cyna; found $installed_cyna" >&2
+    exit 1
+fi
 zig build cyna-deps -Doptimize=ReleaseFast
 python3 - "$repo_root" <<'PY'
 import pathlib, re, sys
