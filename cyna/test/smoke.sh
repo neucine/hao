@@ -19,8 +19,12 @@ clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
     -L "$cyna_dir/targets/aarch64-apple-darwin/lib" -lcyna_std -lcyna \
     -L "$repo_root/zig-out/lib" -lquickjs -luv \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
-    -lcurl -lffi -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
+    -L /opt/homebrew/lib -lcurl -lffi -lzmq -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
 test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules")" = '42'
+clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_wire_test.c" \
+    "$repo_root/cyna/jupyter_wire_bridge.c" -L /opt/homebrew/lib -lzmq \
+    -o "$fixture_dir/jupyter-wire-test"
+test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'
 cat > "$fixture_dir/jupyter-connection.json" <<'EOF'
 {"shell_port":57503,"control_port":57504,"iopub_port":57505,"stdin_port":57506,"hb_port":57507}
 EOF

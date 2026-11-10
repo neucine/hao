@@ -13,7 +13,7 @@ not use `std:` modules can omit that call.
 
 The archive currently targets macOS arm64. Link it with the Cyna runtime and
 standard library archives, QuickJS, libuv, the Hao transpiler, libcurl, and
-libffi. The exact compiler and linker invocation used by the checked C
+libffi, and libzmq. The exact compiler and linker invocation used by the checked C
 consumer is in `cyna/test/smoke.sh`.
 
 ## Zig Runtime Environment

@@ -6,8 +6,9 @@ exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
 `std:plot`, `std:test`, `std:telemetry`, and `std:ffi`, and supports console output,
 timers, QuickJS promise jobs, and native addon modules. The telemetry console
 and Jupyter integration still need to move from the Zig runtime.
-The Cyna Jupyter connection parser is in `src/jupyter_connection.cy`; socket
-handling and cell execution are still pending.
+The Cyna Jupyter connection parser is in `src/jupyter_connection.cy`. A native
+adapter now binds the five ZeroMQ sockets, checks HMAC signatures, and exchanges
+bounded multipart messages. Kernel dispatch and cell execution are still pending.
 The build also produces a Cyna runtime static library with the C API in
 `include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 
