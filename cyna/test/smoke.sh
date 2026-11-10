@@ -79,6 +79,16 @@ EOF
 if "$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-invalid-port.json" > "$fixture_dir/jupyter-invalid.log" 2>&1; then
     exit 1
 fi
+python3 - "$fixture_dir/jupyter-oversized.json" <<'PY'
+import sys
+with open(sys.argv[1], 'w') as output:
+    output.write('{"shell_port":1,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5,"padding":"')
+    output.write('x' * (64 * 1024))
+    output.write('"}')
+PY
+if "$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-oversized.json" > "$fixture_dir/jupyter-invalid.log" 2>&1; then
+    exit 1
+fi
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
 if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
