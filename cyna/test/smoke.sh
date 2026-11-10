@@ -13,6 +13,11 @@ expected=$(printf 'answer 42\ndrained')
 test "$actual" = "$expected"
 relative_actual=$(cd "$fixture_dir" && "$runtime" main.ts)
 test "$relative_actual" = "$expected"
+configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
+test "$configured_actual" = "$expected"
+if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
+    exit 1
+fi
 
 mkdir -p "$fixture_dir/node_modules/foo"
 clang -dynamiclib -I "$repo_root/include" "$repo_root/examples/native-addon/native.c" -o "$fixture_dir/node_modules/foo/native.dylib"

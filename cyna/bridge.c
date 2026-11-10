@@ -1,6 +1,7 @@
 #include <quickjs.h>
 #include <uv.h>
 #include <stdbool.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,19 @@ typedef struct HaoSourceModule {
     size_t source_len;
     struct HaoSourceModule *next;
 } HaoSourceModule;
+
+static bool positive_size_env(const char *name, size_t *out, bool *present) {
+    const char *value = getenv(name);
+    *present = value && *value;
+    if (!*present) return true;
+    if (*value == '-' || *value == '+' || *value == ' ') return false;
+    errno = 0;
+    char *end = NULL;
+    unsigned long long parsed = strtoull(value, &end, 10);
+    if (errno || !end || *end || parsed == 0 || parsed > SIZE_MAX) return false;
+    *out = (size_t)parsed;
+    return true;
+}
 
 typedef struct HaoTimer HaoTimer;
 
@@ -447,6 +461,19 @@ static JSValue hao_clear_timeout(JSContext *ctx, JSValueConst this_val,
 }
 
 uintptr_t hao_runtime_new(void) {
+    size_t stack_size = 8 * 1024 * 1024, gc_threshold = 0, thread_pool_size = 0;
+    bool stack_present = false, gc_present = false, pool_present = false;
+    if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &stack_size, &stack_present) ||
+        !positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &gc_threshold, &gc_present) ||
+        !positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &thread_pool_size, &pool_present)) {
+        fprintf(stderr, "Invalid Hao runtime size setting\n");
+        return 0;
+    }
+    if (pool_present) {
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%zu", thread_pool_size);
+        if (setenv("UV_THREADPOOL_SIZE", buffer, 1) != 0) return 0;
+    }
     HaoRuntime *host = calloc(1, sizeof(*host));
     if (!host) return 0;
     host->runtime = JS_NewRuntime();
@@ -454,6 +481,8 @@ uintptr_t hao_runtime_new(void) {
         free(host);
         return 0;
     }
+    JS_SetMaxStackSize(host->runtime, stack_size);
+    if (gc_present) JS_SetGCThreshold(host->runtime, gc_threshold);
     JS_SetHostPromiseRejectionTracker(host->runtime, hao_on_rejection, host);
     host->context = JS_NewContext(host->runtime);
     if (!host->context) {
