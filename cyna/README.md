@@ -84,8 +84,9 @@ remain to be ported.
 `std:ffi` binds typed dynamic symbols through libffi, including mixed numeric
 argument classes and typed array pointers. The C declaration wrapper supports
 direct function declarations and pointer plus length buffer policies. Calls
-are limited to eight arguments. Opaque struct handles, out parameters, POD
-structs remain to be ported. C declarations support `runtime-default`,
+are limited to eight arguments. The C declaration wrapper supports one hidden
+pointer output parameter through `returns.out`, including status error policies.
+Opaque struct handles and POD structs remain to be ported. C declarations support `runtime-default`,
 `relative-first`, and `system-first` library search strategies with explicit
 search directories.
 

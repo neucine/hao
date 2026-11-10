@@ -211,7 +211,14 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     JS_ToUint32(ctx, &count, count_value);
     JS_FreeValue(ctx, count_value);
     if (count != binding->arg_count) return JS_ThrowTypeError(ctx, "FFI: wrong number of arguments");
+    int32_t out_index = -1;
+    if (argc >= 4 && !JS_IsUndefined(argv[3])) {
+        if (JS_ToInt32(ctx, &out_index, argv[3]) < 0 || out_index < 0 || (uint32_t)out_index >= count ||
+            binding->args[out_index] != HAO_PTR)
+            return JS_ThrowTypeError(ctx, "FFI: invalid output parameter");
+    }
     HaoValue values[8] = {0};
+    uintptr_t out_pointer = 0;
     void *pointers[8] = {0};
     JSValue held_buffers[8];
     const char *held_strings[8] = {0};
@@ -222,7 +229,9 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
         held_buffers[i] = JS_UNDEFINED;
         pointers[i] = &values[i];
         HaoType type = binding->args[i];
-        if (type == HAO_F32 || type == HAO_F64) {
+        if ((int32_t)i == out_index) {
+            values[i].ptr = &out_pointer;
+        } else if (type == HAO_F32 || type == HAO_F64) {
             double number = 0;
             valid = JS_ToFloat64(ctx, &number, input) == 0;
             values[i].f32 = (float)number;
@@ -268,6 +277,12 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
         HaoValue returned = {0};
         ffi_call(&binding->cif, FFI_FN(binding->function), &returned, pointers);
         result = result_value(ctx, binding->returns, returned);
+        if (out_index >= 0 && !JS_IsException(result)) {
+            JSValue pair = JS_NewObject(ctx);
+            JS_SetPropertyStr(ctx, pair, "raw", result);
+            JS_SetPropertyStr(ctx, pair, "out", JS_NewInt64(ctx, (int64_t)out_pointer));
+            result = pair;
+        }
     } else result = JS_ThrowTypeError(ctx, "FFI: invalid argument value");
     for (size_t i = 0; i < held_count; i++) {
         if (held_strings[i]) JS_FreeCString(ctx, held_strings[i]);

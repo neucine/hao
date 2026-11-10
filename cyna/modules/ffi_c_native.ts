@@ -59,7 +59,10 @@ function parse(declarations: string, opts: any): Prepared {
   for (const name of Object.keys(opts?.functions ?? {})) {
     if (!functions.some(item => item.name === name)) throw Error(`unknown C function policy: ${name}`);
     const policy = opts.functions[name];
-    if (policy?.returns?.out) throw Error('C out parameters are not ported yet');
+    if (policy?.returns?.out) {
+      const out = functions.find(item => item.name === name)!.params.find(param => param.name === policy.returns.out);
+      if (!out || out.type !== 'ptr') throw Error(`invalid C output parameter: ${policy.returns.out}`);
+    }
     if (policy?.errors?.message && typeof policy.errors.message !== 'string') {
       throw Error('C error message helpers are not ported yet');
     }
@@ -126,9 +129,11 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
   const fn = prepared.functions.find(item => item.name === symbol);
   if (!fn) throw Error('FFI: unknown symbol');
   const policy = prepared.policies?.functions?.[symbol];
+  const outIndex = policy?.returns?.out == null ? -1 : fn.params.findIndex(param => param.name === policy.returns.out);
   const buffers = policy?.buffers ?? {};
   const lengths = new Map<string, number>();
-  const visible = fn.params.filter(param => !Object.values(buffers).some((buffer: any) => buffer.length === param.name));
+  const visible = fn.params.filter(param => param.name !== policy?.returns?.out &&
+    !Object.values(buffers).some((buffer: any) => buffer.length === param.name));
   if (args.length !== visible.length) throw Error('FFI: wrong number of arguments');
   let input = 0;
   const values = new Map<string, any>();
@@ -145,7 +150,9 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
     }
   }
   for (const [name, length] of lengths) values.set(name, length);
-  const raw = globalThis.__hao_ffi_call(handle, symbol, fn.params.map(param => values.get(param.name)));
+  const native = globalThis.__hao_ffi_call(handle, symbol, fn.params.map(param => values.get(param.name)),
+    outIndex < 0 ? undefined : outIndex);
+  const raw = outIndex < 0 ? native : native.raw;
   const errors = policy?.errors;
   if (errors?.kind === 'status' && raw !== (errors.ok ?? 0) ||
       errors?.kind === 'null' && (raw === null || raw === 0) ||
@@ -154,7 +161,7 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
     if (errors.code) error.code = errors.code;
     throw error;
   }
-  return raw;
+  return outIndex < 0 ? raw : native.out;
 }
 export function closeNative(handle: number): void {
   libraries.delete(handle);

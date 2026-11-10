@@ -266,16 +266,26 @@ console.log(math.ldexp(1.5, 3));
 math.close();
 EOF
 test "$("$runtime" "$fixture_dir/ffi-mixed.ts")" = 12
-printf 'int hao_search_value(void) { return 29; }\n' > "$fixture_dir/ffi-search.c"
+cat > "$fixture_dir/ffi-search.c" <<'EOF'
+int hao_search_value(void) { return 29; }
+int hao_make_handle(void **out) { *out = (void *)0x1234; return 0; }
+int hao_fail_handle(void **out) { *out = (void *)0x1234; return 5; }
+EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
 const path = getEnv('HAO_FFI_TEST_PATH');
-const library = cdecl('hao_search_fixture', 'int hao_search_value(void);', {
+const library = cdecl('hao_search_fixture', 'int hao_search_value(void); int hao_make_handle(void **out); int hao_fail_handle(void **out);', {
   search: { strategy: 'relative-first', paths: [path] },
+  functions: {
+    hao_make_handle: { returns: { out: 'out' }, errors: { kind: 'status', ok: 0 } },
+    hao_fail_handle: { returns: { out: 'out' }, errors: { kind: 'status', ok: 0 } },
+  },
 });
 console.log(library.hao_search_value());
+console.log(library.hao_make_handle());
+try { library.hao_fail_handle(); } catch (error) { console.log(error.message); }
 library.close();
 const fallback = cdecl('hao_search_fixture', 'int hao_search_value(void);', {
   search: { strategy: 'system-first', paths: [path] },
@@ -283,7 +293,7 @@ const fallback = cdecl('hao_search_fixture', 'int hao_search_value(void);', {
 console.log(fallback.hao_search_value());
 fallback.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n29')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
