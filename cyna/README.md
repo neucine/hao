@@ -72,6 +72,8 @@ hosted suite registry. Run a file or directory with
 `./cyna/build/hao-cyna test [--grep pattern] <file-or-dir>...`. The runner
 supports async tests and hooks, skip and only modes, a failing exit status,
 reverse cleanup hook order, and blocked suites after failed setup.
+Directory discovery selects `.test.ts` files; explicit file paths can have
+other names or supported JavaScript/TypeScript extensions.
 `captureOutput` captures `console.log`, `console.error`, and `console.warn`
 from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The runner prints elapsed time and

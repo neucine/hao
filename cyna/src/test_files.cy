@@ -1,4 +1,4 @@
-import { read_dir, DirEntryKind } from std.fs;
+import { read_dir, exists, DirEntryKind } from std.fs;
 import { join } from std.path;
 
 pub fn collect(path: string, files: &List<string>): i32 {
@@ -7,6 +7,11 @@ pub fn collect(path: string, files: &List<string>): i32 {
         return 0;
     }
     const entries = read_dir(path.clone()) catch (code) {
+        const present = exists(path.clone()) catch (error) { return 1; };
+        if present {
+            files.push(path);
+            return 0;
+        }
         return 1;
     };
     for entry in entries {

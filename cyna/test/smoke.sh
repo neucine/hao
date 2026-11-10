@@ -203,6 +203,11 @@ test "$("$runtime" "$fixture_dir/http-in-process.ts")" = '/one POST true'
 
 test_summary=$("$runtime" test "$repo_root/test/e2e/test" | tail -1)
 test "$test_summary" = '31 passed, 0 failed, 7 skipped'
+cat > "$fixture_dir/explicit.ts" <<'EOF'
+import { test, expect } from 'std:test';
+test('explicit file', () => expect(2 + 2).toBe(4));
+EOF
+test "$("$runtime" test "$fixture_dir/explicit.ts" | tail -1)" = '1 passed, 0 failed, 0 skipped'
 python3 - "$runtime" "$repo_root/test/e2e/runtime/hello.test.ts" <<'PY'
 import os, subprocess, sys
 result = subprocess.run([sys.argv[1], 'test', sys.argv[2]], env=dict(os.environ, RUNTIME_TEST_REPORTER='ansi'),
