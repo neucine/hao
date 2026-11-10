@@ -27,9 +27,10 @@ port. The console serves the dashboard, health, metric, and trace endpoints.
 The trace endpoint returns up to 512 retained start and end records with
 sequence cursors and a `missed` flag when history has been overwritten.
 
-Metrics include QuickJS memory gauges. On macOS, allocator gauges use malloc
-zone totals. The addon metric callbacks share the same metric registry as
-`std:telemetry`.
+Metrics include QuickJS memory gauges and process resident and physical
+footprint gauges, including their observed peaks. On macOS, allocator gauges
+use malloc zone totals. The addon metric callbacks share the same metric
+registry as `std:telemetry`.
 
 The Zig telemetry implementation, including its native trace core and exporter
 policy, remains on the `legacy` branch while the Cyna parity work continues.

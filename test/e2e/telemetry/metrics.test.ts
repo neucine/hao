@@ -49,6 +49,9 @@ describe("telemetry metrics", () => {
     const objects = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "qjs_object_count");
     const allocatorActive = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_active_bytes");
     const allocatorPeak = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_peak_bytes");
+    const resident = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "resident_bytes");
+    const footprint = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "physical_footprint_bytes");
+    const residentPeak = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "resident_peak_bytes");
 
     expect(memoryUsed?.kind).toBe("gauge");
     expect(memoryUsed?.unit).toBe("bytes");
@@ -59,6 +62,9 @@ describe("telemetry metrics", () => {
     expect(allocatorActive?.unit).toBe("bytes");
     expect(allocatorPeak?.kind).toBe("gauge");
     expect(allocatorPeak?.unit).toBe("bytes");
+    expect((resident?.value ?? 0) > 0).toBe(true);
+    expect((footprint?.value ?? 0) > 0).toBe(true);
+    expect((residentPeak?.value ?? 0) >= (resident?.value ?? 0)).toBe(true);
   });
 
   test("propagates trace context through sync and async callbacks", async () => {

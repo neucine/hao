@@ -11,6 +11,14 @@
 #include "../../../include/addon.h"
 
 typedef struct {
+    uint64_t resident_bytes;
+    uint64_t physical_footprint_bytes;
+} HaoProcessMemory;
+extern HaoProcessMemory hao_process_memory_snapshot(void);
+static uint64_t resident_peak_bytes;
+static uint64_t physical_footprint_peak_bytes;
+
+typedef struct {
     char *scope, *name, *unit;
     uint32_t kind;
     double value, sum, min, max;
@@ -178,6 +186,10 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     if (allocator_active > sampled_peak) sampled_peak = allocator_active;
     allocator_peak = sampled_peak;
 #endif
+    HaoProcessMemory process = hao_process_memory_snapshot();
+    if (process.resident_bytes > resident_peak_bytes) resident_peak_bytes = process.resident_bytes;
+    if (process.physical_footprint_bytes > physical_footprint_peak_bytes)
+        physical_footprint_peak_bytes = process.physical_footprint_bytes;
     JSValue result = JS_NewObject(ctx);
     if (JS_IsException(result)) return result;
 #define GAUGE(name, value) JS_SetPropertyStr(ctx, result, name, JS_NewFloat64(ctx, (double)(value)))
@@ -206,6 +218,10 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     GAUGE("qjs_binary_object_bytes", usage.binary_object_size);
     GAUGE("allocator_active_bytes", allocator_active);
     GAUGE("allocator_peak_bytes", allocator_peak);
+    GAUGE("resident_bytes", process.resident_bytes);
+    GAUGE("physical_footprint_bytes", process.physical_footprint_bytes);
+    GAUGE("resident_peak_bytes", resident_peak_bytes);
+    GAUGE("physical_footprint_peak_bytes", physical_footprint_peak_bytes);
 #undef GAUGE
     return result;
 }
