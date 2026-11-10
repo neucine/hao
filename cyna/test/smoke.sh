@@ -270,6 +270,10 @@ cat > "$fixture_dir/ffi-search.c" <<'EOF'
 int hao_search_value(void) { return 29; }
 int hao_make_handle(void **out) { *out = (void *)0x1234; return 0; }
 int hao_fail_handle(void **out) { *out = (void *)0x1234; return 5; }
+typedef struct HaoBox { int value; } HaoBox;
+HaoBox *hao_box_open(void) { static HaoBox box = { 37 }; return &box; }
+int hao_box_value(HaoBox *box) { return box->value; }
+void hao_box_close(HaoBox *box) { (void)box; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
@@ -292,8 +296,18 @@ const fallback = cdecl('hao_search_fixture', 'int hao_search_value(void);', {
 });
 console.log(fallback.hao_search_value());
 fallback.close();
+const boxes = cdecl('hao_search_fixture',
+  'typedef struct HaoBox HaoBox; HaoBox *hao_box_open(void); int hao_box_value(HaoBox *box); void hao_box_close(HaoBox *box);', {
+    search: { strategy: 'relative-first', paths: [path] },
+    handles: { HaoBox: { close: 'hao_box_close' } },
+    functions: { hao_box_open: { returns: { kind: 'handle', type: 'HaoBox' } } },
+  });
+const box = boxes.hao_box_open();
+console.log(boxes.hao_box_value(box));
+box.close();
+boxes.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29\n37')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

@@ -39,11 +39,17 @@ function parse(declarations: string, opts: any): Prepared {
     }
   }
   const functions: FunctionSpec[] = [];
+  const opaqueTypes = new Set<string>();
   for (const raw of declarations.split(';')) {
     const statement = raw.trim();
     if (!statement) continue;
-    if (statement.startsWith('typedef ')) throw Error('typedef declarations are not ported yet');
-    const match = /^(.+?)\s+([A-Za-z_]\w*)\s*\(([^()]*)\)$/.exec(statement);
+    if (statement.startsWith('typedef ')) {
+      const declaration = /^typedef\s+struct\s+([A-Za-z_]\w*)\s+([A-Za-z_]\w*)$/.exec(statement);
+      if (!declaration || declaration[1] !== declaration[2]) throw Error(`unsupported C typedef: ${statement}`);
+      opaqueTypes.add(declaration[1]);
+      continue;
+    }
+    const match = /^(.+?[\s*])([A-Za-z_]\w*)\s*\(([^()]*)\)$/.exec(statement);
     if (!match) throw Error(`invalid C declaration: ${statement}`);
     const params: Parameter[] = [];
     if (match[3].trim() && match[3].trim() !== 'void') {
@@ -63,9 +69,17 @@ function parse(declarations: string, opts: any): Prepared {
       const out = functions.find(item => item.name === name)!.params.find(param => param.name === policy.returns.out);
       if (!out || out.type !== 'ptr') throw Error(`invalid C output parameter: ${policy.returns.out}`);
     }
+    if (policy?.returns?.kind === 'handle' &&
+        (!opaqueTypes.has(policy.returns.type) || functions.find(item => item.name === name)!.returns !== 'ptr')) {
+      throw Error(`invalid C handle return policy: ${name}`);
+    }
     if (policy?.errors?.message && typeof policy.errors.message !== 'string') {
       throw Error('C error message helpers are not ported yet');
     }
+  }
+  for (const [type, policy] of Object.entries(opts?.handles ?? {}) as [string, any][]) {
+    if (!opaqueTypes.has(type) || (policy?.close != null &&
+        !functions.some(item => item.name === policy.close))) throw Error(`invalid C handle policy: ${type}`);
   }
   return { symbols: functions.map(item => item.name), functions, policies: opts ?? {} };
 }
