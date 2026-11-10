@@ -26,7 +26,7 @@ fn main(): i32 {
         return 2;
     }
     if arguments.len() == 2 and (arguments[1] == "--version" or arguments[1] == "-v") {
-        println("hao 0.1.2 (Cyna runtime preview)");
+        println("hao 0.1.2");
         return 0;
     }
     if arguments[1] == "jupyter" {

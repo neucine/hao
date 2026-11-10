@@ -5,6 +5,8 @@ repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 runtime="$repo_root/cyna/build/hao-cyna"
 fixture_dir=$(mktemp -d)
 trap 'rm -rf "$fixture_dir"' EXIT HUP INT TERM
+test "$("$runtime" --version)" = 'hao 0.1.2'
+test "$("$runtime" -v)" = 'hao 0.1.2'
 
 printf 'export const answer: number = 42;\n' > "$fixture_dir/value.ts"
 printf 'import { answer } from "./value.ts"; console.log("answer", answer); Promise.resolve().then(() => console.log("drained"));\n' > "$fixture_dir/main.ts"
