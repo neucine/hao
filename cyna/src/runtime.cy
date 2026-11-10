@@ -6,6 +6,7 @@ extern c("hao_runtime_run_turn") fn runtime_run_turn(handle: c_size_t): c_int;
 extern c("hao_runtime_register") fn runtime_register(handle: c_size_t, name: *const c_uchar, name_len: c_size_t, source: *const c_uchar, source_len: c_size_t): c_int;
 extern c("hao_runtime_start_tests") fn runtime_start_tests(handle: c_size_t, grep: *const c_uchar, grep_len: c_size_t): c_int;
 extern c("hao_runtime_test_failures") fn runtime_test_failures(handle: c_size_t): c_int;
+extern c("hao_runtime_set_executable") fn runtime_set_executable(handle: c_size_t, path: *const c_uchar, path_len: c_size_t): c_int;
 
 pub struct Runtime {
     handle: c_size_t;
@@ -64,5 +65,10 @@ pub struct Runtime {
 
     pub fn test_failures(self: &const Runtime): i32 {
         return runtime_test_failures(self.handle) as i32;
+    }
+
+    pub fn set_executable_path(self: &const Runtime, path: string): i32 {
+        const bytes = path.bytes();
+        return runtime_set_executable(self.handle, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) as i32;
     }
 }

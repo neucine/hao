@@ -1,4 +1,4 @@
-import { args } from std.process;
+import { args, exe_path } from std.process;
 import { read_file } from std.fs;
 import { Runtime } from .runtime;
 import { install } from .std_modules;
@@ -60,6 +60,13 @@ fn main(): i32 {
             return 1;
         }
         if is_test {
+            const executable = exe_path() catch (code) {
+                println("Unable to find Hao executable");
+                return 1;
+            };
+            if host.set_executable_path(executable) != 0 {
+                return 1;
+            }
             for path in test_files {
                 if run_file(&host, path.clone()) != 0 {
                     return 1;

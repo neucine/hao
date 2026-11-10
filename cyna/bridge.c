@@ -27,6 +27,12 @@ typedef struct HaoRuntime {
     uint32_t next_timer_id;
     HaoTimer *timers;
     HaoSourceModule *modules;
+    bool capture_active;
+    int capture_target;
+    char *capture_stdout;
+    char *capture_stderr;
+    size_t capture_stdout_len, capture_stderr_len;
+    size_t capture_stdout_cap, capture_stderr_cap;
 } HaoRuntime;
 
 struct HaoTimer {
@@ -203,18 +209,96 @@ static JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaq
     return compiled_module;
 }
 
-static JSValue hao_console_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-    (void)this_val;
+static int hao_capture_append(char **buffer, size_t *length, size_t *capacity,
+                              const char *text, size_t count) {
+    const size_t limit = 16 * 1024 * 1024;
+    if (count > limit - *length) return -1;
+    if (*length + count > *capacity) {
+        size_t next_capacity = *capacity ? *capacity : 256;
+        while (next_capacity < *length + count) next_capacity *= 2;
+        char *next = realloc(*buffer, next_capacity);
+        if (!next) return -1;
+        *buffer = next;
+        *capacity = next_capacity;
+    }
+    memcpy(*buffer + *length, text, count);
+    *length += count;
+    return 0;
+}
+
+static JSValue hao_console_write(JSContext *ctx, int argc, JSValueConst *argv, int target) {
+    HaoRuntime *host = JS_GetContextOpaque(ctx);
+    FILE *stream = target == 1 ? stdout : stderr;
+    bool capture = host->capture_active && (host->capture_target == target || host->capture_target == 3);
+    char **buffer = target == 1 ? &host->capture_stdout : &host->capture_stderr;
+    size_t *length = target == 1 ? &host->capture_stdout_len : &host->capture_stderr_len;
+    size_t *capacity = target == 1 ? &host->capture_stdout_cap : &host->capture_stderr_cap;
     for (int i = 0; i < argc; ++i) {
-        if (i) fputc(' ', stdout);
+        if (i) {
+            if (capture) {
+                if (hao_capture_append(buffer, length, capacity, " ", 1) != 0) return JS_ThrowOutOfMemory(ctx);
+            } else fputc(' ', stream);
+        }
         const char *text = JS_ToCString(ctx, argv[i]);
-        if (text) {
-            fputs(text, stdout);
+        if (!text) return JS_EXCEPTION;
+        if (capture) {
+            int status = hao_capture_append(buffer, length, capacity, text, strlen(text));
+            JS_FreeCString(ctx, text);
+            if (status != 0) return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB");
+        } else {
+            fputs(text, stream);
             JS_FreeCString(ctx, text);
         }
     }
-    fputc('\n', stdout);
+    if (capture) {
+        if (hao_capture_append(buffer, length, capacity, "\n", 1) != 0) return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB");
+    } else fputc('\n', stream);
     return JS_UNDEFINED;
+}
+
+static JSValue hao_console_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    return hao_console_write(ctx, argc, argv, 1);
+}
+
+static JSValue hao_console_error(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    return hao_console_write(ctx, argc, argv, 2);
+}
+
+static JSValue hao_begin_capture(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    HaoRuntime *host = JS_GetContextOpaque(ctx);
+    if (host->capture_active) return JS_ThrowInternalError(ctx, "captureOutput does not support nested captures");
+    const char *target = argc ? JS_ToCString(ctx, argv[0]) : NULL;
+    int kind = !target || strcmp(target, "stdout") == 0 ? 1
+        : strcmp(target, "stderr") == 0 ? 2
+        : strcmp(target, "both") == 0 ? 3 : 0;
+    if (target) JS_FreeCString(ctx, target);
+    if (!kind) return JS_ThrowTypeError(ctx, "captureOutput target must be 'stdout', 'stderr', or 'both'");
+    host->capture_stdout_len = 0;
+    host->capture_stderr_len = 0;
+    host->capture_target = kind;
+    host->capture_active = true;
+    return JS_UNDEFINED;
+}
+
+static JSValue hao_end_capture(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val; (void)argc; (void)argv;
+    HaoRuntime *host = JS_GetContextOpaque(ctx);
+    if (!host->capture_active) return JS_ThrowInternalError(ctx, "captureOutput end called without an active capture");
+    host->capture_active = false;
+    JSValue result = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, result, "stdout", JS_NewStringLen(ctx, host->capture_stdout, host->capture_stdout_len));
+    JS_SetPropertyStr(ctx, result, "stderr", JS_NewStringLen(ctx, host->capture_stderr, host->capture_stderr_len));
+    size_t total = host->capture_stdout_len + host->capture_stderr_len;
+    char *combined = malloc(total ? total : 1);
+    if (!combined) { JS_FreeValue(ctx, result); return JS_ThrowOutOfMemory(ctx); }
+    if (host->capture_stdout_len) memcpy(combined, host->capture_stdout, host->capture_stdout_len);
+    if (host->capture_stderr_len) memcpy(combined + host->capture_stdout_len, host->capture_stderr, host->capture_stderr_len);
+    JS_SetPropertyStr(ctx, result, "combined", JS_NewStringLen(ctx, combined, total));
+    free(combined);
+    return result;
 }
 
 static void hao_print_value(JSContext *ctx, JSValueConst error) {
@@ -371,9 +455,13 @@ uintptr_t hao_runtime_new(void) {
     JSValue global = JS_GetGlobalObject(host->context);
     JSValue console = JS_NewObject(host->context);
     JS_SetPropertyStr(host->context, console, "log", JS_NewCFunction(host->context, hao_console_log, "log", 1));
+    JS_SetPropertyStr(host->context, console, "error", JS_NewCFunction(host->context, hao_console_error, "error", 1));
+    JS_SetPropertyStr(host->context, console, "warn", JS_NewCFunction(host->context, hao_console_error, "warn", 1));
     JS_SetPropertyStr(host->context, global, "console", console);
     JS_SetPropertyStr(host->context, global, "setTimeout", JS_NewCFunction(host->context, hao_set_timeout, "setTimeout", 2));
     JS_SetPropertyStr(host->context, global, "clearTimeout", JS_NewCFunction(host->context, hao_clear_timeout, "clearTimeout", 1));
+    JS_SetPropertyStr(host->context, global, "__hao_test_beginCapture", JS_NewCFunction(host->context, hao_begin_capture, "beginCapture", 1));
+    JS_SetPropertyStr(host->context, global, "__hao_test_endCapture", JS_NewCFunction(host->context, hao_end_capture, "endCapture", 0));
     hao_install_fs_globals(host->context, global);
     hao_install_process_globals(host->context, global);
     hao_install_http_globals(host->context, global);
@@ -394,6 +482,8 @@ void hao_runtime_free(uintptr_t handle) {
     uv_run(host->loop, UV_RUN_DEFAULT);
     uv_loop_close(host->loop);
     free(host->loop);
+    free(host->capture_stdout);
+    free(host->capture_stderr);
     if (host->has_rejection) JS_FreeValue(host->rejection_context, host->rejection);
     if (host->has_callback_error) JS_FreeValue(host->context, host->callback_error);
     JS_FreeContext(host->context);
@@ -465,6 +555,15 @@ int hao_runtime_start_tests(uintptr_t handle, const char *grep, size_t grep_len)
     }
     JS_FreeValue(ctx, result);
     return 0;
+}
+
+int hao_runtime_set_executable(uintptr_t handle, const char *path, size_t path_len) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    JSContext *ctx = host->context;
+    JSValue global = JS_GetGlobalObject(ctx);
+    int status = JS_SetPropertyStr(ctx, global, "__hao_test_executablePath", JS_NewStringLen(ctx, path, path_len));
+    JS_FreeValue(ctx, global);
+    return status < 0 ? 1 : 0;
 }
 
 int hao_runtime_test_failures(uintptr_t handle) {

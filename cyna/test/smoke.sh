@@ -91,6 +91,31 @@ if "$runtime" test "$fixture_dir/expected-failure.test.ts" > "$fixture_dir/test-
     exit 1
 fi
 grep -q '0 passed, 1 failed, 0 skipped' "$fixture_dir/test-output"
+cat > "$fixture_dir/capture-child.ts" <<'EOF'
+console.log('child output');
+console.error('child warning');
+EOF
+cat > "$fixture_dir/capture.test.ts" <<'EOF'
+import { test, expect, captureOutput } from 'std:test';
+test('captures async output and restores the console', async () => {
+  const result = await captureOutput(async () => {
+    console.log('first');
+    await new Promise(resolve => setTimeout(resolve, 1));
+    console.error('second');
+  }, { target: 'both' });
+  expect(result.stdout).toBe('first\n');
+  expect(result.stderr).toBe('second\n');
+  expect(result.combined).toBe('first\nsecond\n');
+});
+test('captures a child file', async () => {
+  const result = await captureOutput('capture-child.ts');
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toBe('child output\n');
+  expect(result.stderr).toBe('child warning\n');
+});
+EOF
+capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" | tail -1)
+test "$capture_summary" = '2 passed, 0 failed, 0 skipped'
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

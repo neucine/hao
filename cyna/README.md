@@ -40,8 +40,10 @@ runtime while a request runs. `serve` remains to be ported.
 hosted suite registry. Run a file or directory with
 `./cyna/build/hao-cyna test [--grep pattern] <file-or-dir>...`. The runner
 supports async tests and hooks, skip and only modes, and a failing exit status.
-`captureOutput` and the original runner's reporting and isolation behavior
-remain to be ported.
+`captureOutput` captures `console.log`, `console.error`, and `console.warn`
+from callbacks, or runs a child file and captures its process output. Callback
+capture is limited to 16 MiB per stream. The original runner's reporting and
+isolation behavior remain to be ported.
 
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
