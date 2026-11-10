@@ -343,6 +343,11 @@ test "$ffi_summary" = '4 passed, 0 failed, 0 skipped'
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)
 test "$error_summary" = '2 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/broken.test.ts" <<'EOF'
+import { describe, test, beforeEach } from 'std:test';
+describe('partially loaded', () => {
+  beforeEach(() => { throw Error('discard hook'); });
+  test('must not run', () => { throw Error('discard case'); });
+});
 throw new Error('load failed');
 EOF
 cat > "$fixture_dir/after-broken.test.ts" <<'EOF'

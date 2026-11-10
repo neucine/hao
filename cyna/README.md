@@ -84,8 +84,9 @@ from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The runner prints elapsed time and
 skip categories; set `RUNTIME_TEST_REPORTER=ansi` for colored case labels.
 Further test isolation parity is pending. Test file load failures are counted
-separately; successfully loaded files still run and a load failure sets the
-command's exit status.
+separately; registrations made before a file fails to load are discarded,
+successfully loaded files still run, and a load failure sets the command's
+exit status.
 
 `std:telemetry` retains Hao's metric and trace APIs. Metric registration lives
 in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use

@@ -970,6 +970,30 @@ int hao_runtime_start_tests(uintptr_t handle, const char *grep, size_t grep_len)
     return 0;
 }
 
+int hao_runtime_discard_test_file(uintptr_t handle, const char *path, size_t path_len) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    JSContext *ctx = host->context;
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue discard = JS_GetPropertyStr(ctx, global, "__hao_test_discardFile");
+    if (JS_IsUndefined(discard)) {
+        JS_FreeValue(ctx, discard);
+        JS_FreeValue(ctx, global);
+        return 0;
+    }
+    JSValue argument = JS_NewStringLen(ctx, path, path_len);
+    JSValue result = JS_Call(ctx, discard, global, 1, &argument);
+    JS_FreeValue(ctx, argument);
+    JS_FreeValue(ctx, discard);
+    JS_FreeValue(ctx, global);
+    if (JS_IsException(result)) {
+        hao_print_exception(ctx);
+        JS_FreeValue(ctx, result);
+        return 1;
+    }
+    JS_FreeValue(ctx, result);
+    return 0;
+}
+
 int hao_runtime_set_executable(uintptr_t handle, const char *path, size_t path_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
     JSContext *ctx = host->context;

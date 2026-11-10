@@ -101,6 +101,7 @@ fn main(): i32 {
             for path in test_files {
                 if run_file(&host, path.clone()) != 0 or host.drain_jobs() < 0 {
                     file_failures = file_failures + 1;
+                    if host.discard_test_file(path.clone()) != 0 { return 1; }
                 } else {
                     files_loaded = files_loaded + 1;
                 }
