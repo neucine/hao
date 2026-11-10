@@ -7,8 +7,8 @@ dependency used by Affon and other hosts.
 
 - Validate the Affon integration path by replacing copied runtime pieces with a
   Hao dependency in an Affon branch or worktree.
-- Add the future runtime/embedder C header. `include/addon.h` is now the addon
-  ABI; `include/hao.h` should eventually describe the runtime embedding ABI.
+- Stabilize the Cyna runtime embedding ABI in `include/hao.h`; `include/addon.h`
+  is the addon ABI.
 - Decide the Jupyter boundary: core CLI/runtime feature, optional package, or
   separate package.
 - Smooth package lifecycle helpers so `RuntimeEnvironment` users do not have to manage
