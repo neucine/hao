@@ -35,11 +35,16 @@ export function clearMetricsNative(): void {
   globalThis.__hao_telemetry_clear();
 }
 
-type Span = { id: number; name: string; parent: number | null; start: number; end?: number; status?: string };
+type Span = { id: number; traceId: number; name: string; parent: number | null; start: number };
+type TraceRecord = { sequence: number; kind: 'span_start' | 'span_end'; timestamp_ns: number;
+  trace_id: string; span_id: string; parent_span_id: string; name: string;
+  status: string; attributes: Record<string, unknown> };
 const spans = new Map<number, Span>();
-const records: Span[] = [];
+const spanTraceIds = new Map<number, number>();
+const records: TraceRecord[] = [];
 const scopes = new Map<number, number | null>();
 let nextSpanId = 1;
+let nextSequence = 1;
 let nextScopeId = 1;
 let currentSpan: number | null = null;
 const scheduleTimeout = globalThis.setTimeout;
@@ -52,14 +57,33 @@ globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ..
     try { callback(...args); } finally { currentSpan = previous; }
   }, delay);
 }) as typeof setTimeout;
-export function snapshotTracesNative(): Span[] { return records.map(record => ({ ...record })); }
+function hex(id: number | null, width: number): string { return (id ?? 0).toString(16).padStart(width, '0'); }
+function recordSpan(span: Span, kind: 'span_start' | 'span_end', status = 'unset'): void {
+  records.push({ sequence: nextSequence++, kind, timestamp_ns: Date.now() * 1000000,
+    trace_id: hex(span.traceId, 32), span_id: hex(span.id, 16), parent_span_id: hex(span.parent, 16),
+    name: span.name, status, attributes: {} });
+  if (records.length > 512) records.shift();
+}
+export function snapshotTraceRecordsNative(since = 0, limit = 100) {
+  if (!Number.isSafeInteger(since) || since < 0 || !Number.isSafeInteger(limit) || limit < 1) {
+    throw Error('invalid trace cursor or limit');
+  }
+  const latest = nextSequence - 1;
+  if (!records.length || since >= latest) return { next_cursor: latest, missed: false, records: [] };
+  const missed = since + 1 < records[0].sequence;
+  const selected = records.filter(record => record.sequence > since).slice(0, Math.min(limit, 512));
+  return { next_cursor: selected.length ? selected[selected.length - 1].sequence : since,
+    missed, records: selected.map(record => ({ ...record })) };
+}
 function createSpan(name: string, parent: number | null): number {
   if (typeof name !== 'string' || !name) throw Error('trace name must be a non-empty string');
   const id = nextSpanId++;
-  const span = { id, name, parent, start: Date.now() };
+  const traceId = parent === null ? id : spanTraceIds.get(parent) ?? parent;
+  const span = { id, traceId, name, parent, start: Date.now() };
   spans.set(id, span);
-  records.push(span);
-  if (records.length > 512) records.shift();
+  spanTraceIds.set(id, traceId);
+  if (spanTraceIds.size > 512) spanTraceIds.delete(spanTraceIds.keys().next().value!);
+  recordSpan(span, 'span_start');
   return id;
 }
 export function startTraceNative(name: string): number { return createSpan(name, currentSpan); }
@@ -79,7 +103,6 @@ export function exitTraceNative(scope: number): void {
 export function endTraceNative(id: number, status: 'ok' | 'err' | 'unset' = 'ok'): void {
   const span = spans.get(id);
   if (!span) throw Error('unknown trace span');
-  span.end = Date.now();
-  span.status = status;
+  recordSpan(span, 'span_end', status);
   spans.delete(id);
 }

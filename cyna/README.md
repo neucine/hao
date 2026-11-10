@@ -83,8 +83,8 @@ callbacks retain the trace parent active when scheduled. Set
 `RUNTIME_TELEMETRY_CONSOLE=1` to start an in-process console on loopback;
 `RUNTIME_TELEMETRY_CONSOLE_PORT` selects the port and defaults to an available
 port. The console serves Hao's dashboard, health, metrics, and trace endpoints.
-The Cyna trace endpoint currently reports one record per span, so its history
-is less detailed than the Zig trace stream.
+The Cyna trace endpoint retains 512 start and end records with sequence cursors
+and reports overwritten history. Span events and attributes remain to be ported.
 
 `std:ffi` binds typed dynamic symbols through libffi, including mixed numeric
 argument classes and typed array pointers. The C declaration wrapper supports

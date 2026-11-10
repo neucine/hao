@@ -276,7 +276,9 @@ try:
     assert json.loads(get('/api/health')) == {'ok': True}
     assert any(metric['scope'] == 'fixture' and metric['value'] == 3 for metric in json.loads(get('/api/metrics')))
     traces = json.loads(get('/api/traces?since=0&limit=10'))
-    assert any(record['name'] == 'fixture-trace' for record in traces['records'])
+    assert [record['kind'] for record in traces['records'] if record['name'] == 'fixture-trace'] == ['span_start', 'span_end']
+    later = json.loads(get('/api/traces?since=1&limit=1'))
+    assert later['records'][0]['sequence'] == 2 and later['next_cursor'] == 2
     assert '<title>Hao Telemetry</title>' in get('/')
     assert process.wait(timeout=5) == 0
 finally:
@@ -286,14 +288,22 @@ finally:
 PY
 cat > "$fixture_dir/telemetry-timer.ts" <<'EOF'
 import { trace } from 'std:telemetry';
-import { snapshotTracesNative } from 'std:telemetry/native';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
 trace('root', () => setTimeout(() => {
   trace('child', () => {});
-  const records = snapshotTracesNative();
-  console.log(records[0].name, records[1].name, records[1].parent === records[0].id);
+  const records = snapshotTraceRecordsNative().records;
+  console.log(records[0].name, records[2].name, records[2].parent_span_id === records[0].span_id);
 }, 1));
 EOF
 test "$("$runtime" "$fixture_dir/telemetry-timer.ts")" = 'root child true'
+cat > "$fixture_dir/telemetry-ring.ts" <<'EOF'
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+for (let i = 0; i < 260; i++) trace(`span-${i}`, () => {});
+const page = snapshotTraceRecordsNative(1, 3);
+console.log(page.missed, page.records.length, page.records[0].sequence, page.next_cursor);
+EOF
+test "$("$runtime" "$fixture_dir/telemetry-ring.ts")" = 'true 3 9 11'
 ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
 test "$ffi_summary" = '4 passed, 0 failed, 0 skipped'
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)

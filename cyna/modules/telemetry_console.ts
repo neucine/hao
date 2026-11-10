@@ -1,6 +1,6 @@
 import { serve } from 'std:http/server';
 import { getEnv } from 'std:process';
-import { snapshotMetricsNative, snapshotTracesNative } from 'std:telemetry/native';
+import { snapshotMetricsNative, snapshotTraceRecordsNative } from 'std:telemetry/native';
 import { dashboard } from 'std:telemetry/dashboard';
 
 const enabled = getEnv('RUNTIME_TELEMETRY_CONSOLE');
@@ -18,15 +18,7 @@ if (enabled === '1' || enabled === 'true') {
     if (path === '/traces' || path === '/api/traces') {
       const since = Number(/(?:\?|&)since=(\d+)/.exec(request.url)?.[1] ?? '0');
       const limit = Math.min(512, Math.max(1, Number(/(?:\?|&)limit=(\d+)/.exec(request.url)?.[1] ?? '100')));
-      const all = snapshotTracesNative();
-      const selected = all.filter(record => record.id > since).slice(0, limit);
-      const hex = (id: number | null) => (id ?? 0).toString(16).padStart(16, '0');
-      const records = selected.map(record => ({ sequence: record.id, kind: 'span_start',
-        timestamp_ns: record.start * 1000000, trace_id: hex(record.parent ?? record.id).padStart(32, '0'),
-        span_id: hex(record.id), parent_span_id: hex(record.parent), name: record.name,
-        status: record.status ?? 'unset', attributes: {} }));
-      return { json: { next_cursor: selected.length ? selected[selected.length - 1].id : since,
-        missed: all.length > 0 && since > 0 && all[0].id > since + 1, records } };
+      return { json: snapshotTraceRecordsNative(since, limit) };
     }
     return { status: 404, json: { error: 'not_found' } };
   } });
