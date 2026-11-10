@@ -1,7 +1,14 @@
 import { describe, test, expect } from 'std:test'
 import { run } from 'std:process'
+import { runNative } from 'std:process/native'
 
 describe('process module', () => {
+  test('native process module reports termination signals', () => {
+    const out = runNative({ cmd: 'sh', args: ['-c', 'kill -TERM $$'] })
+    expect(out.exitCode).toBeNull()
+    expect(out.signal).toBe(15)
+  })
+
   test('captures stdout stderr and exit status', async () => {
     const out = await run({
       cmd: 'sh',
