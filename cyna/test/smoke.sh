@@ -193,6 +193,14 @@ test "$("$runtime" "$fixture_dir/http-in-process.ts")" = '/one POST true'
 
 test_summary=$("$runtime" test "$repo_root/test/e2e/test" | tail -1)
 test "$test_summary" = '31 passed, 0 failed, 7 skipped'
+python3 - "$runtime" "$repo_root/test/e2e/runtime/hello.test.ts" <<'PY'
+import os, subprocess, sys
+result = subprocess.run([sys.argv[1], 'test', sys.argv[2]], env=dict(os.environ, RUNTIME_TEST_REPORTER='ansi'),
+                        capture_output=True, text=True, check=True)
+assert '\x1b[32mPASS\x1b[0m' in result.stdout
+assert 'Time: ' in result.stdout
+assert result.stdout.rstrip().endswith('1 passed, 0 failed, 0 skipped')
+PY
 cat > "$fixture_dir/expected-failure.test.ts" <<'EOF'
 import { test, expect } from 'std:test';
 test('failure changes exit status', () => expect(1).toBe(2));

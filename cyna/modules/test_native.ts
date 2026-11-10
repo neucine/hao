@@ -1,3 +1,5 @@
+import { getEnv } from 'std:process';
+
 type HookKind = 'before_all' | 'after_all' | 'before_each' | 'after_each';
 type Mode = 'normal' | 'skip' | 'only';
 type Case = { name: string; fn: () => unknown; mode: Mode; suite: Suite; file: string };
@@ -63,8 +65,15 @@ async function hooks(nodes: Suite[], kind: HookKind): Promise<void> {
     await hook.fn();
   }
 }
+function report(kind: 'PASS' | 'FAIL' | 'SKIP', detail: string): void {
+  const mode = getEnv('RUNTIME_TEST_REPORTER');
+  const color = kind === 'PASS' ? 32 : kind === 'FAIL' ? 31 : 33;
+  const label = mode?.toLowerCase() === 'ansi' ? `\x1b[${color}m${kind}\x1b[0m` : kind;
+  console.log(`${label} ${detail}`);
+}
 
 export async function runRegistered(): Promise<void> {
+  const started = Date.now();
   const cases: Case[] = [];
   collect(root, cases);
   const hasOnly = cases.some(item => item.mode === 'only');
@@ -72,13 +81,15 @@ export async function runRegistered(): Promise<void> {
   const entered = new Set<Suite>();
   const blocked = new Set<Suite>();
   let passed = 0, failed = 0, skipped = 0;
+  let skippedDeclared = 0, skippedFiltered = 0, skippedBlocked = 0;
   console.log(`Found ${cases.length} test case(s)`);
   for (const item of cases) {
     globalThis.__hao_test_filePath = item.file;
     const name = qualifiedName(item);
     if (item.mode === 'skip' || hasOnly && item.mode !== 'only' || grep && !name.includes(grep)) {
       skipped++;
-      console.log(`SKIP ${name}`);
+      if (item.mode === 'skip') skippedDeclared++; else skippedFiltered++;
+      report('SKIP', name);
       continue;
     }
     const nodes = chain(item.suite);
@@ -90,7 +101,8 @@ export async function runRegistered(): Promise<void> {
       for (const node of nodes) {
         if (blocked.has(node)) {
           skipped++;
-          console.log(`SKIP ${name} (beforeAll)`);
+          skippedBlocked++;
+          report('SKIP', `${name} (beforeAll)`);
           blockedCase = true;
           break;
         }
@@ -113,16 +125,18 @@ export async function runRegistered(): Promise<void> {
     }
     if (caseFailed) {
       failed++;
-      console.log(`FAIL ${name}: ${error}`);
+      report('FAIL', `${name}: ${error}`);
     } else {
       passed++;
-      console.log(`PASS ${name}`);
+      report('PASS', name);
     }
   }
   for (const node of [...entered].reverse()) {
     try { await hooks([node], 'after_all'); }
-    catch (error) { failed++; console.log(`FAIL afterAll ${node.name}: ${error}`); }
+    catch (error) { failed++; report('FAIL', `afterAll ${node.name}: ${error}`); }
   }
+  console.log(`Time: ${Date.now() - started}ms`);
+  if (skipped) console.log(`Skipped: ${skippedDeclared} declared, ${skippedFiltered} filtered, ${skippedBlocked} blocked`);
   console.log(`${passed} passed, ${failed} failed, ${skipped} skipped`);
   globalThis.__hao_test_failed = failed;
 }

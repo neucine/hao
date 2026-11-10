@@ -74,8 +74,9 @@ supports async tests and hooks, skip and only modes, a failing exit status,
 reverse cleanup hook order, and blocked suites after failed setup.
 `captureOutput` captures `console.log`, `console.error`, and `console.warn`
 from callbacks, or runs a child file and captures its process output. Callback
-capture is limited to 16 MiB per stream. The original runner's reporting and
-isolation behavior remain to be ported. Test file load failures are counted
+capture is limited to 16 MiB per stream. The runner prints elapsed time and
+skip categories; set `RUNTIME_TEST_REPORTER=ansi` for colored case labels.
+Further test isolation parity is pending. Test file load failures are counted
 separately; successfully loaded files still run and a load failure sets the
 command's exit status.
 
