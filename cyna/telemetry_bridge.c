@@ -1,6 +1,161 @@
 #include <quickjs.h>
 #include <malloc/malloc.h>
 #include <stdint.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include "../include/addon.h"
+
+typedef struct {
+    char *scope, *name, *unit;
+    uint32_t kind;
+    double value, sum, min, max;
+    uint32_t count;
+} HaoMetric;
+
+typedef struct HaoMetricRegistry {
+    JSContext *ctx;
+    HaoMetric entries[256];
+    uint32_t count;
+    struct HaoMetricRegistry *next;
+} HaoMetricRegistry;
+
+static HaoMetricRegistry *registries;
+
+static HaoMetricRegistry *registry_for(JSContext *ctx, int create) {
+    for (HaoMetricRegistry *r = registries; r; r = r->next) if (r->ctx == ctx) return r;
+    if (!create) return NULL;
+    HaoMetricRegistry *r = calloc(1, sizeof(*r));
+    if (!r) return NULL;
+    r->ctx = ctx; r->next = registries; registries = r;
+    return r;
+}
+
+int hao_metric_register(JSContext *ctx, const JsMetricDefinition *d, uint32_t *out) {
+    if (!d || !out || !d->scope || !*d->scope || !d->name || !*d->name || d->kind < 1 || d->kind > 3) return -1;
+    const char *unit = d->unit ? d->unit : "";
+    HaoMetricRegistry *r = registry_for(ctx, 1);
+    if (!r) return -1;
+    for (uint32_t i = 0; i < r->count; i++) {
+        HaoMetric *m = &r->entries[i];
+        if (!strcmp(m->scope, d->scope) && !strcmp(m->name, d->name)) {
+            if (m->kind != d->kind || strcmp(m->unit, unit)) return -1;
+            *out = i; return 0;
+        }
+    }
+    if (r->count == 256) return -1;
+    HaoMetric *m = &r->entries[r->count];
+    m->scope = strdup(d->scope); m->name = strdup(d->name); m->unit = strdup(unit);
+    if (!m->scope || !m->name || !m->unit) {
+        free(m->scope); free(m->name); free(m->unit); memset(m, 0, sizeof(*m)); return -1;
+    }
+    m->kind = d->kind; *out = r->count++; return 0;
+}
+
+static HaoMetric *metric_for(JSContext *ctx, uint32_t id) {
+    HaoMetricRegistry *r = registry_for(ctx, 0);
+    return r && id < r->count ? &r->entries[id] : NULL;
+}
+int hao_metric_add(JSContext *ctx, uint32_t id, double delta) {
+    HaoMetric *m = metric_for(ctx, id);
+    if (!m || m->kind == JS_METRIC_HISTOGRAM || !isfinite(delta) || !isfinite(m->value + delta)) return -1;
+    m->value += delta; return 0;
+}
+int hao_metric_set(JSContext *ctx, uint32_t id, double value) {
+    HaoMetric *m = metric_for(ctx, id);
+    if (!m || m->kind != JS_METRIC_GAUGE || !isfinite(value)) return -1;
+    m->value = value; return 0;
+}
+int hao_metric_observe(JSContext *ctx, uint32_t id, double value) {
+    HaoMetric *m = metric_for(ctx, id);
+    if (!m || m->kind != JS_METRIC_HISTOGRAM || !isfinite(value) || !isfinite(m->sum + value) || m->count == UINT32_MAX) return -1;
+    if (!m->count || value < m->min) m->min = value;
+    if (!m->count || value > m->max) m->max = value;
+    m->count++; m->sum += value; m->value = m->count; return 0;
+}
+int hao_metric_value(JSContext *ctx, uint32_t id, double *out) {
+    HaoMetric *m = metric_for(ctx, id);
+    if (!m || !out) return -1;
+    *out = m->value; return 0;
+}
+static void clear_registry(HaoMetricRegistry *r) {
+    for (uint32_t i = 0; i < r->count; i++) {
+        free(r->entries[i].scope); free(r->entries[i].name); free(r->entries[i].unit);
+        memset(&r->entries[i], 0, sizeof(r->entries[i]));
+    }
+    r->count = 0;
+}
+void hao_metric_cleanup(JSContext *ctx) {
+    HaoMetricRegistry **link = &registries;
+    while (*link) {
+        HaoMetricRegistry *r = *link;
+        if (r->ctx != ctx) { link = &r->next; continue; }
+        *link = r->next; clear_registry(r); free(r);
+    }
+}
+
+static JSValue metric_register_js(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    if (argc < 1 || !JS_IsObject(argv[0])) return JS_ThrowTypeError(ctx, "invalid metric definition");
+    JSValue scope = JS_GetPropertyStr(ctx, argv[0], "scope");
+    JSValue name = JS_GetPropertyStr(ctx, argv[0], "name");
+    JSValue kind = JS_GetPropertyStr(ctx, argv[0], "kind");
+    JSValue unit = JS_GetPropertyStr(ctx, argv[0], "unit");
+    const char *s = JS_IsString(scope) ? JS_ToCString(ctx, scope) : NULL;
+    const char *n = JS_IsString(name) ? JS_ToCString(ctx, name) : NULL;
+    const char *k = JS_IsString(kind) ? JS_ToCString(ctx, kind) : NULL;
+    const char *u = JS_IsString(unit) ? JS_ToCString(ctx, unit) : NULL;
+    uint32_t metric_kind = k && !strcmp(k, "counter") ? 1 : k && !strcmp(k, "gauge") ? 2 : k && !strcmp(k, "histogram") ? 3 : 0;
+    JsMetricDefinition d = {s, n, metric_kind, u};
+    uint32_t id = 0;
+    int result = (JS_IsUndefined(unit) || u) && hao_metric_register(ctx, &d, &id) == 0;
+    if (s) JS_FreeCString(ctx, s); if (n) JS_FreeCString(ctx, n);
+    if (k) JS_FreeCString(ctx, k); if (u) JS_FreeCString(ctx, u);
+    JS_FreeValue(ctx, scope); JS_FreeValue(ctx, name); JS_FreeValue(ctx, kind); JS_FreeValue(ctx, unit);
+    return result ? JS_NewUint32(ctx, id) : JS_ThrowTypeError(ctx, "invalid or conflicting metric definition");
+}
+static JSValue metric_action_js(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv, int magic) {
+    (void)this_val;
+    uint32_t id; double value;
+    if (argc < 2) return JS_ThrowTypeError(ctx, "metric id and value required");
+    if (JS_ToUint32(ctx, &id, argv[0]) < 0 || JS_ToFloat64(ctx, &value, argv[1]) < 0) return JS_EXCEPTION;
+    int status = magic == 0 ? hao_metric_add(ctx, id, value) : magic == 1 ? hao_metric_set(ctx, id, value) : hao_metric_observe(ctx, id, value);
+    return status == 0 ? JS_UNDEFINED : JS_ThrowTypeError(ctx, "invalid metric operation");
+}
+static JSValue metric_value_js(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    uint32_t id; double value;
+    if (argc < 1) return JS_ThrowTypeError(ctx, "metric id required");
+    if (JS_ToUint32(ctx, &id, argv[0]) < 0) return JS_EXCEPTION;
+    return hao_metric_value(ctx, id, &value) == 0 ? JS_NewFloat64(ctx, value) : JS_ThrowTypeError(ctx, "invalid metric id");
+}
+static JSValue metric_snapshot_js(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val; (void)argc; (void)argv;
+    HaoMetricRegistry *r = registry_for(ctx, 0);
+    JSValue array = JS_NewArray(ctx);
+    if (JS_IsException(array)) return array;
+    for (uint32_t i = 0; r && i < r->count; i++) {
+        HaoMetric *m = &r->entries[i];
+        JSValue item = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, item, "id", JS_NewUint32(ctx, i));
+        JS_SetPropertyStr(ctx, item, "scope", JS_NewString(ctx, m->scope));
+        JS_SetPropertyStr(ctx, item, "name", JS_NewString(ctx, m->name));
+        JS_SetPropertyStr(ctx, item, "kind", JS_NewString(ctx, m->kind == 1 ? "counter" : m->kind == 2 ? "gauge" : "histogram"));
+        JS_SetPropertyStr(ctx, item, "unit", JS_NewString(ctx, m->unit));
+        JS_SetPropertyStr(ctx, item, "value", JS_NewFloat64(ctx, m->value));
+        JS_SetPropertyStr(ctx, item, "count", JS_NewUint32(ctx, m->count));
+        JS_SetPropertyStr(ctx, item, "sum", JS_NewFloat64(ctx, m->sum));
+        JS_SetPropertyStr(ctx, item, "min", JS_NewFloat64(ctx, m->min));
+        JS_SetPropertyStr(ctx, item, "max", JS_NewFloat64(ctx, m->max));
+        JS_SetPropertyUint32(ctx, array, i, item);
+    }
+    return array;
+}
+static JSValue metric_clear_js(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val; (void)argc; (void)argv;
+    HaoMetricRegistry *r = registry_for(ctx, 0); if (r) clear_registry(r);
+    return JS_UNDEFINED;
+}
 
 static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val; (void)argc; (void)argv;
@@ -41,4 +196,11 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
 }
 void hao_install_telemetry_globals(JSContext *ctx, JSValue global) {
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_memorySnapshot", JS_NewCFunction(ctx, memory_snapshot, "memorySnapshot", 0));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_register", JS_NewCFunction(ctx, metric_register_js, "register", 1));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_add", JS_NewCFunctionMagic(ctx, metric_action_js, "add", 2, JS_CFUNC_generic_magic, 0));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_set", JS_NewCFunctionMagic(ctx, metric_action_js, "set", 2, JS_CFUNC_generic_magic, 1));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_observe", JS_NewCFunctionMagic(ctx, metric_action_js, "observe", 2, JS_CFUNC_generic_magic, 2));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_value", JS_NewCFunction(ctx, metric_value_js, "value", 1));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_snapshot", JS_NewCFunction(ctx, metric_snapshot_js, "snapshot", 0));
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_clear", JS_NewCFunction(ctx, metric_clear_js, "clear", 0));
 }

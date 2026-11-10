@@ -27,6 +27,21 @@ EOF
 addon_actual=$("$runtime" "$fixture_dir/addon.ts")
 test "$addon_actual" = 'hao 5 a,b extra'
 
+mkdir -p "$fixture_dir/node_modules/metric"
+clang -dynamiclib -I "$repo_root/include" "$repo_root/cyna/test/metric_addon.c" -o "$fixture_dir/node_modules/metric/native.dylib"
+cat > "$fixture_dir/node_modules/metric/package.json" <<'EOF'
+{"type":"module","exports":{"./native":"./native.dylib"}}
+EOF
+cat > "$fixture_dir/addon_metric.ts" <<'EOF'
+import metric from 'metric:native';
+import { metrics } from 'std:telemetry';
+console.log(metric.increment(), metric.increment());
+const calls = metrics().find(item => item.scope === 'addon' && item.name === 'calls');
+console.log(calls?.value, calls?.kind, calls?.unit);
+EOF
+metric_actual=$("$runtime" "$fixture_dir/addon_metric.ts")
+test "$metric_actual" = "$(printf '1 2\n2 counter count')"
+
 printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name, namespace, runtime.name);\n' > "$fixture_dir/standard.ts"
 standard_actual=$("$runtime" "$fixture_dir/standard.ts")
 test "$standard_actual" = 'hao std: hao'

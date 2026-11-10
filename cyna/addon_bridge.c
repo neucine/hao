@@ -24,6 +24,11 @@ typedef struct AddonFrame {
 } AddonFrame;
 
 static AddonLibrary *libraries;
+extern int hao_metric_register(JSContext *, const JsMetricDefinition *, uint32_t *);
+extern int hao_metric_add(JSContext *, uint32_t, double);
+extern int hao_metric_set(JSContext *, uint32_t, double);
+extern int hao_metric_observe(JSContext *, uint32_t, double);
+extern int hao_metric_value(JSContext *, uint32_t, double *);
 
 static JSValueConst frame_value(AddonFrame *frame, JsValue handle) {
     if (handle == 0) return JS_UNDEFINED;
@@ -81,9 +86,11 @@ static int api_array_length(JsContext *ctx, JsValue v, uint32_t *out) { AddonFra
 static JsValue api_array_get(JsContext *ctx, JsValue v, uint32_t i) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_GetPropertyUint32(f->ctx, frame_value(f, v), i)); }
 static JsValue api_array(JsContext *ctx) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewArray(f->ctx)); }
 static int api_array_set(JsContext *ctx, JsValue v, uint32_t i, JsValue item) { AddonFrame *f = frame_of(ctx); return JS_SetPropertyUint32(f->ctx, frame_value(f, v), i, JS_DupValue(f->ctx, frame_value(f, item))); }
-static int api_metric_register(JsContext *ctx, const JsMetricDefinition *d, uint32_t *id) { (void)ctx; (void)d; (void)id; return -1; }
-static int api_metric_change(JsContext *ctx, uint32_t id, double value) { (void)ctx; (void)id; (void)value; return -1; }
-static int api_metric_value(JsContext *ctx, uint32_t id, double *value) { (void)ctx; (void)id; (void)value; return -1; }
+static int api_metric_register(JsContext *ctx, const JsMetricDefinition *d, uint32_t *id) { return hao_metric_register(frame_of(ctx)->ctx, d, id); }
+static int api_metric_add(JsContext *ctx, uint32_t id, double value) { return hao_metric_add(frame_of(ctx)->ctx, id, value); }
+static int api_metric_set(JsContext *ctx, uint32_t id, double value) { return hao_metric_set(frame_of(ctx)->ctx, id, value); }
+static int api_metric_observe(JsContext *ctx, uint32_t id, double value) { return hao_metric_observe(frame_of(ctx)->ctx, id, value); }
+static int api_metric_value(JsContext *ctx, uint32_t id, double *value) { return hao_metric_value(frame_of(ctx)->ctx, id, value); }
 
 static const JsContextApi context_api = {
     .abi_version = JS_ADDON_ABI_VERSION, .undefined = api_undefined, .null_value = api_null,
@@ -95,8 +102,8 @@ static const JsContextApi context_api = {
     .is_undefined = api_is_undefined, .is_null = api_is_null, .is_object = api_is_object,
     .is_array = api_is_array, .is_function = api_is_function, .array_length = api_array_length,
     .array_get = api_array_get, .array_value = api_array, .array_set = api_array_set,
-    .metric_register = api_metric_register, .metric_add = api_metric_change,
-    .metric_set = api_metric_change, .metric_observe = api_metric_change,
+    .metric_register = api_metric_register, .metric_add = api_metric_add,
+    .metric_set = api_metric_set, .metric_observe = api_metric_observe,
     .metric_value = api_metric_value,
 };
 

@@ -52,6 +52,7 @@ extern void hao_install_http_globals(JSContext *ctx, JSValue global);
 extern void hao_install_http_server_globals(JSContext *ctx, JSValue global);
 extern void hao_http_server_cleanup(JSContext *ctx);
 extern void hao_install_telemetry_globals(JSContext *ctx, JSValue global);
+extern void hao_metric_cleanup(JSContext *ctx);
 extern void hao_install_ffi_globals(JSContext *ctx, JSValue global);
 extern void hao_ffi_cleanup(JSContext *ctx);
 extern JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
@@ -510,6 +511,7 @@ void hao_runtime_free(uintptr_t handle) {
     hao_http_server_cleanup(host->context);
     hao_ffi_cleanup(host->context);
     hao_addon_cleanup(host->context);
+    hao_metric_cleanup(host->context);
     while (host->timers) {
         HaoTimer *timer = host->timers;
         hao_unlink_timer(host, timer);

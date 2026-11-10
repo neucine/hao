@@ -5,63 +5,20 @@ export type MetricSnapshot = {
   value: number; count: number; sum: number; min: number; max: number;
 };
 
-type Metric = MetricSnapshot;
-const registry: Metric[] = [];
-const byName = new Map<string, Metric>();
-
-function readMetric(id: number): Metric {
-  if (!Number.isInteger(id) || id < 0 || !registry[id]) throw Error('invalid metric id');
-  return registry[id];
+declare global {
+  var __hao_telemetry_register: (definition: MetricDefinition) => number;
+  var __hao_telemetry_add: (id: number, delta: number) => void;
+  var __hao_telemetry_set: (id: number, value: number) => void;
+  var __hao_telemetry_observe: (id: number, value: number) => void;
+  var __hao_telemetry_value: (id: number) => number;
+  var __hao_telemetry_snapshot: () => MetricSnapshot[];
+  var __hao_telemetry_clear: () => void;
 }
-function finite(value: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) throw Error('metric value must be finite');
-  return value;
-}
-export function registerMetricNative(definition: MetricDefinition): number {
-  if (!definition || typeof definition !== 'object') throw Error('registerMetric requires a definition object');
-  const { scope, name, kind } = definition;
-  const unit = definition.unit ?? '';
-  if (typeof scope !== 'string' || !scope || typeof name !== 'string' || !name ||
-      !['counter', 'gauge', 'histogram'].includes(kind) || typeof unit !== 'string') {
-    throw Error('invalid metric definition');
-  }
-  const key = `${scope}\0${name}`;
-  const existing = byName.get(key);
-  if (existing) {
-    if (existing.kind !== kind || existing.unit !== unit) throw Error('conflicting metric definition');
-    return existing.id;
-  }
-  if (registry.length >= 256) throw Error('metric registry is full');
-  const metric: Metric = { id: registry.length, scope, name, kind, unit, value: 0,
-    count: 0, sum: 0, min: 0, max: 0 };
-  registry.push(metric);
-  byName.set(key, metric);
-  return metric.id;
-}
-export function addMetricNative(id: number, delta: number): void {
-  const metric = readMetric(id);
-  if (metric.kind === 'histogram') throw Error('histograms require observe');
-  metric.value += finite(delta);
-}
-export function setMetricNative(id: number, value: number): void {
-  const metric = readMetric(id);
-  if (metric.kind !== 'gauge') throw Error('only gauges support set');
-  metric.value = finite(value);
-}
-export function observeMetricNative(id: number, value: number): void {
-  const metric = readMetric(id);
-  if (metric.kind !== 'histogram') throw Error('only histograms support observe');
-  const measured = finite(value);
-  metric.min = metric.count === 0 ? measured : Math.min(metric.min, measured);
-  metric.max = metric.count === 0 ? measured : Math.max(metric.max, measured);
-  metric.count++;
-  metric.sum += measured;
-  metric.value = metric.count;
-}
-export function metricValueNative(id: number): number {
-  refreshRuntimeMemory();
-  return readMetric(id).value;
-}
+export function registerMetricNative(definition: MetricDefinition): number { return globalThis.__hao_telemetry_register(definition); }
+export function addMetricNative(id: number, delta: number): void { globalThis.__hao_telemetry_add(id, delta); }
+export function setMetricNative(id: number, value: number): void { globalThis.__hao_telemetry_set(id, value); }
+export function observeMetricNative(id: number, value: number): void { globalThis.__hao_telemetry_observe(id, value); }
+export function metricValueNative(id: number): number { refreshRuntimeMemory(); return globalThis.__hao_telemetry_value(id); }
 function refreshRuntimeMemory(): void {
   const gauges = globalThis.__hao_telemetry_memorySnapshot();
   for (const [name, value] of Object.entries(gauges)) {
@@ -72,11 +29,10 @@ function refreshRuntimeMemory(): void {
 }
 export function snapshotMetricsNative(): MetricSnapshot[] {
   refreshRuntimeMemory();
-  return registry.map(metric => ({ ...metric }));
+  return globalThis.__hao_telemetry_snapshot();
 }
 export function clearMetricsNative(): void {
-  registry.length = 0;
-  byName.clear();
+  globalThis.__hao_telemetry_clear();
 }
 
 type Span = { id: number; name: string; parent: number | null; start: number; end?: number; status?: string };

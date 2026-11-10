@@ -18,8 +18,8 @@ extension policy. It limits parsed manifests to 256 KiB, disallows entries
 containing `..`, and reports unresolved packages through the QuickJS loader.
 Addon entries (`.dylib`, `.so`, `.dll`, `.node`) load through the stable ABI in
 `include/addon.h`; package specifiers select among modules registered by one
-library. The callback value and collection APIs work, while addon metric
-callbacks currently return failure.
+library. Addon metric callbacks and `std:telemetry` share one registry per
+runtime.
 The Cyna host currently targets macOS arm64.
 
 `src/process_host.cy` uses Cyna's process library for `getEnv` and `run`.
@@ -53,8 +53,8 @@ from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The original runner's reporting and
 isolation behavior remain to be ported.
 
-`std:telemetry` retains Hao's metric and trace APIs. Metric registration and
-bounded trace records live in its standard module. QuickJS memory gauges use
+`std:telemetry` retains Hao's metric and trace APIs. Metric registration lives
+in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use
 `JS_ComputeMemoryUsage`; `allocator_active_bytes` and `allocator_peak_bytes`
 use the macOS malloc zone totals rather than the Zig runtime allocator. Trace
 context integration with timers and HTTP workers, plus the telemetry console,
