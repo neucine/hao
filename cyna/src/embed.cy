@@ -2,6 +2,8 @@ import { Runtime } from .runtime;
 import { install_from } from .std_modules;
 import { copy_bytes } from .c_bytes;
 
+extern c("hao_embed_bytes_valid") fn bytes_valid(pointer: *const c_uchar, length: c_size_t): c_int;
+
 fn text(pointer: *const c_uchar, length: c_size_t): string {
     const bytes = copy_bytes(pointer, length as usize);
     return string.from(bytes[..]);
@@ -26,7 +28,7 @@ export c("hao_embed_free") fn embed_free(handle: c_size_t): void {
 }
 
 export c("hao_embed_eval") fn embed_eval(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): c_int {
-    if handle == 0 {
+    if handle == 0 or bytes_valid(source, source_len) == 0 or bytes_valid(filename, filename_len) == 0 {
         return 1;
     }
     const runtime = Runtime { handle: handle };
@@ -42,7 +44,7 @@ export c("hao_embed_run_until_idle") fn embed_run_until_idle(handle: c_size_t): 
 }
 
 export c("hao_embed_register_module") fn embed_register_module(handle: c_size_t, name: *const c_uchar, name_len: c_size_t, source: *const c_uchar, source_len: c_size_t): c_int {
-    if handle == 0 {
+    if handle == 0 or bytes_valid(name, name_len) == 0 or bytes_valid(source, source_len) == 0 {
         return 1;
     }
     const runtime = Runtime { handle: handle };
@@ -50,7 +52,7 @@ export c("hao_embed_register_module") fn embed_register_module(handle: c_size_t,
 }
 
 export c("hao_embed_install_std") fn embed_install_std(handle: c_size_t, directory: *const c_uchar, directory_len: c_size_t): c_int {
-    if handle == 0 {
+    if handle == 0 or bytes_valid(directory, directory_len) == 0 {
         return 1;
     }
     const runtime = Runtime { handle: handle };

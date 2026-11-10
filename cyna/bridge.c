@@ -463,6 +463,10 @@ static JSValue hao_clear_timeout(JSContext *ctx, JSValueConst this_val,
     return JS_UNDEFINED;
 }
 
+int hao_embed_bytes_valid(const unsigned char *pointer, size_t length) {
+    return pointer != NULL || length == 0;
+}
+
 uintptr_t hao_runtime_new(void) {
     size_t stack_size = 8 * 1024 * 1024, gc_threshold = 0, thread_pool_size = 0;
     bool stack_present = false, gc_present = false, pool_present = false;
