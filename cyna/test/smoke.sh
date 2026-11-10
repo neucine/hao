@@ -597,6 +597,11 @@ timer_actual=$("$runtime" "$fixture_dir/timer.ts")
 timer_expected=$(printf 'before\nafter\nmicrotask')
 test "$timer_actual" = "$timer_expected"
 
+printf 'setTimeout(() => { console.log("first"); Promise.resolve().then(() => console.log("job")); }, 1); setTimeout(() => console.log("second"), 10);\n' > "$fixture_dir/timer-turns.ts"
+timer_turns_actual=$("$runtime" "$fixture_dir/timer-turns.ts")
+timer_turns_expected=$(printf 'first\njob\nsecond')
+test "$timer_turns_actual" = "$timer_turns_expected"
+
 printf 'setTimeout(() => { throw new Error("timer failed"); }, 1);\n' > "$fixture_dir/timer-failure.ts"
 if "$runtime" "$fixture_dir/timer-failure.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
     echo 'expected timer callback to exit with an error' >&2
