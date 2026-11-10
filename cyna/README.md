@@ -72,7 +72,9 @@ reverse cleanup hook order, and blocked suites after failed setup.
 `captureOutput` captures `console.log`, `console.error`, and `console.warn`
 from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The original runner's reporting and
-isolation behavior remain to be ported.
+isolation behavior remain to be ported. Test file load failures are counted
+separately; successfully loaded files still run and a load failure sets the
+command's exit status.
 
 `std:telemetry` retains Hao's metric and trace APIs. Metric registration lives
 in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use

@@ -69,6 +69,10 @@ pub struct Runtime {
         return status;
     }
 
+    pub fn drain_jobs(self: &const Runtime): i32 {
+        return runtime_drain(self.handle) as i32;
+    }
+
     pub fn register_source_module(self: &const Runtime, name: string, source: string): i32 {
         const name_bytes = name.bytes();
         const source_bytes = source.bytes();

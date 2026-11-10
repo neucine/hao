@@ -308,6 +308,21 @@ ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
 test "$ffi_summary" = '4 passed, 0 failed, 0 skipped'
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)
 test "$error_summary" = '2 passed, 0 failed, 0 skipped'
+cat > "$fixture_dir/broken.test.ts" <<'EOF'
+throw new Error('load failed');
+EOF
+cat > "$fixture_dir/after-broken.test.ts" <<'EOF'
+import { test, expect } from 'std:test';
+test('still runs', () => expect(3).toBe(3));
+EOF
+if load_result=$("$runtime" test "$fixture_dir/broken.test.ts" "$fixture_dir/after-broken.test.ts" 2>&1); then
+    echo 'expected a failed test file to return failure' >&2
+    exit 1
+fi
+case "$load_result" in
+    *'Test Files: 1 loaded, 1 failed, 2 total'*'1 passed, 0 failed, 0 skipped'*) ;;
+    *) echo "$load_result" >&2; exit 1 ;;
+esac
 cat > "$fixture_dir/ffi-mixed.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 const math = dlopen('m', { ldexp: { args: ['f64', 'i32'], returns: 'f64' } });

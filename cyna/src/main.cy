@@ -77,6 +77,9 @@ fn main(): i32 {
             return 1;
         }
         if is_test {
+            var files_loaded: usize = 0;
+            var file_failures: usize = 0;
+            const files_total = test_files.len();
             const executable = exe_path() catch (code) {
                 println("Unable to find Hao executable");
                 return 1;
@@ -85,13 +88,23 @@ fn main(): i32 {
                 return 1;
             }
             for path in test_files {
-                if run_file(&host, path.clone()) != 0 {
-                    return 1;
+                if run_file(&host, path.clone()) != 0 or host.drain_jobs() < 0 {
+                    file_failures = file_failures + 1;
+                } else {
+                    files_loaded = files_loaded + 1;
                 }
             }
+            println($"Test Files: {files_loaded} loaded, {file_failures} failed, {files_total} total");
             if host.start_tests(grep) != 0 {
                 return 1;
             }
+            if host.run_until_idle() != 0 {
+                return 1;
+            }
+            if file_failures != 0 or host.test_failures() != 0 {
+                return 1;
+            }
+            return 0;
         } else {
             if run_file(&host, arguments[1].clone()) != 0 {
                 return 1;
@@ -100,9 +113,6 @@ fn main(): i32 {
         const loop_status = host.run_until_idle();
         if loop_status != 0 {
             return loop_status;
-        }
-        if is_test and host.test_failures() != 0 {
-            return 1;
         }
         return 0;
     }
