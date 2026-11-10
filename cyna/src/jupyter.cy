@@ -71,6 +71,50 @@ fn send_stream(wire: &const Wire, name: string, output: string): i32 {
     return wire.send(4, "stream", $"\{\"name\":{escaped_name},\"text\":{escaped_output}\}");
 }
 
+fn user_expressions(runtime: &const Runtime, content: &const Value, serial: u32): string {
+    var result = "{";
+    switch content {
+        .object(request) => {
+            if request.contains("user_expressions") {
+                switch request["user_expressions"] {
+                    .object(expressions) => {
+                        var index: usize = 0;
+                        for member in expressions.members {
+                            switch member.value {
+                                .string(expression) => {
+                                    if index != 0 { result = $"{result},"; }
+                                    const key = json_string(member.key);
+                                    const filename = $"<hao-jupyter-expression-{serial}-{index}>";
+                                    const packet_text = runtime.eval_cell(expression, filename);
+                                    if packet_text is text {
+                                        const packet = parse_json(text) catch (error) { return "{}"; };
+                                        const value = text_or_empty(field(&packet, "value"));
+                                        const escaped = json_string(value);
+                                        if boolean(&packet, "error") {
+                                            result = $"{result}{key}:\{\"status\":\"error\",\"ename\":\"Error\",\"evalue\":{escaped},\"traceback\":[{escaped}]\}";
+                                        } else {
+                                            const mime = text_or_empty(field(&packet, "mime"));
+                                            var kind = "text/plain";
+                                            if mime != "" { kind = mime; }
+                                            const escaped_mime = json_string(kind);
+                                            result = $"{result}{key}:\{\"status\":\"ok\",\"data\":\{{escaped_mime}:{escaped}\},\"metadata\":\{\}\}";
+                                        }
+                                    } else { return "{}"; }
+                                    index = index + 1;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    return $"{result}\}";
+}
+
 fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, count: u32, serial: u32, silent: bool): i32 {
     const code = field(content, "code");
     if code is none { return 1; }
@@ -116,7 +160,8 @@ fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, co
             }
             var reply_count = $"{count}";
             if silent { reply_count = "null"; }
-            const reply = $"\{\"status\":\"ok\",\"execution_count\":{reply_count},\"user_expressions\":\{\}\}";
+            const expressions = user_expressions(runtime, content, serial);
+            const reply = $"\{\"status\":\"ok\",\"execution_count\":{reply_count},\"user_expressions\":{expressions}\}";
             if wire.send(3, "execute_reply", reply) != 0 { return 1; }
         }
     }

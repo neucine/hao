@@ -137,6 +137,11 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"text/plain\":\"22\"")) saw_22 = 1;
     }
     if (!status && (!saw_42 || !saw_22)) status = 11;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"x\",\"user_expressions\":{\"answer\":\"x + 3\",\"missing\":\"doesNotExist\"}}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\"") ||
+        !strstr(content, "\"answer\":{\"status\":\"ok\",\"data\":{\"text/plain\":\"24\"}") ||
+        !strstr(content, "\"missing\":{\"status\":\"error\""))) status = 54;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"import { name } from 'std:runtime'; name\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\""))) status = 13;
