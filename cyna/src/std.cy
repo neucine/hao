@@ -34,6 +34,9 @@ pub fn install_from(runtime: &const Runtime, module_directory: string): i32 {
     if install_one(runtime, module_directory.clone(), "std:plot", "plot.ts") != 0 {
         return 1;
     }
+    if install_one(runtime, module_directory.clone(), "std:util/native", "util_native.ts") != 0 {
+        return 1;
+    }
     if install_one(runtime, module_directory.clone(), "std:util", "util.ts") != 0 {
         return 1;
     }
