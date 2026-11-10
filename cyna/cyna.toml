@@ -6,8 +6,8 @@ entry = "src/main.cy"
 
 [c]
 sources = ["bridge.c"]
-include_paths = ["../zig-pkg/N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp"]
+include_paths = ["../zig-pkg/N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp", "../zig-pkg/N-V-__8AABtNRAB58M85Dm0p6z6iRHP3Zz3eyo08HU4EF5mq/include"]
 
 [link]
-libs = ["quickjs", "hao_transpiler"]
+libs = ["quickjs", "uv", "hao_transpiler"]
 search_paths = ["../zig-out/lib", "../libs/transpiler/target/release"]

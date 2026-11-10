@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include <uv.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -12,14 +13,29 @@ typedef struct HaoSourceModule {
     struct HaoSourceModule *next;
 } HaoSourceModule;
 
-typedef struct {
+typedef struct HaoTimer HaoTimer;
+
+typedef struct HaoRuntime {
     JSRuntime *runtime;
     JSContext *context;
+    uv_loop_t *loop;
     JSContext *rejection_context;
     JSValue rejection;
     bool has_rejection;
+    JSValue callback_error;
+    bool has_callback_error;
+    uint32_t next_timer_id;
+    HaoTimer *timers;
     HaoSourceModule *modules;
 } HaoRuntime;
+
+struct HaoTimer {
+    uv_timer_t handle;
+    HaoRuntime *host;
+    JSValue callback;
+    uint32_t id;
+    HaoTimer *next;
+};
 
 extern char *hao_transpile_types_for_path(const char *source, const char *source_path);
 extern char *hao_transpiler_last_error(void);
@@ -203,6 +219,93 @@ static void hao_on_rejection(JSContext *ctx, JSValueConst promise,
     }
 }
 
+static void hao_unlink_timer(HaoRuntime *host, HaoTimer *timer) {
+    HaoTimer **link = &host->timers;
+    while (*link) {
+        if (*link == timer) {
+            *link = timer->next;
+            return;
+        }
+        link = &(*link)->next;
+    }
+}
+
+static void hao_timer_closed(uv_handle_t *handle) {
+    HaoTimer *timer = handle->data;
+    free(timer);
+}
+
+static void hao_timer_fired(uv_timer_t *handle) {
+    HaoTimer *timer = handle->data;
+    HaoRuntime *host = timer->host;
+    hao_unlink_timer(host, timer);
+    JSValue result = JS_Call(host->context, timer->callback, JS_UNDEFINED, 0, NULL);
+    if (JS_IsException(result)) {
+        JSValue error = JS_GetException(host->context);
+        if (!host->has_callback_error) {
+            host->callback_error = error;
+            host->has_callback_error = true;
+        } else {
+            JS_FreeValue(host->context, error);
+        }
+    }
+    JS_FreeValue(host->context, result);
+    JS_FreeValue(host->context, timer->callback);
+    uv_close((uv_handle_t *)handle, hao_timer_closed);
+}
+
+static JSValue hao_set_timeout(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv) {
+    (void)this_val;
+    HaoRuntime *host = JS_GetContextOpaque(ctx);
+    if (argc < 1 || !JS_IsFunction(ctx, argv[0])) {
+        return JS_ThrowTypeError(ctx, "setTimeout requires a callback");
+    }
+    int64_t delay = 0;
+    if (argc >= 2 && JS_ToInt64(ctx, &delay, argv[1]) < 0) return JS_EXCEPTION;
+    if (delay < 0) delay = 0;
+    HaoTimer *timer = calloc(1, sizeof(*timer));
+    if (!timer) return JS_ThrowOutOfMemory(ctx);
+    if (uv_timer_init(host->loop, &timer->handle) != 0) {
+        free(timer);
+        return JS_ThrowInternalError(ctx, "Timer initialization failed");
+    }
+    timer->host = host;
+    timer->handle.data = timer;
+    timer->callback = JS_DupValue(ctx, argv[0]);
+    timer->id = host->next_timer_id++;
+    if (host->next_timer_id == 0 || host->next_timer_id > INT32_MAX) host->next_timer_id = 1;
+    timer->next = host->timers;
+    host->timers = timer;
+    if (uv_timer_start(&timer->handle, hao_timer_fired, delay == 0 ? 1 : (uint64_t)delay, 0) != 0) {
+        hao_unlink_timer(host, timer);
+        JS_FreeValue(ctx, timer->callback);
+        uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
+        return JS_ThrowInternalError(ctx, "Timer scheduling failed");
+    }
+    return JS_NewInt32(ctx, (int32_t)timer->id);
+}
+
+static JSValue hao_clear_timeout(JSContext *ctx, JSValueConst this_val,
+                                  int argc, JSValueConst *argv) {
+    (void)this_val;
+    if (argc < 1) return JS_UNDEFINED;
+    int32_t id = 0;
+    if (JS_ToInt32(ctx, &id, argv[0]) < 0) return JS_EXCEPTION;
+    if (id <= 0) return JS_UNDEFINED;
+    HaoRuntime *host = JS_GetContextOpaque(ctx);
+    for (HaoTimer *timer = host->timers; timer; timer = timer->next) {
+        if (timer->id == (uint32_t)id) {
+            hao_unlink_timer(host, timer);
+            uv_timer_stop(&timer->handle);
+            JS_FreeValue(ctx, timer->callback);
+            uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
+            break;
+        }
+    }
+    return JS_UNDEFINED;
+}
+
 uintptr_t hao_runtime_new(void) {
     HaoRuntime *host = calloc(1, sizeof(*host));
     if (!host) return 0;
@@ -218,11 +321,23 @@ uintptr_t hao_runtime_new(void) {
         free(host);
         return 0;
     }
+    host->loop = malloc(uv_loop_size());
+    if (!host->loop || uv_loop_init(host->loop) != 0) {
+        free(host->loop);
+        JS_FreeContext(host->context);
+        JS_FreeRuntime(host->runtime);
+        free(host);
+        return 0;
+    }
+    host->next_timer_id = 1;
+    JS_SetContextOpaque(host->context, host);
     JS_SetModuleLoaderFunc(host->runtime, hao_normalize_module, hao_load_module, host);
     JSValue global = JS_GetGlobalObject(host->context);
     JSValue console = JS_NewObject(host->context);
     JS_SetPropertyStr(host->context, console, "log", JS_NewCFunction(host->context, hao_console_log, "log", 1));
     JS_SetPropertyStr(host->context, global, "console", console);
+    JS_SetPropertyStr(host->context, global, "setTimeout", JS_NewCFunction(host->context, hao_set_timeout, "setTimeout", 2));
+    JS_SetPropertyStr(host->context, global, "clearTimeout", JS_NewCFunction(host->context, hao_clear_timeout, "clearTimeout", 1));
     JS_FreeValue(host->context, global);
     return (uintptr_t)host;
 }
@@ -230,7 +345,18 @@ uintptr_t hao_runtime_new(void) {
 void hao_runtime_free(uintptr_t handle) {
     if (!handle) return;
     HaoRuntime *host = (HaoRuntime *)handle;
+    while (host->timers) {
+        HaoTimer *timer = host->timers;
+        hao_unlink_timer(host, timer);
+        uv_timer_stop(&timer->handle);
+        JS_FreeValue(host->context, timer->callback);
+        uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
+    }
+    uv_run(host->loop, UV_RUN_DEFAULT);
+    uv_loop_close(host->loop);
+    free(host->loop);
     if (host->has_rejection) JS_FreeValue(host->rejection_context, host->rejection);
+    if (host->has_callback_error) JS_FreeValue(host->context, host->callback_error);
     JS_FreeContext(host->context);
     JS_FreeRuntime(host->runtime);
     HaoSourceModule *module = host->modules;
@@ -286,16 +412,31 @@ int hao_runtime_drain(uintptr_t handle) {
     HaoRuntime *host = (HaoRuntime *)handle;
     JSContext *job_ctx = NULL;
     int result;
-    while ((result = JS_ExecutePendingJob(host->runtime, &job_ctx)) > 0) {}
+    int ran_jobs = 0;
+    while ((result = JS_ExecutePendingJob(host->runtime, &job_ctx)) > 0) ran_jobs = 1;
     if (result < 0) {
         hao_print_exception(job_ctx);
-        return 1;
+        return -1;
     }
     if (host->has_rejection) {
         hao_print_value(host->rejection_context, host->rejection);
         JS_FreeValue(host->rejection_context, host->rejection);
         host->has_rejection = false;
-        return 1;
+        return -1;
     }
-    return 0;
+    return ran_jobs;
+}
+
+int hao_runtime_run_turn(uintptr_t handle) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    if (uv_loop_alive(host->loop) == 0) return 0;
+    int result = uv_run(host->loop, UV_RUN_ONCE);
+    if (result < 0) return -1;
+    if (host->has_callback_error) {
+        hao_print_value(host->context, host->callback_error);
+        JS_FreeValue(host->context, host->callback_error);
+        host->has_callback_error = false;
+        return -1;
+    }
+    return 1;
 }

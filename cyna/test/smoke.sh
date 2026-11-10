@@ -18,6 +18,18 @@ printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name
 standard_actual=$("$runtime" "$fixture_dir/standard.ts")
 test "$standard_actual" = 'hao std: hao'
 
+printf 'console.log("before"); const cancelled = setTimeout(() => console.log("cancelled"), 1); clearTimeout(cancelled); setTimeout(() => { console.log("after"); Promise.resolve().then(() => console.log("microtask")); }, 1);\n' > "$fixture_dir/timer.ts"
+timer_actual=$("$runtime" "$fixture_dir/timer.ts")
+timer_expected=$(printf 'before\nafter\nmicrotask')
+test "$timer_actual" = "$timer_expected"
+
+printf 'setTimeout(() => { throw new Error("timer failed"); }, 1);\n' > "$fixture_dir/timer-failure.ts"
+if "$runtime" "$fixture_dir/timer-failure.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
+    echo 'expected timer callback to exit with an error' >&2
+    exit 1
+fi
+grep -q 'Error: timer failed' "$fixture_dir/stderr"
+
 printf 'throw new Error("expected failure");\n' > "$fixture_dir/failure.js"
 if "$runtime" "$fixture_dir/failure.js" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
     echo 'expected failure script to exit with an error' >&2
