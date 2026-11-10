@@ -682,9 +682,27 @@ const path = getEnv('HAO_FFI_TEST_PATH');
 const library = cdecl(`${path}/libhao_search_fixture.dylib`,
   'char *hao_mutable_char_pointer(void); const char *hao_const_char_pointer(void);');
 console.log(typeof library.hao_mutable_char_pointer(), library.hao_const_char_pointer());
+for (const declaration of [
+  'char * const hao_mutable_char_pointer(void);',
+  'signed char hao_char_255(void);',
+  'int hao_search_value(void);',
+]) {
+  try {
+    const candidate = cdecl(`${path}/libhao_search_fixture.dylib`, declaration);
+    if (declaration.startsWith('char * const')) {
+      console.log(typeof candidate.hao_mutable_char_pointer());
+    } else {
+      console.log('accepted unsupported type');
+    }
+    candidate.close();
+  } catch (error) {
+    if (declaration.startsWith('char * const')) throw error;
+    console.log('rejected');
+  }
+}
 library.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-char-pointer.ts")" = 'number constant'
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-char-pointer.ts")" = "$(printf 'number constant\nnumber\nrejected\nrejected')"
 cat > "$fixture_dir/ffi-u64.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 import { getEnv } from 'std:process';

@@ -29,8 +29,12 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
 }
 
 export function ffiType(type: string, returning = false): string {
-  const constCharPointer = /\bconst\b/.test(type);
-  const normalized = type.replace(/\b(const|volatile|restrict|signed)\b/g, '').replace(/\s+/g, ' ').trim();
+  const source = type.replace(/\s+/g, ' ').trim();
+  const constCharPointer = source.startsWith('const ');
+  const normalized = source.replace(/^const\s+/, '').replace(/\*\s*const\b/g, '*').trim();
+  if (/\b(short|int|long|unsigned|signed|volatile|restrict|const)\b/.test(normalized)) {
+    throw invalidArg(`unsupported C type: ${type}`);
+  }
   if (/\*/.test(normalized)) {
     if (constCharPointer && /^char\s*\*$/.test(normalized)) return 'cstring';
     return 'ptr';
