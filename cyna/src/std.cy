@@ -2,9 +2,9 @@ import { read_file } from std.fs;
 import { join, dirname } from std.path;
 import { exe_path } from std.process;
 import { Runtime } from .runtime;
-import { fs_exists } from .fs_host;
-import { resolve_package } from .package_resolver;
-import { get_env } from .process_host;
+import { fs_exists } from .fs;
+import { resolve_package } from .package;
+import { get_env } from .std.process.native;
 
 fn install_one(runtime: &const Runtime, directory: string, name: string, filename: string): i32 {
     const parts: [2]string = [directory.clone(), filename];

@@ -1,5 +1,5 @@
 import { Runtime } from .runtime;
-import { install_from } from .std_modules;
+import { install_from } from .std;
 import { copy_bytes } from .c_bytes;
 
 extern c("hao_embed_bytes_valid") fn bytes_valid(pointer: *const c_uchar, length: c_size_t): c_int;

@@ -1,5 +1,9 @@
 # Hao Cyna port
 
+Parity review against the Zig `legacy` branch is in progress. The source tree
+now follows the legacy subsystem layout where Cyna imports permit it. A passing
+existing test suite is not a complete parity audit.
+
 This is the Cyna implementation for Apple Silicon macOS. It runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
 exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
@@ -30,12 +34,13 @@ JavaScript execution errors include their stack in the Jupyter error reply.
 The build also produces a Cyna runtime static library with the C API in
 `include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 
-`src/runtime.cy` owns the event loop and module registry, `src/fs_host.cy` owns
+`src/runtime.cy` owns the runtime, `src/async/loop.cy` drives Promise jobs and
+libuv turns, and `src/fs.cy` owns
 file access, and `bridge.c` and `fs_bridge.c` adapt QuickJS values to the Cyna
 host functions. `readFileSync` uses a 100 MiB limit and fails if the file grows
 between sizing and reading.
 
-`src/package_resolver.cy` handles `RUNTIME_PACKAGE_PATH`, ancestor
+`src/package.cy` handles `RUNTIME_PACKAGE_PATH`, ancestor
 `node_modules` directories, package `exports` and `main`, and the ESM entry
 extension policy. It limits parsed manifests to 256 KiB, disallows entries
 containing `..`, and reports unresolved packages through the QuickJS loader.
@@ -55,7 +60,7 @@ directory. Set `DOTENV` to require a specific file, or set it to an empty value
 to disable loading. Existing environment values take precedence, and the file
 is limited to 1 MiB.
 
-`src/process_host.cy` uses Cyna's process library for `getEnv` and `run`.
+`src/std/process/native.cy` uses Cyna's process library for `getEnv` and `run`.
 The JavaScript API keeps Hao's Promise, `json()`, `text()`, and exit checking
 behavior. Options are limited to 1 MiB, `maxOutputBytes` to 16 MiB, and the
 captured output is checked against that limit after the child exits. The

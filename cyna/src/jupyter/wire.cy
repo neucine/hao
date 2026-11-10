@@ -1,4 +1,4 @@
-import { Connection } from .jupyter_connection;
+import { Connection } from .jupyter.connection;
 import { copy_bytes } from .c_bytes;
 
 extern c("hao_jupyter_wire_open") fn wire_open(transport: *const c_uchar, transport_len: c_size_t,

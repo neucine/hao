@@ -1,8 +1,8 @@
 import { Value, parse as parse_json, encode } from std.json;
 import { Runtime } from .runtime;
-import { install } from .std_modules;
-import { parse as parse_connection } from .jupyter_connection;
-import { Wire } from .jupyter_wire;
+import { install } from .std;
+import { parse as parse_connection } from .jupyter.connection;
+import { Wire } from .jupyter.wire;
 
 struct HistoryEntry {
     line: u32;

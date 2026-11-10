@@ -1,11 +1,11 @@
 import { args, exe_path } from std.process;
 import { read_file } from std.fs;
 import { Runtime } from .runtime;
-import { install } from .std_modules;
-import { collect, sort } from .test_files;
+import { install } from .std;
+import { collect, sort } from .std.test_files;
 import { load_dotenv } from .config;
-import { run as run_jupyter } from .jupyter;
-import { install as install_jupyter } from .jupyter_install;
+import { run as run_jupyter } from .jupyter.main;
+import { install as install_jupyter } from .jupyter.install;
 
 extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
 

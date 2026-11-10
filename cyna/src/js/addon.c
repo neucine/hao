@@ -1,4 +1,4 @@
-#include "../include/addon.h"
+#include "../../../include/addon.h"
 #include <quickjs.h>
 #include <dlfcn.h>
 #include <stdlib.h>

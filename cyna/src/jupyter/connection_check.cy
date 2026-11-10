@@ -1,5 +1,5 @@
 import { args } from std.process;
-import { parse } from .jupyter_connection;
+import { parse } from .jupyter.connection;
 
 fn main(): i32 {
     const arguments = args();
