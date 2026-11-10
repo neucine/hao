@@ -49,6 +49,8 @@ extern void hao_transpiler_free(char *text);
 extern void hao_install_fs_globals(JSContext *ctx, JSValue global);
 extern void hao_install_process_globals(JSContext *ctx, JSValue global);
 extern void hao_install_http_globals(JSContext *ctx, JSValue global);
+extern void hao_install_http_server_globals(JSContext *ctx, JSValue global);
+extern void hao_http_server_cleanup(JSContext *ctx);
 extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                                unsigned char *output, size_t capacity);
 
@@ -252,7 +254,10 @@ static JSValue hao_console_write(JSContext *ctx, int argc, JSValueConst *argv, i
     }
     if (capture) {
         if (hao_capture_append(buffer, length, capacity, "\n", 1) != 0) return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB");
-    } else fputc('\n', stream);
+    } else {
+        fputc('\n', stream);
+        fflush(stream);
+    }
     return JS_UNDEFINED;
 }
 
@@ -465,6 +470,7 @@ uintptr_t hao_runtime_new(void) {
     hao_install_fs_globals(host->context, global);
     hao_install_process_globals(host->context, global);
     hao_install_http_globals(host->context, global);
+    hao_install_http_server_globals(host->context, global);
     JS_FreeValue(host->context, global);
     return (uintptr_t)host;
 }
@@ -472,6 +478,7 @@ uintptr_t hao_runtime_new(void) {
 void hao_runtime_free(uintptr_t handle) {
     if (!handle) return;
     HaoRuntime *host = (HaoRuntime *)handle;
+    hao_http_server_cleanup(host->context);
     while (host->timers) {
         HaoTimer *timer = host->timers;
         hao_unlink_timer(host, timer);
@@ -497,6 +504,11 @@ void hao_runtime_free(uintptr_t handle) {
         module = next;
     }
     free(host);
+}
+
+uv_loop_t *hao_runtime_loop(JSContext *ctx) {
+    HaoRuntime *host = JS_GetContextOpaque(ctx);
+    return host ? host->loop : NULL;
 }
 
 int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,

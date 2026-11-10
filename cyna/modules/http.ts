@@ -1,3 +1,5 @@
+import { serve } from 'std:http/server';
+export { serve };
 type HeaderValue = string | string[];
 type HeadersRecord = Record<string, HeaderValue>;
 
@@ -71,4 +73,4 @@ export function download(url: string, path: string, options?: any) {
     path,
   }));
 }
-export default { request, get, post, download };
+export default { request, get, post, download, serve };

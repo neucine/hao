@@ -79,6 +79,10 @@ download_actual=$("$runtime" "$fixture_dir/download.ts")
 download_expected=$(printf '200 4194304 2b07811057df887086f06a67edc6ebf911de8b6741156e7a2eb1416a4b8b1b2e 4194304\nlimited 4194304\nmissing 4194304\ntruncated 4194304\nparent 4194304\ncompressed 200000 200000')
 test "$download_actual" = "$download_expected"
 test "$(find "$fixture_dir" -name 'download.bin.hao-*' | wc -l | tr -d ' ')" = 0
+python3 "$repo_root/cyna/test/http_server.py" "$runtime" > "$fixture_dir/server-behavior"
+grep -q 'HTTP server behavior checks passed' "$fixture_dir/server-behavior"
+(cd "$repo_root" && python3 test/e2e/http/server-wire.py "$runtime") > "$fixture_dir/server-wire"
+grep -q 'wire framing and deadline checks passed' "$fixture_dir/server-wire"
 
 test_summary=$("$runtime" test "$repo_root/test/e2e/test" | tail -1)
 test "$test_summary" = '30 passed, 0 failed, 7 skipped'
