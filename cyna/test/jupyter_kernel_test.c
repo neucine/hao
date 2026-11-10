@@ -114,6 +114,16 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"execution_state\":\"idle\"")) silent_idle = 1;
     }
     if (!status && !silent_idle) status = 50;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"globalThis.__historyValue = 11; 77\",\"store_history\":false}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"execution_count\":0"))) status = 51;
+    int history_result = 0, history_idle = 0;
+    for (int i = 0; !status && i < 6 && !history_idle; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 52; break; }
+        if (strstr(content, "\"text/plain\":\"77\"")) history_result = 1;
+        if (strstr(content, "\"execution_state\":\"idle\"")) history_idle = 1;
+    }
+    if (!status && (!history_result || !history_idle)) status = 53;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"let x: number = 21; x * 2\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"execution_count\":1"))) status = 6;

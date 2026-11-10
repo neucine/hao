@@ -34,6 +34,21 @@ fn boolean(value: &const Value, key: string): bool {
     return false;
 }
 
+fn is_false(value: &const Value, key: string): bool {
+    switch value {
+        .object(object) => {
+            if object.contains(key) {
+                switch object[key] {
+                    .bool(flag) => { return not flag; }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    return false;
+}
+
 fn json_string(text: string): string {
     const value: Value = .string(text);
     return encode(&value);
@@ -145,7 +160,7 @@ pub fn run(path: string): i32 {
                     } else if kind == "execute_request" {
                         serial = serial + 1;
                         const silent = boolean(&content, "silent");
-                        if not silent { count = count + 1; }
+                        if not silent and not is_false(&content, "store_history") { count = count + 1; }
                         if execute(&transport, &host, &content, count, serial, silent) != 0 { return 1; }
                     }
                 }
