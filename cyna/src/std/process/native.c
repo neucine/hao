@@ -45,9 +45,9 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
             JS_FreeValue(ctx, max_value);
             return JS_EXCEPTION;
         }
-        if (requested < 1 || requested > 16 * 1024 * 1024) {
+        if (requested < 1) {
             JS_FreeValue(ctx, max_value);
-            return JS_ThrowRangeError(ctx, "maxOutputBytes must be between 1 and 16777216");
+            return JS_ThrowRangeError(ctx, "process.run maxOutputBytes must be positive");
         }
         capacity = (size_t)requested;
     }
@@ -58,10 +58,6 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
     const char *options = JS_ToCStringLen(ctx, &json_len, json);
     JS_FreeValue(ctx, json);
     if (!options) return JS_EXCEPTION;
-    if (json_len > 1024 * 1024) {
-        JS_FreeCString(ctx, options);
-        return JS_ThrowRangeError(ctx, "process options exceed 1 MiB");
-    }
     unsigned char *stdout_buffer = malloc(capacity);
     unsigned char *stderr_buffer = malloc(capacity);
     if (!stdout_buffer || !stderr_buffer) {
