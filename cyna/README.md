@@ -110,9 +110,10 @@ callbacks retain the trace parent active when scheduled. Set
 `RUNTIME_TELEMETRY_CONSOLE=1` to start an in-process console on loopback;
 `RUNTIME_TELEMETRY_CONSOLE_PORT` selects the port and defaults to an available
 port. The console serves Hao's dashboard, health, metrics, and trace endpoints.
-The Cyna trace endpoint retains 512 start, event, and end records with sequence
-cursors and reports overwritten history. Native and JavaScript span events and
-attributes are included in these records.
+The Cyna trace endpoint retains a configured ring of start, event, and end
+records (4096 by default, at most 1,048,576) with sequence cursors and reports
+overwritten history. Native and JavaScript span events and attributes are
+included in these records.
 On glibc Linux, allocator gauges use `mallinfo2`; the peak is the highest
 sampled active value.
 
