@@ -67,7 +67,7 @@ pub fn install_from(runtime: &const Runtime, module_directory: string): i32 {
     if install_one(runtime, module_directory, "std:test", "test.ts") != 0 {
         return 1;
     }
-    return runtime.eval("import 'std:telemetry/console';", "<hao-telemetry-console>");
+    return runtime.eval("import 'std:telemetry/console'; import { inspect } from 'std:util'; globalThis.__hao_jupyter_inspect = inspect;", "<hao-runtime-helpers>");
 }
 
 pub fn install(runtime: &const Runtime): i32 {

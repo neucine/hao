@@ -758,6 +758,16 @@ static JSValue hao_cell_repr(JSContext *ctx, JSValueConst value, JSValue *mime) 
         } else if (JS_IsString(answer)) return answer;
         JS_FreeValue(ctx, answer);
     } else JS_FreeValue(ctx, method);
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue inspect = JS_GetPropertyStr(ctx, global, "__hao_jupyter_inspect");
+    JS_FreeValue(ctx, global);
+    if (JS_IsFunction(ctx, inspect)) {
+        JSValue answer = JS_Call(ctx, inspect, JS_UNDEFINED, 1, &value);
+        JS_FreeValue(ctx, inspect);
+        if (!JS_IsException(answer)) return answer;
+        return answer;
+    }
+    JS_FreeValue(ctx, inspect);
     JSValue json = JS_JSONStringify(ctx, value, JS_UNDEFINED, JS_UNDEFINED);
     if (!JS_IsException(json) && !JS_IsUndefined(json)) return json;
     if (JS_IsException(json)) { JSValue error = JS_GetException(ctx); JS_FreeValue(ctx, error); }
