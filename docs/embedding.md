@@ -10,6 +10,8 @@ source modules with `hao_embed_register_module`, evaluate a module with
 `hao_embed_install_std` installs the standard modules from the directory
 produced by `sh cyna/build.sh` (`cyna/build/modules`). An application that does
 not use `std:` modules can omit that call.
+Hosts compiled separately can compare `hao_embed_abi_version()` with
+`HAO_EMBED_ABI_VERSION` before creating a runtime.
 
 The archive currently targets macOS arm64. Link it with the Cyna runtime and
 standard library archives, QuickJS, libuv, the Hao transpiler, libcurl, and

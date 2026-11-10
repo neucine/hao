@@ -4,12 +4,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define HAO_EMBED_ABI_VERSION 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* A runtime handle is owned by the caller and must be freed once. */
 typedef uintptr_t HaoRuntimeHandle;
+
+/* Check this before calling the runtime from a separately built host. */
+uint32_t hao_embed_abi_version(void);
 
 HaoRuntimeHandle hao_embed_new(void);
 void hao_embed_free(HaoRuntimeHandle runtime);

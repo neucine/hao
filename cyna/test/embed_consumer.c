@@ -4,6 +4,7 @@
 
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
+    if (hao_embed_abi_version() != HAO_EMBED_ABI_VERSION) return 3;
     HaoRuntimeHandle runtime = hao_embed_new();
     if (!runtime) return 1;
     const char *module_name = "demo:answer";

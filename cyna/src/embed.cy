@@ -7,6 +7,10 @@ fn text(pointer: *const c_uchar, length: c_size_t): string {
     return string.from(bytes[..]);
 }
 
+export c("hao_embed_abi_version") fn embed_abi_version(): c_uint {
+    return 1 as c_uint;
+}
+
 export c("hao_embed_new") fn embed_new(): c_size_t {
     if Runtime.init() is runtime {
         return runtime.handle;
