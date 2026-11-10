@@ -208,6 +208,17 @@ EOF
 http_actual=$("$runtime" "$fixture_dir/http.ts")
 http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\nhttp response exceeds maxBytes')
 test "$http_actual" = "$http_expected"
+cat > "$fixture_dir/http-native-body.ts" <<EOF
+import { requestNative } from 'std:http/native';
+const url = 'http://127.0.0.1:$server_port/echo';
+const first = await requestNative({ url, method: 'POST', headers: [],
+  bodyText: 'text', bodyBytes: new Uint8Array([98, 121, 116, 101, 115]) });
+const second = await requestNative({ url, method: 'POST',
+  headers: [['Content-Type', 'application/custom']], bodyText: 'text' });
+console.log(JSON.parse(first.bodyText).body, JSON.parse(first.bodyText).contentType);
+console.log(JSON.parse(second.bodyText).body, JSON.parse(second.bodyText).contentType);
+EOF
+test "$("$runtime" "$fixture_dir/http-native-body.ts")" = "$(printf 'bytes null\ntext application/custom')"
 cat > "$fixture_dir/http-native-limits.ts" <<'EOF'
 import { requestNative } from 'std:http/native';
 for (const maxBytes of [0, 0.5, 1.5, Infinity, NaN]) {

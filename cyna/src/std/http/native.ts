@@ -1,6 +1,6 @@
 const request = globalThis.__hao_http_requestNative;
 export async function requestNative(options: any) {
-  const body = options.bodyText ?? options.bodyBytes;
+  const body = options.bodyBytes ?? options.bodyText;
   const raw = await request({ ...options, body });
   return { ...raw, ok: raw.status >= 200 && raw.status < 300 };
 }

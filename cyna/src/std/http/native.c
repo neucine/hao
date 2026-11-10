@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 extern uv_loop_t *hao_runtime_loop(JSContext *ctx);
@@ -189,6 +190,18 @@ static void perform_http(uv_work_t *work) {
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 30000L);
     if (job->has_body) {
+        bool has_content_type = false;
+        for (struct curl_slist *header = job->request_headers; header; header = header->next) {
+            if (strncasecmp(header->data, "Content-Type:", 13) == 0) {
+                has_content_type = true;
+                break;
+            }
+        }
+        if (!has_content_type) {
+            struct curl_slist *headers = curl_slist_append(job->request_headers, "Content-Type:");
+            if (!headers) { set_error(job, "out of memory"); goto done; }
+            job->request_headers = headers;
+        }
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, job->body);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)job->body_length);
     }
