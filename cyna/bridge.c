@@ -1,7 +1,94 @@
 #include <quickjs.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct {
+    JSRuntime *runtime;
+    JSContext *context;
+    JSContext *rejection_context;
+    JSValue rejection;
+    bool has_rejection;
+} HaoRuntime;
+
+extern char *hao_transpile_types_for_path(const char *source, const char *source_path);
+extern char *hao_transpiler_last_error(void);
+extern void hao_transpiler_free(char *text);
+
+static char *hao_normalize_module(JSContext *ctx, const char *base,
+                                   const char *specifier, void *opaque) {
+    (void)opaque;
+    if (strncmp(specifier, "./", 2) != 0 && strncmp(specifier, "../", 3) != 0) {
+        JS_ThrowReferenceError(ctx, "Unsupported module specifier: %s", specifier);
+        return NULL;
+    }
+    const char *slash = strrchr(base, '/');
+    size_t dir_len = slash ? (size_t)(slash - base) : 0;
+    size_t spec_len = strlen(specifier);
+    char *joined = malloc(dir_len + spec_len + 3);
+    if (!joined) return NULL;
+    if (dir_len) memcpy(joined, base, dir_len);
+    joined[dir_len] = '/';
+    memcpy(joined + dir_len + 1, specifier, spec_len + 1);
+    char *resolved = realpath(joined, NULL);
+    free(joined);
+    if (!resolved) {
+        JS_ThrowReferenceError(ctx, "Module not found: %s", specifier);
+        return NULL;
+    }
+    size_t len = strlen(resolved);
+    char *normalized = js_malloc(ctx, len + 1);
+    if (normalized) memcpy(normalized, resolved, len + 1);
+    free(resolved);
+    return normalized;
+}
+
+static JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
+    (void)opaque;
+    FILE *file = fopen(name, "rb");
+    if (!file) {
+        JS_ThrowReferenceError(ctx, "Module not found: %s", name);
+        return NULL;
+    }
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        return NULL;
+    }
+    long size = ftell(file);
+    if (size < 0 || size > 10 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        return NULL;
+    }
+    char *source = malloc((size_t)size + 1);
+    if (!source) {
+        fclose(file);
+        return NULL;
+    }
+    size_t read_count = fread(source, 1, (size_t)size, file);
+    fclose(file);
+    if (read_count != (size_t)size) {
+        free(source);
+        return NULL;
+    }
+    source[size] = 0;
+    char *transformed = hao_transpile_types_for_path(source, name);
+    free(source);
+    if (!transformed) {
+        char *error = hao_transpiler_last_error();
+        JS_ThrowSyntaxError(ctx, "%s", error ? error : "Module transpilation failed");
+        if (error) hao_transpiler_free(error);
+        return NULL;
+    }
+    JSValue compiled = JS_Eval(ctx, transformed, strlen(transformed), name,
+                               JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    hao_transpiler_free(transformed);
+    if (JS_IsException(compiled)) return NULL;
+    JSModuleDef *module = JS_VALUE_GET_PTR(compiled);
+    JS_FreeValue(ctx, compiled);
+    return module;
+}
 
 static JSValue hao_console_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
@@ -17,8 +104,7 @@ static JSValue hao_console_log(JSContext *ctx, JSValueConst this_val, int argc, 
     return JS_UNDEFINED;
 }
 
-static void hao_print_exception(JSContext *ctx) {
-    JSValue error = JS_GetException(ctx);
+static void hao_print_value(JSContext *ctx, JSValueConst error) {
     JSValue stack = JS_GetPropertyStr(ctx, error, "stack");
     const char *text = JS_ToCString(ctx, error);
     if (text) {
@@ -33,49 +119,114 @@ static void hao_print_exception(JSContext *ctx) {
         }
     }
     JS_FreeValue(ctx, stack);
+}
+
+static void hao_print_exception(JSContext *ctx) {
+    JSValue error = JS_GetException(ctx);
+    hao_print_value(ctx, error);
     JS_FreeValue(ctx, error);
 }
 
-int hao_eval(const char *source, size_t source_len, const char *filename, size_t filename_len) {
-    JSRuntime *runtime = JS_NewRuntime();
-    if (!runtime) return 1;
-    JSContext *ctx = JS_NewContext(runtime);
-    if (!ctx) {
-        JS_FreeRuntime(runtime);
-        return 1;
+static void hao_on_rejection(JSContext *ctx, JSValueConst promise,
+                             JSValueConst reason, bool is_handled, void *opaque) {
+    (void)promise;
+    HaoRuntime *host = opaque;
+    if (host->has_rejection) {
+        JS_FreeValue(host->rejection_context, host->rejection);
+        host->has_rejection = false;
     }
-    JSValue global = JS_GetGlobalObject(ctx);
-    JSValue console = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, console, "log", JS_NewCFunction(ctx, hao_console_log, "log", 1));
-    JS_SetPropertyStr(ctx, global, "console", console);
-    JS_FreeValue(ctx, global);
+    if (!is_handled) {
+        host->rejection = JS_DupValue(ctx, reason);
+        host->rejection_context = ctx;
+        host->has_rejection = true;
+    }
+}
 
-    char *name = malloc(filename_len + 1);
-    if (!name) {
-        JS_FreeContext(ctx);
-        JS_FreeRuntime(runtime);
-        return 1;
+uintptr_t hao_runtime_new(void) {
+    HaoRuntime *host = calloc(1, sizeof(*host));
+    if (!host) return 0;
+    host->runtime = JS_NewRuntime();
+    if (!host->runtime) {
+        free(host);
+        return 0;
     }
+    JS_SetHostPromiseRejectionTracker(host->runtime, hao_on_rejection, host);
+    host->context = JS_NewContext(host->runtime);
+    if (!host->context) {
+        JS_FreeRuntime(host->runtime);
+        free(host);
+        return 0;
+    }
+    JS_SetModuleLoaderFunc(host->runtime, hao_normalize_module, hao_load_module, host);
+    JSValue global = JS_GetGlobalObject(host->context);
+    JSValue console = JS_NewObject(host->context);
+    JS_SetPropertyStr(host->context, console, "log", JS_NewCFunction(host->context, hao_console_log, "log", 1));
+    JS_SetPropertyStr(host->context, global, "console", console);
+    JS_FreeValue(host->context, global);
+    return (uintptr_t)host;
+}
+
+void hao_runtime_free(uintptr_t handle) {
+    if (!handle) return;
+    HaoRuntime *host = (HaoRuntime *)handle;
+    if (host->has_rejection) JS_FreeValue(host->rejection_context, host->rejection);
+    JS_FreeContext(host->context);
+    JS_FreeRuntime(host->runtime);
+    free(host);
+}
+
+int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
+                     const char *filename, size_t filename_len) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    if (filename_len == SIZE_MAX || source_len == SIZE_MAX) return 1;
+    char *name = malloc(filename_len + 1);
+    if (!name) return 1;
     memcpy(name, filename, filename_len);
     name[filename_len] = 0;
-    JSValue result = JS_Eval(ctx, source, source_len, name, JS_EVAL_TYPE_GLOBAL);
+    char *input = malloc(source_len + 1);
+    if (!input) {
+        free(name);
+        return 1;
+    }
+    memcpy(input, source, source_len);
+    input[source_len] = 0;
+    char *transformed = hao_transpile_types_for_path(input, name);
+    free(input);
+    if (!transformed) {
+        char *error = hao_transpiler_last_error();
+        if (error) {
+            fprintf(stderr, "%s\n", error);
+            hao_transpiler_free(error);
+        }
+        free(name);
+        return 1;
+    }
+    JSValue result = JS_Eval(host->context, transformed, strlen(transformed), name, JS_EVAL_TYPE_MODULE);
+    hao_transpiler_free(transformed);
     free(name);
     int status = 0;
     if (JS_IsException(result)) {
-        hao_print_exception(ctx);
+        hao_print_exception(host->context);
         status = 1;
     }
-    JS_FreeValue(ctx, result);
-    if (!status) {
-        JSContext *job_ctx = NULL;
-        int job_result;
-        while ((job_result = JS_ExecutePendingJob(runtime, &job_ctx)) > 0) {}
-        if (job_result < 0) {
-            hao_print_exception(job_ctx);
-            status = 1;
-        }
-    }
-    JS_FreeContext(ctx);
-    JS_FreeRuntime(runtime);
+    JS_FreeValue(host->context, result);
     return status;
+}
+
+int hao_runtime_drain(uintptr_t handle) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    JSContext *job_ctx = NULL;
+    int result;
+    while ((result = JS_ExecutePendingJob(host->runtime, &job_ctx)) > 0) {}
+    if (result < 0) {
+        hao_print_exception(job_ctx);
+        return 1;
+    }
+    if (host->has_rejection) {
+        hao_print_value(host->rejection_context, host->rejection);
+        JS_FreeValue(host->rejection_context, host->rejection);
+        host->has_rejection = false;
+        return 1;
+    }
+    return 0;
 }

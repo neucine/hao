@@ -9,5 +9,5 @@ sources = ["bridge.c"]
 include_paths = ["../zig-pkg/N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp"]
 
 [link]
-libs = ["quickjs"]
-search_paths = ["../zig-out/lib"]
+libs = ["quickjs", "hao_transpiler"]
+search_paths = ["../zig-out/lib", "../libs/transpiler/target/release"]

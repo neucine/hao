@@ -1,7 +1,6 @@
 import { args } from std.process;
 import { read_file } from std.fs;
-
-extern c("hao_eval") fn hao_eval(source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): c_int;
+import { Runtime } from .runtime;
 
 fn main(): i32 {
     const arguments = args();
@@ -18,7 +17,15 @@ fn main(): i32 {
         println("Unable to read script");
         return 1;
     };
-    const source_bytes = source.bytes();
-    const path_bytes = path.bytes();
-    return hao_eval(source_bytes.ptr as! *const c_uchar, source_bytes.len() as c_size_t, path_bytes.ptr as! *const c_uchar, path_bytes.len() as c_size_t) as i32;
+    const runtime = Runtime.init();
+    if runtime is host {
+        defer host.deinit();
+        const status = host.eval(source, path);
+        if status != 0 {
+            return status;
+        }
+        return host.run_until_idle();
+    }
+    println("Unable to initialize JavaScript runtime");
+    return 1;
 }
