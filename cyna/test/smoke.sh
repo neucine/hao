@@ -523,6 +523,7 @@ test "$("$runtime" "$fixture_dir/ffi-missing-symbol.ts")" = 'InternalError dlope
 cat > "$fixture_dir/ffi-search.c" <<'EOF'
 #include <stdint.h>
 int hao_search_value(void) { return 29; }
+uint64_t hao_high_bit(uint64_t value) { return value >> 63; }
 int hao_make_handle(void **out) { *out = (void *)0x1234; return 0; }
 int hao_fail_handle(void **out) { *out = (void *)0x1234; return 5; }
 int hao_fail_with_code(int code) { return code ? -1 : 0; }
@@ -539,6 +540,17 @@ typedef struct { uint8_t tag; HaoPoint point; int16_t tail; } HaoNested;
 void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
+cat > "$fixture_dir/ffi-u64.ts" <<'EOF'
+import { dlopen } from 'std:ffi';
+import { getEnv } from 'std:process';
+const path = getEnv('HAO_FFI_TEST_PATH');
+const library = dlopen(`${path}/libhao_search_fixture.dylib`, {
+  hao_high_bit: { args: ['u64'], returns: 'u64' },
+});
+console.log(library.hao_high_bit(9223372036854775808n));
+library.close();
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-u64.ts")" = '1'
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';

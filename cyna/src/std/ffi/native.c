@@ -215,6 +215,32 @@ static JSValue result_value(JSContext *ctx, HaoType type, HaoValue value) {
     }
     return JS_UNDEFINED;
 }
+
+static bool unsigned_arg(JSContext *ctx, JSValueConst input, uint64_t *out) {
+    int64_t signed_value = 0;
+    if (JS_ToInt64(ctx, &signed_value, input) == 0) {
+        if (signed_value < 0) return false;
+        *out = (uint64_t)signed_value;
+        return true;
+    }
+    JSValue error = JS_GetException(ctx);
+    JS_FreeValue(ctx, error);
+    if (!JS_IsBigInt(input)) return false;
+    size_t length = 0;
+    const char *text = JS_ToCStringLen(ctx, &length, input);
+    if (!text) return false;
+    while (length && text[length - 1] == 'n') length--;
+    uint64_t parsed = 0;
+    bool valid = length > 0;
+    for (size_t i = 0; valid && i < length; i++) {
+        unsigned digit = (unsigned char)text[i] - '0';
+        if (digit > 9 || parsed > (UINT64_MAX - digit) / 10) valid = false;
+        else parsed = parsed * 10 + digit;
+    }
+    JS_FreeCString(ctx, text);
+    if (valid) *out = parsed;
+    return valid;
+}
 static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     int64_t id = 0;
@@ -275,9 +301,9 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
             valid = boolean >= 0;
             values[i].u8 = boolean > 0;
         } else if (type == HAO_U8 || type == HAO_U16 || type == HAO_U32 || type == HAO_U64 || type == HAO_PTR || type == HAO_BUFFER) {
-            int64_t number = 0;
-            valid = JS_ToInt64(ctx, &number, input) == 0 && number >= 0;
-            values[i].u64 = (uint64_t)number;
+            uint64_t number = 0;
+            valid = unsigned_arg(ctx, input, &number);
+            values[i].u64 = number;
             if (type == HAO_U8) values[i].u8 = (uint8_t)number;
             if (type == HAO_U16) values[i].u16 = (uint16_t)number;
             if (type == HAO_U32) values[i].u32 = (uint32_t)number;
