@@ -8,6 +8,18 @@ pub struct TelemetryConsoleSettings {
     pub port: u16;
 }
 
+fn parse_console_enabled(raw: string): bool ! ConfigError {
+    var lower: List<u8> = list<u8>();
+    for byte in raw.bytes() {
+        if byte >= 65 and byte <= 90 {
+            lower.push(byte + 32);
+        } else {
+            lower.push(byte);
+        }
+    }
+    return parse_bool(string.from(lower[..]));
+}
+
 fn parse_port(raw: string): u16 ! ConfigError {
     var digits = raw.clone();
     if digits.starts_with("+") {
@@ -37,7 +49,7 @@ pub fn telemetry_console_settings(): TelemetryConsoleSettings ! ConfigError {
     var enabled = false;
     var port: u16 = 0;
     if env_get("RUNTIME_TELEMETRY_CONSOLE") is raw_enabled {
-        enabled = try parse_bool(raw_enabled);
+        enabled = try parse_console_enabled(raw_enabled);
     }
     if env_get("RUNTIME_TELEMETRY_CONSOLE_PORT") is raw_port {
         port = try parse_port(raw_port);

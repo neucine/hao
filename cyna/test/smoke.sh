@@ -103,6 +103,7 @@ PY
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-limit.json")" = "$(printf 'tcp://127.0.0.1:1\n\nhmac-sha256')"
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
+test "$(RUNTIME_TELEMETRY_CONSOLE=OFF "$runtime" "$fixture_dir/main.ts")" = "$expected"
 test "$(RUNTIME_QJS_STACK_SIZE=+16777216 "$runtime" "$fixture_dir/main.ts")" = "$expected"
 test "$(RUNTIME_TELEMETRY_CONSOLE=0 RUNTIME_TELEMETRY_CONSOLE_PORT=+0 "$runtime" "$fixture_dir/main.ts")" = "$expected"
 test "$(RUNTIME_TELEMETRY_CONSOLE=0 RUNTIME_TELEMETRY_CONSOLE_PORT=+1 "$runtime" "$fixture_dir/main.ts")" = "$expected"
