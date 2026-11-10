@@ -30,7 +30,7 @@ clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
     -L "$repo_root/zig-out/lib" -lquickjs -luv \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
-test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules")" = '42'
+test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
 clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_wire_test.c" \
     "$repo_root/cyna/jupyter_wire_bridge.c" -L /opt/homebrew/lib -lzmq -lcrypto \
     -o "$fixture_dir/jupyter-wire-test"

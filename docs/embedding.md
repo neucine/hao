@@ -15,8 +15,10 @@ Hosts compiled separately can compare `hao_embed_abi_version()` with
 Each successful `hao_embed_new` call owns an independent module registry and
 must be paired with one `hao_embed_free` call. Source and module names are copied
 before registration returns. A null byte pointer is accepted only with a zero
-length. Calls return zero on success; execution and module errors currently
-write details to stderr.
+length. Calls return zero on success. After a failed evaluation or event loop
+call, `hao_embed_last_error` returns the full error length and copies a
+null-terminated message into a caller-owned buffer. A successful subsequent
+evaluation clears that message. Runtime errors are also written to stderr.
 
 The archive currently targets macOS arm64. Link it with the Cyna runtime and
 standard library archives, QuickJS, libuv, the Hao transpiler, libcurl, and

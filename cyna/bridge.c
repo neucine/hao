@@ -48,6 +48,7 @@ typedef struct HaoRuntime {
     char *capture_stderr;
     size_t capture_stdout_len, capture_stderr_len;
     size_t capture_stdout_cap, capture_stderr_cap;
+    char *embed_error;
 } HaoRuntime;
 
 struct HaoTimer {
@@ -342,6 +343,11 @@ static void hao_print_value(JSContext *ctx, JSValueConst error) {
     JSValue stack = JS_GetPropertyStr(ctx, error, "stack");
     const char *text = JS_ToCString(ctx, error);
     if (text) {
+        HaoRuntime *host = JS_GetContextOpaque(ctx);
+        if (host) {
+            free(host->embed_error);
+            host->embed_error = strdup(text);
+        }
         fprintf(stderr, "%s\n", text);
         JS_FreeCString(ctx, text);
     }
@@ -467,6 +473,32 @@ int hao_embed_bytes_valid(const unsigned char *pointer, size_t length) {
     return pointer != NULL || length == 0;
 }
 
+void hao_embed_clear_error(uintptr_t handle) {
+    if (!handle) return;
+    HaoRuntime *host = (HaoRuntime *)handle;
+    free(host->embed_error);
+    host->embed_error = NULL;
+}
+
+void hao_embed_invalid_buffer(uintptr_t handle) {
+    if (!handle) return;
+    hao_embed_clear_error(handle);
+    ((HaoRuntime *)handle)->embed_error = strdup("Invalid byte buffer");
+}
+
+size_t hao_embed_last_error(uintptr_t handle, unsigned char *output, size_t capacity) {
+    if (!handle) return 0;
+    const char *error = ((HaoRuntime *)handle)->embed_error;
+    if (!error) return 0;
+    size_t length = strlen(error);
+    if (output && capacity) {
+        size_t count = length < capacity - 1 ? length : capacity - 1;
+        memcpy(output, error, count);
+        output[count] = 0;
+    }
+    return length;
+}
+
 uintptr_t hao_runtime_new(void) {
     size_t stack_size = 8 * 1024 * 1024, gc_threshold = 0, thread_pool_size = 0;
     bool stack_present = false, gc_present = false, pool_present = false;
@@ -560,6 +592,7 @@ void hao_runtime_free(uintptr_t handle) {
     free(host->loop);
     free(host->capture_stdout);
     free(host->capture_stderr);
+    free(host->embed_error);
     if (host->has_rejection) JS_FreeValue(host->rejection_context, host->rejection);
     if (host->has_callback_error) JS_FreeValue(host->context, host->callback_error);
     JS_FreeContext(host->context);
@@ -603,6 +636,8 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
     if (!transformed) {
         char *error = hao_transpiler_last_error();
         if (error) {
+            free(host->embed_error);
+            host->embed_error = strdup(error);
             fprintf(stderr, "%s\n", error);
             hao_transpiler_free(error);
         }

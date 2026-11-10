@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define HAO_EMBED_ABI_VERSION 1
+#define HAO_EMBED_ABI_VERSION 2
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +26,13 @@ int hao_embed_eval(HaoRuntimeHandle runtime, const unsigned char *source,
 int hao_embed_register_module(HaoRuntimeHandle runtime, const unsigned char *specifier,
                               size_t specifier_len, const unsigned char *source, size_t source_len);
 int hao_embed_run_until_idle(HaoRuntimeHandle runtime);
+
+/* Last evaluation or event loop error. Returns the full byte length, excluding
+   the terminator. Copies at most capacity - 1 bytes and terminates when output
+   and capacity are nonzero. A zero return means no error is stored. The message
+   is replaced by the next evaluation or event loop call. */
+size_t hao_embed_last_error(HaoRuntimeHandle runtime, unsigned char *output,
+                            size_t capacity);
 
 /* Install the standard modules from the directory shipped with Hao. */
 int hao_embed_install_std(HaoRuntimeHandle runtime, const unsigned char *directory,
