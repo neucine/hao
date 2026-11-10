@@ -509,11 +509,17 @@ EOF
 test "$("$runtime" "$fixture_dir/ffi-closed.ts")" = 'TypeError FFI: library has been closed'
 cat > "$fixture_dir/ffi-arity.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/native';
-for (const invoke of [() => openNative('m'), () => callNative(0, 'cos'), () => closeNative()]) {
+for (const invoke of [() => openNative('m'), () => callNative(0, 'cos'), () => closeNative(), () => closeNative(-1)]) {
   try { invoke(); } catch (error) { console.log(error.name, error.message); }
 }
 EOF
-test "$("$runtime" "$fixture_dir/ffi-arity.ts")" = "$(printf 'TypeError dlopen requires 2 arguments: library name and descriptor\nTypeError ffi.callNative requires handle, symbol, and args\nTypeError ffi.closeNative requires a handle')"
+test "$("$runtime" "$fixture_dir/ffi-arity.ts")" = "$(printf 'TypeError dlopen requires 2 arguments: library name and descriptor\nTypeError ffi.callNative requires handle, symbol, and args\nTypeError ffi.closeNative requires a handle\nTypeError FFI: invalid library handle')"
+cat > "$fixture_dir/ffi-missing-symbol.ts" <<'EOF'
+import { openNative } from 'std:ffi/native';
+try { openNative('m', { hao_missing_symbol: { args: [], returns: 'void' } }); }
+catch (error) { console.log(error.name, error.message); }
+EOF
+test "$("$runtime" "$fixture_dir/ffi-missing-symbol.ts")" = 'InternalError dlopen: symbol not found'
 cat > "$fixture_dir/ffi-search.c" <<'EOF'
 #include <stdint.h>
 int hao_search_value(void) { return 29; }

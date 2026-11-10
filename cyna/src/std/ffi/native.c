@@ -168,14 +168,19 @@ static JSValue bind_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
         JS_FreeValue(ctx, value);
     }
     if (valid) binding->function = dlsym(library->library, name);
-    if (valid) valid = binding->function != NULL;
+    bool missing_symbol = valid && binding->function == NULL;
+    if (missing_symbol) valid = false;
     if (valid) valid = ffi_prep_cif(&binding->cif, FFI_DEFAULT_ABI, count,
         ffi_type_for(binding->returns), binding->arg_ffi) == FFI_OK;
     if (valid) binding->name = hao_strdup(name);
     valid = valid && binding->name;
     JS_FreeCString(ctx, name);
     JS_FreeCString(ctx, return_name);
-    if (!valid) { hao_free(binding); return JS_ThrowTypeError(ctx, "dlopen: invalid descriptor or symbol not found"); }
+    if (!valid) {
+        hao_free(binding);
+        if (missing_symbol) return JS_ThrowInternalError(ctx, "dlopen: symbol not found");
+        return JS_ThrowTypeError(ctx, "dlopen: invalid descriptor");
+    }
     binding->next = library->bindings;
     library->bindings = binding;
     return JS_UNDEFINED;
@@ -310,10 +315,11 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
 static JSValue close_native(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     int64_t id = 0;
-    if (argc && JS_ToInt64(ctx, &id, argv[0]) == 0) {
-        HaoLibrary *library = find_library(ctx, id);
-        if (library) close_library(library);
-    }
+    if (argc < 1) return JS_ThrowTypeError(ctx, "ffi.closeNative requires a handle");
+    if (JS_ToInt64(ctx, &id, argv[0]) < 0 || id <= 0)
+        return JS_ThrowTypeError(ctx, "FFI: invalid library handle");
+    HaoLibrary *library = find_library(ctx, id);
+    if (library) close_library(library);
     return JS_UNDEFINED;
 }
 void hao_install_ffi_globals(JSContext *ctx, JSValue global) {
