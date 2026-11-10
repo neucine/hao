@@ -1,12 +1,20 @@
-import { command, env_get } from std.process;
+import { env_get } from std.process;
 import { Value, parse } from std.json;
 import { copy_bytes, copy_output, text_from_c } from .c_bytes;
+
+extern c("hao_process_execute") fn execute(program: *const c_uchar, program_len: c_size_t,
+    args: *const c_uchar, args_len: c_size_t, args_count: c_size_t,
+    cwd: *const c_uchar, cwd_len: c_size_t,
+    stdout_output: *c_uchar, stderr_output: *c_uchar, capacity: c_size_t,
+    result: *RunResult): c_int;
 
 pub c struct RunResult {
     pub stdout_len: c_size_t;
     pub stderr_len: c_size_t;
     pub exit_code: c_int;
     pub has_exit_code: c_int;
+    pub signal: c_int;
+    pub has_signal: c_int;
 }
 
 fn field(value: &const Value, key: string): ?string {
@@ -81,35 +89,33 @@ export c("hao_process_run_json") fn run_json(options_pointer: *const c_uchar, op
     if cmd is program {
         const args = arguments(&options);
         if args is values {
-            var builder = command(program);
+            var argument_bytes: List<u8> = list<u8>();
             for value in values {
-                builder = builder.arg(value.clone());
+                const value_bytes = value.bytes();
+                for byte in value_bytes {
+                    if byte == 0 { return 1; }
+                    argument_bytes.push(byte);
+                }
+                argument_bytes.push(0);
+            }
+            const program_bytes = program.bytes();
+            for byte in program_bytes {
+                if byte == 0 { return 1; }
             }
             if field(&options, "cwd") is directory {
-                builder = builder.cwd(directory);
-            }
-            const output = builder.output() catch (code) {
-                return 2;
-            };
-            const stdout_bytes = output.stdout.bytes();
-            const stderr_bytes = output.stderr.bytes();
-            if stdout_bytes.len() > capacity as usize or stderr_bytes.len() > capacity as usize {
-                return 3;
-            }
-            copy_output(stdout_output, stdout_bytes.ptr as! *const c_uchar, stdout_bytes.len() as c_size_t);
-            copy_output(stderr_output, stderr_bytes.ptr as! *const c_uchar, stderr_bytes.len() as c_size_t);
-            unchecked {
-                (*result).stdout_len = stdout_bytes.len() as c_size_t;
-                (*result).stderr_len = stderr_bytes.len() as c_size_t;
-                if output.status.code is code {
-                    (*result).exit_code = code as c_int;
-                    (*result).has_exit_code = 1;
-                } else {
-                    (*result).exit_code = 0;
-                    (*result).has_exit_code = 0;
+                const cwd_bytes = directory.bytes();
+                for byte in cwd_bytes {
+                    if byte == 0 { return 1; }
                 }
+                return execute(program_bytes.ptr as! *const c_uchar, program_bytes.len() as c_size_t,
+                    argument_bytes.view().ptr as! *const c_uchar, argument_bytes.len() as c_size_t, values.len() as c_size_t,
+                    cwd_bytes.ptr as! *const c_uchar, cwd_bytes.len() as c_size_t,
+                    stdout_output, stderr_output, capacity, result);
             }
-            return 0;
+            const empty = "".bytes();
+            return execute(program_bytes.ptr as! *const c_uchar, program_bytes.len() as c_size_t,
+                argument_bytes.view().ptr as! *const c_uchar, argument_bytes.len() as c_size_t, values.len() as c_size_t,
+                empty.ptr as! *const c_uchar, 0, stdout_output, stderr_output, capacity, result);
         }
     }
     return 1;

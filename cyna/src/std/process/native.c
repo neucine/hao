@@ -7,6 +7,8 @@ typedef struct {
     size_t stderr_len;
     int exit_code;
     int has_exit_code;
+    int signal;
+    int has_signal;
 } HaoRunResult;
 
 extern int hao_process_get_env(const unsigned char *name, unsigned char *output, size_t capacity);
@@ -83,7 +85,7 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
     JS_SetPropertyStr(ctx, result, "stdout", JS_NewStringLen(ctx, (const char *)stdout_buffer, run.stdout_len));
     JS_SetPropertyStr(ctx, result, "stderr", JS_NewStringLen(ctx, (const char *)stderr_buffer, run.stderr_len));
     JS_SetPropertyStr(ctx, result, "exitCode", run.has_exit_code ? JS_NewInt32(ctx, run.exit_code) : JS_NULL);
-    JS_SetPropertyStr(ctx, result, "signal", JS_NULL);
+    JS_SetPropertyStr(ctx, result, "signal", run.has_signal ? JS_NewInt32(ctx, run.signal) : JS_NULL);
     free(stdout_buffer);
     free(stderr_buffer);
     return result;

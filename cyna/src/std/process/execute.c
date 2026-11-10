@@ -1,0 +1,151 @@
+#define _DARWIN_C_SOURCE 1
+#include <errno.h>
+#include <poll.h>
+#include <signal.h>
+#include <spawn.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+typedef struct {
+    size_t stdout_len;
+    size_t stderr_len;
+    int exit_code;
+    int has_exit_code;
+    int signal;
+    int has_signal;
+} HaoRunResult;
+
+extern char **environ;
+
+static char *copy_text(const unsigned char *bytes, size_t length) {
+    if (!bytes || !length || memchr(bytes, 0, length) || length == SIZE_MAX) return NULL;
+    char *text = malloc(length + 1);
+    if (!text) return NULL;
+    memcpy(text, bytes, length);
+    text[length] = 0;
+    return text;
+}
+
+static void free_argv(char **argv, size_t count) {
+    if (!argv) return;
+    for (size_t i = 0; i <= count; ++i) free(argv[i]);
+    free(argv);
+}
+
+static int capture_pipes(int out_fd, int err_fd, unsigned char *out, unsigned char *err,
+                         size_t capacity, HaoRunResult *result, pid_t pid) {
+    struct pollfd fds[2] = {
+        { .fd = out_fd, .events = POLLIN },
+        { .fd = err_fd, .events = POLLIN },
+    };
+    unsigned char *buffers[2] = { out, err };
+    size_t lengths[2] = { 0, 0 };
+    int open_count = 2;
+    int failure = 0;
+    while (open_count) {
+        int ready = poll(fds, 2, -1);
+        if (ready < 0) {
+            if (errno == EINTR) continue;
+            failure = 2;
+            break;
+        }
+        for (int i = 0; i < 2; ++i) {
+            if (fds[i].fd < 0 || !(fds[i].revents & (POLLIN | POLLHUP | POLLERR))) continue;
+            unsigned char chunk[8192];
+            ssize_t count = read(fds[i].fd, chunk, sizeof(chunk));
+            if (count < 0) {
+                if (errno == EINTR || errno == EAGAIN) continue;
+                failure = 2;
+                break;
+            }
+            if (count == 0) {
+                close(fds[i].fd);
+                fds[i].fd = -1;
+                --open_count;
+                continue;
+            }
+            if ((size_t)count > capacity - lengths[i]) {
+                failure = 3;
+                break;
+            }
+            memcpy(buffers[i] + lengths[i], chunk, (size_t)count);
+            lengths[i] += (size_t)count;
+        }
+        if (failure) break;
+    }
+    for (int i = 0; i < 2; ++i) if (fds[i].fd >= 0) close(fds[i].fd);
+    if (failure) kill(pid, SIGKILL);
+    int status = 0;
+    pid_t waited;
+    do { waited = waitpid(pid, &status, 0); } while (waited < 0 && errno == EINTR);
+    if (waited < 0) return 2;
+    if (failure) return failure;
+    result->stdout_len = lengths[0];
+    result->stderr_len = lengths[1];
+    result->has_exit_code = WIFEXITED(status);
+    result->exit_code = result->has_exit_code ? WEXITSTATUS(status) : 0;
+    result->has_signal = WIFSIGNALED(status);
+    result->signal = result->has_signal ? WTERMSIG(status) : 0;
+    return 0;
+}
+
+int hao_process_execute(const unsigned char *program, size_t program_len,
+                        const unsigned char *args, size_t args_len, size_t args_count,
+                        const unsigned char *cwd, size_t cwd_len,
+                        unsigned char *stdout_output, unsigned char *stderr_output,
+                        size_t capacity, HaoRunResult *result) {
+    if (!program || !stdout_output || !stderr_output || !result || !capacity ||
+        args_count > 65536 || (args_len && !args)) return 1;
+    char *command = copy_text(program, program_len);
+    if (!command) return 1;
+    char *directory = NULL;
+    if (cwd_len) {
+        directory = copy_text(cwd, cwd_len);
+        if (!directory) { free(command); return 1; }
+    }
+    char **argv = calloc(args_count + 2, sizeof(char *));
+    if (!argv) { free(command); free(directory); return 2; }
+    argv[0] = command;
+    size_t offset = 0;
+    for (size_t i = 0; i < args_count; ++i) {
+        if (offset >= args_len) { free_argv(argv, args_count); free(directory); return 1; }
+        const unsigned char *end = memchr(args + offset, 0, args_len - offset);
+        if (!end) { free_argv(argv, args_count); free(directory); return 1; }
+        size_t length = (size_t)(end - args - offset);
+        argv[i + 1] = malloc(length + 1);
+        if (!argv[i + 1]) { free_argv(argv, args_count); free(directory); return 2; }
+        memcpy(argv[i + 1], args + offset, length);
+        argv[i + 1][length] = 0;
+        offset += length + 1;
+    }
+    if (offset != args_len) { free_argv(argv, args_count); free(directory); return 1; }
+    int out_pipe[2] = { -1, -1 }, err_pipe[2] = { -1, -1 };
+    if (pipe(out_pipe) || pipe(err_pipe)) {
+        if (out_pipe[0] >= 0) close(out_pipe[0]);
+        if (out_pipe[1] >= 0) close(out_pipe[1]);
+        if (err_pipe[0] >= 0) close(err_pipe[0]);
+        if (err_pipe[1] >= 0) close(err_pipe[1]);
+        free_argv(argv, args_count); free(directory); return 2;
+    }
+    posix_spawn_file_actions_t actions;
+    int rc = posix_spawn_file_actions_init(&actions);
+    int actions_initialized = rc == 0;
+    if (!rc) rc = posix_spawn_file_actions_adddup2(&actions, out_pipe[1], STDOUT_FILENO);
+    if (!rc) rc = posix_spawn_file_actions_adddup2(&actions, err_pipe[1], STDERR_FILENO);
+    if (!rc) rc = posix_spawn_file_actions_addclose(&actions, out_pipe[0]);
+    if (!rc) rc = posix_spawn_file_actions_addclose(&actions, err_pipe[0]);
+    if (!rc) rc = posix_spawn_file_actions_addclose(&actions, out_pipe[1]);
+    if (!rc) rc = posix_spawn_file_actions_addclose(&actions, err_pipe[1]);
+    if (!rc && directory) rc = posix_spawn_file_actions_addchdir_np(&actions, directory);
+    pid_t pid = 0;
+    if (!rc) rc = posix_spawnp(&pid, command, &actions, NULL, argv, environ);
+    if (actions_initialized) posix_spawn_file_actions_destroy(&actions);
+    close(out_pipe[1]); close(err_pipe[1]);
+    free_argv(argv, args_count); free(directory);
+    if (rc) { close(out_pipe[0]); close(err_pipe[0]); return 2; }
+    return capture_pipes(out_pipe[0], err_pipe[0], stdout_output, stderr_output,
+                         capacity, result, pid);
+}
