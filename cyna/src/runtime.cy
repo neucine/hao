@@ -4,6 +4,8 @@ import { install as install_console } from .global.console;
 import { install as install_timer } from .global.timer;
 import { eval as eval_module, register_source } from .modules;
 import { telemetry_console_settings } from .config;
+import { host as telemetry_host } from .telemetry.interface;
+import { Backend } from std.telemetry;
 
 extern c("hao_runtime_new") fn runtime_new(): c_size_t;
 extern c("hao_runtime_free") fn runtime_free(handle: c_size_t): void;
@@ -42,6 +44,10 @@ pub struct Runtime {
 
     pub fn deinit(self: Runtime): void {
         runtime_free(self.handle);
+    }
+
+    pub fn telemetry(self: &const Runtime): Backend {
+        return telemetry_host(self.handle as usize);
     }
 
     pub fn eval(self: &const Runtime, source: string, filename: string): i32 {

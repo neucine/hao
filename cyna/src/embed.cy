@@ -1,6 +1,7 @@
 import { Runtime } from .runtime;
 import { install_from } from .std;
 import { copy_bytes } from .c_bytes;
+import { Metric, MetricKind, MetricUnit, SpanKind, SpanStatus, root_context, int_attribute, Attribute } from std.telemetry;
 
 extern c("hao_embed_bytes_valid") fn bytes_valid(pointer: *const c_uchar, length: c_size_t): c_int;
 extern c("hao_embed_clear_error") fn clear_error(handle: c_size_t): void;
@@ -19,6 +20,21 @@ fn text(pointer: *const c_uchar, length: c_size_t): string {
 
 export c("hao_embed_abi_version") fn embed_abi_version(): c_uint {
     return 2 as c_uint;
+}
+
+// Internal embedding probe for the Cyna telemetry backend integration test.
+export c("hao_embed_telemetry_probe") fn embed_telemetry_probe(handle: c_size_t): c_int {
+    if handle == 0 { return 1; }
+    const runtime = Runtime { handle: handle };
+    const backend = runtime.telemetry();
+    backend.add(Metric { group: "cyna.probe", name: "runs", kind: MetricKind.counter,
+        unit: MetricUnit.count }, 3);
+    const attributes: List<Attribute> = [int_attribute("step", 42)];
+    const scope = backend.start_span(root_context(), "cyna.probe", SpanKind.internal, attributes.storage[..]);
+    if scope.handle.id == 0 { return 1; }
+    scope.event("cyna.event", attributes.storage[..]);
+    scope.end(SpanStatus.ok);
+    return 0;
 }
 
 export c("hao_embed_new") fn embed_new(): c_size_t {

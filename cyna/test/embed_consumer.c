@@ -1,6 +1,18 @@
 #include "hao.h"
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
+
+extern int hao_embed_telemetry_probe(HaoRuntimeHandle runtime);
+extern void hao_telemetry_metric(uintptr_t handle, const unsigned char *scope, size_t scope_len,
+    const unsigned char *name, size_t name_len, int kind, int unit, int64_t value, int set);
+
+static void *emit_worker_metric(void *opaque) {
+    HaoRuntimeHandle runtime = *(HaoRuntimeHandle *)opaque;
+    hao_telemetry_metric(runtime, (const unsigned char *)"cyna.worker", 11,
+        (const unsigned char *)"runs", 4, 0, 0, 2, 0);
+    return NULL;
+}
 
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
@@ -41,6 +53,21 @@ int main(int argc, char **argv) {
     const char *source = "import { answer } from 'demo:answer'; console.log(answer);";
     const char *filename = "<embed-example>";
     int status = hao_embed_install_std(runtime, (const unsigned char *)argv[1], strlen(argv[1]));
+    if (!status) status = hao_embed_telemetry_probe(runtime);
+    pthread_t worker;
+    if (!status && pthread_create(&worker, NULL, emit_worker_metric, &runtime) != 0) status = 23;
+    if (!status && pthread_join(worker, NULL) != 0) status = 24;
+    const char *telemetry_source =
+        "import { metrics } from 'std:telemetry';"
+        "import { snapshotTraceRecordsNative } from 'std:telemetry/native';"
+        "const metric = metrics().find(item => item.scope === 'cyna.probe' && item.name === 'runs');"
+        "const worker = metrics().find(item => item.scope === 'cyna.worker' && item.name === 'runs');"
+        "const records = snapshotTraceRecordsNative().records.filter(item => item.name.startsWith('cyna.'));"
+        "if (metric?.value !== 3 || worker?.value !== 2 || records.map(item => item.kind).join(',') !== 'span_start,event,span_end'"
+        " || records[0].attributes.step !== 42 || records[1].attributes.step !== 42)"
+        " throw new Error('Cyna telemetry backend mismatch');";
+    if (!status) status = hao_embed_eval(runtime, (const unsigned char *)telemetry_source,
+        strlen(telemetry_source), (const unsigned char *)"<telemetry-probe>", 17);
     if (!status) status = hao_embed_register_module(runtime, (const unsigned char *)module_name,
         strlen(module_name), (const unsigned char *)module_source, strlen(module_source));
     if (!status && hao_embed_register_module(runtime, (const unsigned char *)module_name,

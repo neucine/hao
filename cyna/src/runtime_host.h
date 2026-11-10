@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <pthread.h>
 
 typedef struct HaoSourceModule {
     char *name;
@@ -15,6 +16,8 @@ typedef struct HaoSourceModule {
 } HaoSourceModule;
 
 typedef struct HaoTimer HaoTimer;
+typedef struct HaoTelemetryItem HaoTelemetryItem;
+typedef struct HaoNativeSpan HaoNativeSpan;
 
 uv_loop_t *hao_async_uv_new(void);
 void hao_async_uv_free(uv_loop_t *loop);
@@ -40,7 +43,14 @@ typedef struct HaoRuntime {
     size_t capture_stdout_len, capture_stderr_len;
     size_t capture_stdout_cap, capture_stderr_cap;
     char *embed_error;
+    pthread_mutex_t telemetry_mutex;
+    HaoTelemetryItem *telemetry_head, *telemetry_tail;
+    HaoNativeSpan *telemetry_spans;
+    bool telemetry_trace_enabled;
 } HaoRuntime;
+
+void hao_telemetry_cleanup(HaoRuntime *host);
+void hao_install_telemetry_interface(JSContext *ctx, JSValue global);
 
 void hao_install_console_globals(JSContext *ctx, JSValue global);
 void hao_install_timer_globals(JSContext *ctx, JSValue global);

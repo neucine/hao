@@ -47,6 +47,7 @@ void hao_runtime_free(uintptr_t handle);
 
 void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t port) {
     HaoRuntime *host = (HaoRuntime *)handle;
+    host->telemetry_trace_enabled = enabled != 0;
     JSValue global = JS_GetGlobalObject(host->context);
     if (!enabled) JS_SetPropertyStr(host->context, global, "__hao_trace_capacity", JS_NewUint32(host->context, 0));
     JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_enabled", JS_NewBool(host->context, enabled));
@@ -157,8 +158,13 @@ uintptr_t hao_runtime_new(void) {
     }
     HaoRuntime *host = hao_calloc(1, sizeof(*host));
     if (!host) return 0;
+    if (pthread_mutex_init(&host->telemetry_mutex, NULL) != 0) {
+        hao_free(host);
+        return 0;
+    }
     host->runtime = JS_NewRuntime();
     if (!host->runtime) {
+        pthread_mutex_destroy(&host->telemetry_mutex);
         hao_free(host);
         return 0;
     }
@@ -168,6 +174,7 @@ uintptr_t hao_runtime_new(void) {
     host->context = JS_NewContext(host->runtime);
     if (!host->context) {
         JS_FreeRuntime(host->runtime);
+        pthread_mutex_destroy(&host->telemetry_mutex);
         hao_free(host);
         return 0;
     }
@@ -175,6 +182,7 @@ uintptr_t hao_runtime_new(void) {
     if (!host->loop) {
         JS_FreeContext(host->context);
         JS_FreeRuntime(host->runtime);
+        pthread_mutex_destroy(&host->telemetry_mutex);
         hao_free(host);
         return 0;
     }
@@ -188,6 +196,7 @@ uintptr_t hao_runtime_new(void) {
     hao_install_http_globals(host->context, global);
     hao_install_http_server_globals(host->context, global);
     hao_install_telemetry_globals(host->context, global);
+    hao_install_telemetry_interface(host->context, global);
     hao_install_ffi_globals(host->context, global);
     JS_FreeValue(host->context, global);
     if (hao_install_runtime_error(host->context) != 0) {
@@ -205,6 +214,7 @@ void hao_runtime_free(uintptr_t handle) {
     hao_ffi_cleanup(host->context);
     hao_addon_cleanup(host->context);
     hao_metric_cleanup(host->context);
+    hao_telemetry_cleanup(host);
     hao_cleanup_timers(host);
     hao_async_uv_free(host->loop);
     hao_free(host->capture_stdout);
@@ -215,6 +225,7 @@ void hao_runtime_free(uintptr_t handle) {
     JS_FreeContext(host->context);
     JS_FreeRuntime(host->runtime);
     hao_module_cleanup(host);
+    pthread_mutex_destroy(&host->telemetry_mutex);
     hao_free(host);
 }
 

@@ -30,7 +30,7 @@ clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
     -L "$repo_root/cyna/.deps/install/lib" -lquickjs -luv \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
-test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
 clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_wire_test.c" \
     "$repo_root/cyna/src/jupyter/zmq.c" "$repo_root/cyna/src/runtime_allocator.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto \

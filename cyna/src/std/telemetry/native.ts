@@ -16,12 +16,13 @@ declare global {
   var __hao_telemetry_value: (id: number) => number;
   var __hao_telemetry_snapshot: () => MetricSnapshot[];
   var __hao_telemetry_clear: () => void;
+  var __hao_telemetry_drainNative: () => Omit<TraceRecord, 'sequence'>[];
 }
 export function registerMetricNative(definition: MetricDefinition): number { return globalThis.__hao_telemetry_register(definition); }
 export function addMetricNative(id: number, delta: number): void { globalThis.__hao_telemetry_add(id, delta); }
 export function setMetricNative(id: number, value: number): void { globalThis.__hao_telemetry_set(id, value); }
 export function observeMetricNative(id: number, value: number): void { globalThis.__hao_telemetry_observe(id, value); }
-export function metricValueNative(id: number): number { refreshRuntimeMemory(); return globalThis.__hao_telemetry_value(id); }
+export function metricValueNative(id: number): number { drainNative(); refreshRuntimeMemory(); return globalThis.__hao_telemetry_value(id); }
 function refreshRuntimeMemory(): void {
   const gauges = globalThis.__hao_telemetry_memorySnapshot();
   for (const [name, value] of Object.entries(gauges)) {
@@ -31,6 +32,7 @@ function refreshRuntimeMemory(): void {
   }
 }
 export function snapshotMetricsNative(): MetricSnapshot[] {
+  drainNative();
   refreshRuntimeMemory();
   return globalThis.__hao_telemetry_snapshot();
 }
@@ -49,6 +51,13 @@ const spanTraceIds = new Map<number, string>();
 const spanIds = new Map<number, string>();
 const records: TraceRecord[] = [];
 const traceCapacity = globalThis.__hao_trace_capacity;
+function drainNative(): void {
+  for (const record of globalThis.__hao_telemetry_drainNative()) {
+    if (traceCapacity === 0) continue;
+    records.push({ ...record, sequence: nextSequence++ });
+    if (records.length > traceCapacity) records.shift();
+  }
+}
 type Context = { span: number | null; trace: string | null; spanId: string | null };
 const scopes = new Map<number, Context>();
 let nextSpanId = 1;
@@ -100,6 +109,7 @@ function copyAttributes(attributes: TraceAttributes): TraceAttributes {
 }
 function recordSpan(span: Span, kind: 'span_start' | 'span_end' | 'event', status = 'unset',
                     name = span.name, attributes: TraceAttributes = {}): void {
+  drainNative();
   if (traceCapacity === 0) return;
   if (utf8Length(name) > 96) throw Error('trace name too long');
   const copied = copyAttributes(attributes);
@@ -110,6 +120,7 @@ function recordSpan(span: Span, kind: 'span_start' | 'span_end' | 'event', statu
   if (records.length > traceCapacity) records.shift();
 }
 export function snapshotTraceRecordsNative(since = 0, limit = 100) {
+  drainNative();
   if (!Number.isSafeInteger(since) || since < 0 || !Number.isSafeInteger(limit) || limit < 1) {
     throw Error('invalid trace cursor or limit');
   }
