@@ -28,23 +28,36 @@ static JSValue hao_console_write(JSContext *ctx, int argc, JSValueConst *argv, i
     char **buffer = target == 1 ? &host->capture_stdout : &host->capture_stderr;
     size_t *length = target == 1 ? &host->capture_stdout_len : &host->capture_stderr_len;
     size_t *capacity = target == 1 ? &host->capture_stdout_cap : &host->capture_stderr_cap;
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue inspect = JS_GetPropertyStr(ctx, global, "__hao_console_inspect");
+    JS_FreeValue(ctx, global);
     for (int i = 0; i < argc; ++i) {
         if (i) {
             if (capture) {
-                if (hao_capture_append(buffer, length, capacity, " ", 1) != 0) return JS_ThrowOutOfMemory(ctx);
+                if (hao_capture_append(buffer, length, capacity, " ", 1) != 0) {
+                    JS_FreeValue(ctx, inspect);
+                    return JS_ThrowOutOfMemory(ctx);
+                }
             } else fputc(' ', stream);
         }
-        const char *text = JS_ToCString(ctx, argv[i]);
-        if (!text) return JS_EXCEPTION;
+        JSValue formatted = JS_IsFunction(ctx, inspect)
+            ? JS_Call(ctx, inspect, JS_UNDEFINED, 1, &argv[i]) : JS_DupValue(ctx, argv[i]);
+        if (JS_IsException(formatted)) { JS_FreeValue(ctx, inspect); return JS_EXCEPTION; }
+        size_t text_length = 0;
+        const char *text = JS_ToCStringLen(ctx, &text_length, formatted);
+        if (!text) { JS_FreeValue(ctx, formatted); JS_FreeValue(ctx, inspect); return JS_EXCEPTION; }
         if (capture) {
-            int status = hao_capture_append(buffer, length, capacity, text, strlen(text));
+            int status = hao_capture_append(buffer, length, capacity, text, text_length);
             JS_FreeCString(ctx, text);
-            if (status != 0) return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB");
+            JS_FreeValue(ctx, formatted);
+            if (status != 0) { JS_FreeValue(ctx, inspect); return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB"); }
         } else {
-            fputs(text, stream);
+            fwrite(text, 1, text_length, stream);
             JS_FreeCString(ctx, text);
+            JS_FreeValue(ctx, formatted);
         }
     }
+    JS_FreeValue(ctx, inspect);
     if (capture) {
         if (hao_capture_append(buffer, length, capacity, "\n", 1) != 0) return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB");
     } else {

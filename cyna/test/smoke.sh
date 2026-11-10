@@ -145,6 +145,17 @@ util_actual=$("$runtime" "$fixture_dir/util.ts")
 util_expected=$(printf '{ xs: [ 1, 2, 3 ], ok: true }\n[ 1, 2, ... 1 more items ] 2\n<svg />\n{ self: [Circular] }')
 test "$util_actual" = "$util_expected"
 
+cat > "$fixture_dir/console-inspect.ts" <<'EOF'
+console.log({ value: 3 }, [1, 2]);
+console.error('nul\0kept');
+EOF
+python3 - "$runtime" "$fixture_dir/console-inspect.ts" <<'PY'
+import subprocess, sys
+result = subprocess.run(sys.argv[1:], capture_output=True, check=True)
+assert result.stdout == b'{ value: 3 } [ 1, 2 ]\n', result.stdout
+assert result.stderr == b'nul\0kept\n', result.stderr
+PY
+
 server_info=$(python3 "$repo_root/test/e2e/http/server.py")
 set -- $server_info
 server_port=$1
