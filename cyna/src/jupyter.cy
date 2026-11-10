@@ -4,6 +4,11 @@ import { install } from .std_modules;
 import { parse as parse_connection } from .jupyter_connection;
 import { Wire } from .jupyter_wire;
 
+struct HistoryEntry {
+    line: u32;
+    code: string;
+}
+
 fn field(value: &const Value, key: string): ?string {
     switch value {
         .object(object) => {
@@ -47,6 +52,60 @@ fn is_false(value: &const Value, key: string): bool {
         _ => {}
     }
     return false;
+}
+
+fn number_field(value: &const Value, key: string, fallback: u32): u32 {
+    switch value {
+        .object(object) => {
+            if object.contains(key) {
+                switch object[key] {
+                    .number(number) => {
+                        const bytes = number.spelling.bytes();
+                        if bytes.len() == 0 or bytes.len() > 10 { return fallback; }
+                        var result: u64 = 0;
+                        for byte in bytes {
+                            if byte < 48 or byte > 57 { return fallback; }
+                            result = result * 10 + (byte - 48) as u64;
+                            if result > 4294967295 { return fallback; }
+                        }
+                        return result as u32;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    return fallback;
+}
+
+fn history_reply(history: &const List<HistoryEntry>, content: &const Value): string {
+    const access = text_or_empty(field(content, "hist_access_type"));
+    const n = number_field(content, "n", 10);
+    const start = number_field(content, "start", 1);
+    const stop = number_field(content, "stop", 4294967295);
+    var result = "{\"status\":\"ok\",\"history\":[";
+    var index: usize = 0;
+    var first = true;
+    for entry in history {
+        var include = false;
+        if access == "range" {
+            include = entry.line >= start and entry.line < stop;
+        } else {
+            include = access == "" or access == "tail";
+            if include and n < history.len() as u32 {
+                include = index >= history.len() - n as usize;
+            }
+        }
+        if include {
+            if not first { result = $"{result},"; }
+            const code = json_string(entry.code);
+            result = $"{result}[1,{entry.line},{code}]";
+            first = false;
+        }
+        index = index + 1;
+    }
+    return $"{result}]\}";
 }
 
 fn json_string(text: string): string {
@@ -181,6 +240,7 @@ pub fn run(path: string): i32 {
             if install(&host) != 0 { return 1; }
             var count: u32 = 0;
             var serial: u32 = 0;
+            var history: List<HistoryEntry> = list<HistoryEntry>();
             while true {
                 const channel = transport.poll(100);
                 if channel == 0 or channel == 1 or channel == -1 { continue; }
@@ -202,10 +262,23 @@ pub fn run(path: string): i32 {
                         if transport.send(3, "is_complete_reply", "{\"status\":\"complete\"}") != 0 { return 1; }
                     } else if kind == "comm_info_request" {
                         if transport.send(3, "comm_info_reply", "{\"comms\":{},\"status\":\"ok\"}") != 0 { return 1; }
+                    } else if kind == "complete_request" {
+                        const cursor = number_field(&content, "cursor_pos", 0);
+                        const reply = $"\{\"matches\":[],\"cursor_start\":{cursor},\"cursor_end\":{cursor},\"metadata\":\{\},\"status\":\"ok\"\}";
+                        if transport.send(3, "complete_reply", reply) != 0 { return 1; }
+                    } else if kind == "inspect_request" {
+                        if transport.send(3, "inspect_reply", "{\"status\":\"ok\",\"found\":false,\"data\":{},\"metadata\":{}}") != 0 { return 1; }
+                    } else if kind == "history_request" {
+                        if transport.send(3, "history_reply", history_reply(&history, &content)) != 0 { return 1; }
                     } else if kind == "execute_request" {
                         serial = serial + 1;
                         const silent = boolean(&content, "silent");
-                        if not silent and not is_false(&content, "store_history") { count = count + 1; }
+                        if not silent and not is_false(&content, "store_history") {
+                            count = count + 1;
+                            if field(&content, "code") is code {
+                                history.push(HistoryEntry { line: count, code: code });
+                            }
+                        }
                         if execute(&transport, &host, &content, count, serial, silent) != 0 { return 1; }
                     }
                 }

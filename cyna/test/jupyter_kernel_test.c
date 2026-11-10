@@ -124,6 +124,15 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"execution_state\":\"idle\"")) history_idle = 1;
     }
     if (!status && (!history_result || !history_idle)) status = 53;
+    if (!status && (send_request(shell, "complete_request", "{\"code\":\"abc\",\"cursor_pos\":3}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"matches\":[]") || !strstr(content, "\"cursor_start\":3"))) status = 55;
+    if (!status && (send_request(shell, "inspect_request", "{\"code\":\"abc\",\"cursor_pos\":3}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"found\":false"))) status = 56;
+    if (!status && (send_request(shell, "history_request", "{\"hist_access_type\":\"tail\",\"n\":2}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"history\":[]"))) status = 57;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"let x: number = 21; x * 2\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"execution_count\":1"))) status = 6;
@@ -137,6 +146,12 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"text/plain\":\"22\"")) saw_22 = 1;
     }
     if (!status && (!saw_42 || !saw_22)) status = 11;
+    if (!status && (send_request(shell, "history_request", "{\"hist_access_type\":\"tail\",\"n\":1}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "[1,2,\"x + 1\"]") || strstr(content, "__historyValue"))) status = 58;
+    if (!status && (send_request(shell, "history_request", "{\"hist_access_type\":\"range\",\"start\":1,\"stop\":2}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "[1,1,\"let x: number = 21; x * 2\"]") || strstr(content, "x + 1"))) status = 59;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"x\",\"user_expressions\":{\"answer\":\"x + 3\",\"missing\":\"doesNotExist\"}}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\"") ||
