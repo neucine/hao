@@ -289,7 +289,7 @@ EOF
 capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" | tail -1)
 test "$capture_summary" = '2 passed, 0 failed, 0 skipped'
 telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" | tail -1)
-test "$telemetry_summary" = '5 passed, 0 failed, 0 skipped'
+test "$telemetry_summary" = '4 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/telemetry-console.ts" <<'EOF'
 import { counter, trace } from 'std:telemetry';
 counter({ scope: 'fixture', name: 'requests' }).add(3);
@@ -337,7 +337,24 @@ trace('root', () => setTimeout(() => {
   console.log(records[0].name, records[2].name, records[2].parent_span_id === records[0].span_id);
 }, 1));
 EOF
-test "$("$runtime" "$fixture_dir/telemetry-timer.ts")" = 'root child true'
+cat > "$fixture_dir/telemetry-disabled.ts" <<'EOF'
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+trace('disabled', () => {});
+console.log(snapshotTraceRecordsNative().records.length);
+EOF
+test "$("$runtime" "$fixture_dir/telemetry-disabled.ts")" = '0'
+cat > "$fixture_dir/telemetry-clock.ts" <<'EOF'
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+trace('clock', () => {});
+const records = snapshotTraceRecordsNative().records;
+console.log(records.length, records[0].timestamp_ns > 0,
+  records[1].timestamp_ns >= records[0].timestamp_ns,
+  records[0].timestamp_ns < Date.now() * 1000000 / 10);
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-clock.ts")" = '2 true true true'
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-timer.ts")" = 'root child true'
 cat > "$fixture_dir/telemetry-ring.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';
@@ -345,8 +362,8 @@ for (let i = 0; i < 260; i++) trace(`span-${i}`, () => {});
 const page = snapshotTraceRecordsNative(1, 3);
 console.log(page.missed, page.records.length, page.records[0].sequence, page.next_cursor);
 EOF
-test "$("$runtime" "$fixture_dir/telemetry-ring.ts")" = 'false 3 2 4'
-test "$(RUNTIME_TELEMETRY_TRACE_RECORDS=8 "$runtime" "$fixture_dir/telemetry-ring.ts")" = 'true 3 513 515'
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-ring.ts")" = 'false 3 2 4'
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 RUNTIME_TELEMETRY_TRACE_RECORDS=8 "$runtime" "$fixture_dir/telemetry-ring.ts")" = 'true 3 513 515'
 cat > "$fixture_dir/telemetry-active-parent.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';
@@ -360,7 +377,7 @@ trace('root', () => trace('active-child', () => {
   console.log(grandchild.trace_id === root.trace_id, grandchild.parent_span_id === child.span_id);
 }));
 EOF
-test "$("$runtime" "$fixture_dir/telemetry-active-parent.ts")" = 'true true'
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-active-parent.ts")" = 'true true'
 cat > "$fixture_dir/telemetry-ended-parent.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';
@@ -374,7 +391,7 @@ trace('root', () => trace('ended-child', () => setTimeout(() => {
 }, 1)));
 for (let i = 0; i < 520; i++) trace(`finished-${i}`, () => {});
 EOF
-test "$("$runtime" "$fixture_dir/telemetry-ended-parent.ts")" = 'true true'
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-ended-parent.ts")" = 'true true'
 if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/trace-config.stdout" 2> "$fixture_dir/trace-config.stderr"; then
     echo 'expected zero trace capacity to fail' >&2
     exit 1

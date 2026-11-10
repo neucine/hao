@@ -1,6 +1,5 @@
 import { describe, expect, test } from "std:test";
 import { counter, gauge, histogram, metrics, trace } from "std:telemetry";
-import { snapshotTraceRecordsNative } from "std:telemetry/native";
 
 describe("telemetry metrics", () => {
   test("records counters gauges and histograms", () => {
@@ -88,12 +87,4 @@ describe("telemetry metrics", () => {
     expect(value).toBe("done");
   });
 
-  test("timestamps trace records with a monotonic clock", () => {
-    trace("test.clock", () => 1);
-    const matching = snapshotTraceRecordsNative().records.filter((record) => record.name === "test.clock");
-    expect(matching.length).toBe(2);
-    expect(matching[0].timestamp_ns > 0).toBe(true);
-    expect(matching[1].timestamp_ns >= matching[0].timestamp_ns).toBe(true);
-    expect(matching[0].timestamp_ns < Date.now() * 1000000 / 10).toBe(true);
-  });
 });

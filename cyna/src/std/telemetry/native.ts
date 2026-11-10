@@ -66,6 +66,7 @@ globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ..
 }) as typeof setTimeout;
 function hex(id: number | null, width: number): string { return (id ?? 0).toString(16).padStart(width, '0'); }
 function recordSpan(span: Span, kind: 'span_start' | 'span_end', status = 'unset'): void {
+  if (traceCapacity === 0) return;
   records.push({ sequence: nextSequence++, kind, timestamp_ns: globalThis.__hao_telemetry_monotonicNs(),
     trace_id: hex(span.traceId, 32), span_id: hex(span.id, 16), parent_span_id: hex(span.parent, 16),
     name: span.name, status, attributes: {} });

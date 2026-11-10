@@ -48,6 +48,7 @@ void hao_runtime_free(uintptr_t handle);
 void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t port) {
     HaoRuntime *host = (HaoRuntime *)handle;
     JSValue global = JS_GetGlobalObject(host->context);
+    if (!enabled) JS_SetPropertyStr(host->context, global, "__hao_trace_capacity", JS_NewUint32(host->context, 0));
     JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_enabled", JS_NewBool(host->context, enabled));
     JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_port", JS_NewUint32(host->context, port));
     JS_FreeValue(host->context, global);
