@@ -5,9 +5,9 @@ type = "exe"
 entry = "src/main.cy"
 
 [c]
-sources = ["bridge.c", "fs_bridge.c", "process_bridge.c", "http_bridge.c", "http_server_bridge.c", "telemetry_bridge.c"]
+sources = ["bridge.c", "fs_bridge.c", "process_bridge.c", "http_bridge.c", "http_server_bridge.c", "telemetry_bridge.c", "ffi_bridge.c"]
 include_paths = ["../zig-pkg/N-V-__8AAOogPwA2V2YcZ8rW15yIujiBK0YZB1mqu8PihnXp", "../zig-pkg/N-V-__8AABtNRAB58M85Dm0p6z6iRHP3Zz3eyo08HU4EF5mq/include"]
 
 [link]
-libs = ["quickjs", "uv", "hao_transpiler", "curl"]
+libs = ["quickjs", "uv", "hao_transpiler", "curl", "ffi"]
 search_paths = ["../zig-out/lib", "../libs/transpiler/target/release"]

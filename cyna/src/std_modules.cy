@@ -49,6 +49,18 @@ pub fn install(runtime: &const Runtime): i32 {
     if install_one(runtime, module_directory.clone(), "std:telemetry", "telemetry.ts") != 0 {
         return 1;
     }
+    if install_one(runtime, module_directory.clone(), "std:ffi/native", "ffi_native.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c/native", "ffi_c_native.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi/c", "ffi_c.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:ffi", "ffi.ts") != 0 {
+        return 1;
+    }
     if install_one(runtime, module_directory.clone(), "std:test/native", "test_native.ts") != 0 {
         return 1;
     }

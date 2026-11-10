@@ -136,6 +136,17 @@ capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" | tail -1)
 test "$capture_summary" = '2 passed, 0 failed, 0 skipped'
 telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" | tail -1)
 test "$telemetry_summary" = '4 passed, 0 failed, 0 skipped'
+ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
+test "$ffi_summary" = '4 passed, 0 failed, 0 skipped'
+error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)
+test "$error_summary" = '2 passed, 0 failed, 0 skipped'
+cat > "$fixture_dir/ffi-mixed.ts" <<'EOF'
+import { dlopen } from 'std:ffi';
+const math = dlopen('m', { ldexp: { args: ['f64', 'i32'], returns: 'f64' } });
+console.log(math.ldexp(1.5, 3));
+math.close();
+EOF
+test "$("$runtime" "$fixture_dir/ffi-mixed.ts")" = 12
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

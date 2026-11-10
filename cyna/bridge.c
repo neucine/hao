@@ -52,8 +52,11 @@ extern void hao_install_http_globals(JSContext *ctx, JSValue global);
 extern void hao_install_http_server_globals(JSContext *ctx, JSValue global);
 extern void hao_http_server_cleanup(JSContext *ctx);
 extern void hao_install_telemetry_globals(JSContext *ctx, JSValue global);
+extern void hao_install_ffi_globals(JSContext *ctx, JSValue global);
+extern void hao_ffi_cleanup(JSContext *ctx);
 extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                                unsigned char *output, size_t capacity);
+void hao_runtime_free(uintptr_t handle);
 
 static HaoSourceModule *hao_find_module(HaoRuntime *host, const char *name) {
     for (HaoSourceModule *module = host->modules; module; module = module->next) {
@@ -473,7 +476,21 @@ uintptr_t hao_runtime_new(void) {
     hao_install_http_globals(host->context, global);
     hao_install_http_server_globals(host->context, global);
     hao_install_telemetry_globals(host->context, global);
+    hao_install_ffi_globals(host->context, global);
     JS_FreeValue(host->context, global);
+    const char *runtime_error_source =
+        "globalThis.RuntimeError = class RuntimeError extends Error {"
+        "constructor(code, message) { super(message); this.name = 'RuntimeError'; this.code = code; }"
+        "};";
+    JSValue runtime_error_result = JS_Eval(host->context, runtime_error_source,
+        strlen(runtime_error_source), "<runtime-errors>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(runtime_error_result)) {
+        hao_print_exception(host->context);
+        JS_FreeValue(host->context, runtime_error_result);
+        hao_runtime_free((uintptr_t)host);
+        return 0;
+    }
+    JS_FreeValue(host->context, runtime_error_result);
     return (uintptr_t)host;
 }
 
@@ -481,6 +498,7 @@ void hao_runtime_free(uintptr_t handle) {
     if (!handle) return;
     HaoRuntime *host = (HaoRuntime *)handle;
     hao_http_server_cleanup(host->context);
+    hao_ffi_cleanup(host->context);
     while (host->timers) {
         HaoTimer *timer = host->timers;
         hao_unlink_timer(host, timer);

@@ -3,8 +3,8 @@
 This is the Cyna implementation under development. It currently runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
 exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
-`std:plot`, `std:test`, and `std:telemetry`, and supports console output,
-timers, and QuickJS promise jobs. Native addons, FFI, the telemetry console,
+`std:plot`, `std:test`, `std:telemetry`, and `std:ffi`, and supports console output,
+timers, and QuickJS promise jobs. Native addons, the telemetry console,
 and Jupyter integration still need to move from the Zig runtime.
 
 `src/runtime.cy` owns the event loop and module registry, `src/fs_host.cy` owns
@@ -55,6 +55,13 @@ bounded trace records live in its standard module. QuickJS memory gauges use
 use the macOS malloc zone totals rather than the Zig runtime allocator. Trace
 context integration with timers and HTTP workers, plus the telemetry console,
 remain to be ported.
+
+`std:ffi` binds typed dynamic symbols through libffi, including mixed numeric
+argument classes and typed array pointers. The C declaration wrapper supports
+direct function declarations and pointer plus length buffer policies. Calls
+are limited to eight arguments. Opaque struct handles, out parameters, POD
+structs, custom library search policies, and native addon loading remain to
+be ported.
 
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
