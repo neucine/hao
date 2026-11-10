@@ -394,7 +394,9 @@ cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
 const path = getEnv('HAO_FFI_TEST_PATH');
-const library = cdecl('hao_search_fixture', 'int hao_search_value(void); int hao_make_handle(void **out); int hao_fail_handle(void **out); int hao_fail_with_code(int code); const char *hao_error_message(int code);', {
+const library = cdecl('hao_search_fixture', `/* status # ignored */ int hao_search_value(void); // first call
+int hao_make_handle(void **out); int hao_fail_handle(void **out);
+int hao_fail_with_code(int code); const char *hao_error_message(int code);`, {
   search: { strategy: 'relative-first', paths: [path] },
   functions: {
     hao_make_handle: { returns: { out: 'out' }, errors: { kind: 'status', ok: 0 } },
@@ -446,10 +448,12 @@ const tree = { tag: 2, point: { x: 3, y: 4 }, tail: 5 };
 nested.hao_update_nested(tree);
 console.log(tree.tag, tree.point.x, tree.point.y, tree.tail);
 nested.close();
+try { cdecl('hao_search_fixture', '/* never closed'); }
+catch (error) { console.log(error.message); }
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n4 12\n7 3.75\n2 11 4 9')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
 mv "$fixture_dir/libhao_search_fixture.dylib" "$fixture_dir/libhao_search_fixture.so"
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n4 12\n7 3.75\n2 11 4 9')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

@@ -54,9 +54,28 @@ function ffiType(type: string, returning = false): string {
   if (!result) throw Error(`unsupported C type: ${type}`);
   return result;
 }
+function stripComments(source: string): string {
+  let result = '';
+  for (let index = 0; index < source.length;) {
+    if (source.startsWith('//', index)) {
+      index += 2;
+      while (index < source.length && source[index] !== '\n') index++;
+      result += ' ';
+    } else if (source.startsWith('/*', index)) {
+      const end = source.indexOf('*/', index + 2);
+      if (end < 0) throw Error('unterminated C block comment');
+      index = end + 2;
+      result += ' ';
+    } else {
+      result += source[index++];
+    }
+  }
+  return result;
+}
 function parse(declarations: string, opts: any): Prepared {
   if (typeof declarations !== 'string' || !declarations.trim()) throw Error('cdecl: declarations must be a non-empty string');
-  if (/#|\.\.\./.test(declarations)) throw Error('unsupported C declarations');
+  const source = stripComments(declarations);
+  if (/#|\.\.\./.test(source)) throw Error('unsupported C declarations');
   if (opts?.search != null) {
     const search = opts.search;
     if (typeof search !== 'object' || Array.isArray(search)) throw Error('invalid C library search policy');
@@ -72,7 +91,7 @@ function parse(declarations: string, opts: any): Prepared {
   const opaqueTypes = new Set<string>();
   const pods: Record<string, PodSpec> = {};
   const podBodies: Record<string, string> = {};
-  const withoutPods = declarations.replace(/typedef\s+struct\s*\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;/g,
+  const withoutPods = source.replace(/typedef\s+struct\s*\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;/g,
     (_whole, body: string, name: string) => { podBodies[name] = body; return ''; });
   const resolving = new Set<string>();
   const resolvePod = (name: string): PodSpec | null => {

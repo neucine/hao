@@ -112,7 +112,7 @@ sampled active value.
 
 `std:ffi` binds typed dynamic symbols through libffi, including mixed numeric
 argument classes and typed array pointers. The C declaration wrapper supports
-direct function declarations and pointer plus length buffer policies. Calls
+direct function declarations, C comments, and pointer plus length buffer policies. Calls
 are limited to eight arguments. The C declaration wrapper supports one hidden
 pointer output parameter through `returns.out`, including status error policies.
 Error policies can call a declared C helper for the message, using a named
