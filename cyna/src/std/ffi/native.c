@@ -29,6 +29,7 @@ typedef struct HaoLibrary {
     int64_t id;
     JSContext *ctx;
     void *library;
+    bool closed;
     HaoBinding *bindings;
     struct HaoLibrary *next;
 } HaoLibrary;
@@ -46,29 +47,38 @@ static HaoBinding *find_binding(HaoLibrary *library, const char *name) {
         if (strcmp(binding->name, name) == 0) return binding;
     return NULL;
 }
-static void free_library(HaoLibrary *library) {
+static void free_bindings(HaoLibrary *library) {
     HaoBinding *binding = library->bindings;
+    library->bindings = NULL;
     while (binding) {
         HaoBinding *next = binding->next;
         hao_free(binding->name);
         hao_free(binding);
         binding = next;
     }
-    dlclose(library->library);
+}
+static void free_library(HaoLibrary *library) {
+    free_bindings(library);
+    if (library->library) dlclose(library->library);
     hao_free(library);
 }
 static void close_library(HaoLibrary *library) {
-    HaoLibrary **link = &libraries;
-    while (*link && *link != library) link = &(*link)->next;
-    if (*link) *link = library->next;
-    free_library(library);
+    if (library->closed) return;
+    library->closed = true;
+    dlclose(library->library);
+    library->library = NULL;
+    free_bindings(library);
 }
 void hao_ffi_cleanup(JSContext *ctx) {
-    HaoLibrary *library = libraries;
-    while (library) {
-        HaoLibrary *next = library->next;
-        if (library->ctx == ctx) close_library(library);
-        library = next;
+    HaoLibrary **link = &libraries;
+    while (*link) {
+        HaoLibrary *library = *link;
+        if (library->ctx == ctx) {
+            *link = library->next;
+            free_library(library);
+        } else {
+            link = &library->next;
+        }
     }
 }
 static bool parse_type(const char *name, HaoType *out) {
@@ -133,6 +143,7 @@ static JSValue bind_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
         return JS_ThrowTypeError(ctx, "FFI: invalid binding descriptor");
     HaoLibrary *library = find_library(ctx, id);
     if (!library) return JS_ThrowTypeError(ctx, "FFI: invalid library handle");
+    if (library->closed) return JS_ThrowTypeError(ctx, "FFI: library has been closed");
     const char *name = JS_ToCString(ctx, argv[1]);
     const char *return_name = JS_ToCString(ctx, argv[3]);
     if (!name || !return_name) {
@@ -206,6 +217,7 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
         return JS_ThrowTypeError(ctx, "FFI: invalid call arguments");
     HaoLibrary *library = find_library(ctx, id);
     if (!library) return JS_ThrowTypeError(ctx, "FFI: invalid library handle");
+    if (library->closed) return JS_ThrowTypeError(ctx, "FFI: library has been closed");
     const char *name = JS_ToCString(ctx, argv[1]);
     if (!name) return JS_EXCEPTION;
     HaoBinding *binding = find_binding(library, name);

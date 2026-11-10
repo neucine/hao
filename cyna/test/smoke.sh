@@ -499,6 +499,14 @@ console.log(math.ldexp(1.5, 3));
 math.close();
 EOF
 test "$("$runtime" "$fixture_dir/ffi-mixed.ts")" = 12
+cat > "$fixture_dir/ffi-closed.ts" <<'EOF'
+import { openNative, callNative, closeNative } from 'std:ffi/native';
+const handle = openNative('m', { cos: { args: ['f64'], returns: 'f64' } });
+closeNative(handle);
+closeNative(handle);
+try { callNative(handle, 'cos', [0]); } catch (error) { console.log(error.name, error.message); }
+EOF
+test "$("$runtime" "$fixture_dir/ffi-closed.ts")" = 'TypeError FFI: library has been closed'
 cat > "$fixture_dir/ffi-search.c" <<'EOF'
 #include <stdint.h>
 int hao_search_value(void) { return 29; }
