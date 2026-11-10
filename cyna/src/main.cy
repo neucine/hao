@@ -6,6 +6,7 @@ import { collect, sort } from .std.test_files;
 import { load_dotenv } from .config;
 import { run as run_jupyter } from .jupyter.main;
 import { install as install_jupyter } from .jupyter.install;
+import { string as hao_version } from .version;
 
 extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
 
@@ -36,7 +37,7 @@ fn main(): i32 {
         return 2;
     }
     if arguments.len() == 2 and (arguments[1] == "--version" or arguments[1] == "-v") {
-        println("hao 0.1.2");
+        println($"hao {hao_version}");
         return 0;
     }
     if arguments[1] == "jupyter" {
