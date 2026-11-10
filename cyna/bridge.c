@@ -41,6 +41,8 @@ extern char *hao_transpile_types_for_path(const char *source, const char *source
 extern char *hao_transpiler_last_error(void);
 extern void hao_transpiler_free(char *text);
 extern void hao_install_fs_globals(JSContext *ctx, JSValue global);
+extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
+                               unsigned char *output, size_t capacity);
 
 static HaoSourceModule *hao_find_module(HaoRuntime *host, const char *name) {
     for (HaoSourceModule *module = host->modules; module; module = module->next) {
@@ -89,8 +91,25 @@ static char *hao_normalize_module(JSContext *ctx, const char *base,
         return normalized;
     }
     if (strncmp(specifier, "./", 2) != 0 && strncmp(specifier, "../", 3) != 0) {
-        JS_ThrowReferenceError(ctx, "Unsupported module specifier: %s", specifier);
-        return NULL;
+        unsigned char candidate[4096];
+        int candidate_len = hao_resolve_package((const unsigned char *)base,
+                                                (const unsigned char *)specifier,
+                                                candidate, sizeof(candidate));
+        if (candidate_len < 0) {
+            JS_ThrowReferenceError(ctx, "Cannot resolve package: %s", specifier);
+            return NULL;
+        }
+        candidate[candidate_len] = 0;
+        char *resolved = realpath((const char *)candidate, NULL);
+        if (!resolved) {
+            JS_ThrowReferenceError(ctx, "Package entry not found: %s", specifier);
+            return NULL;
+        }
+        size_t len = strlen(resolved);
+        char *normalized = js_malloc(ctx, len + 1);
+        if (normalized) memcpy(normalized, resolved, len + 1);
+        free(resolved);
+        return normalized;
     }
     const char *slash = strrchr(base, '/');
     size_t dir_len = slash ? (size_t)(slash - base) : 1;

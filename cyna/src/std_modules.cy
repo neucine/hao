@@ -1,5 +1,6 @@
 import { Runtime } from .runtime;
 import { fs_exists } from .fs_host;
+import { resolve_package } from .package_resolver;
 
 pub fn install(runtime: &const Runtime): i32 {
     const runtime_status = runtime.register_source_module(

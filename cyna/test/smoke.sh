@@ -23,6 +23,25 @@ filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
 filesystem_expected=$(printf 'false\ntrue hello 5')
 test "$filesystem_actual" = "$filesystem_expected"
 
+mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
+printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
+printf 'export const value: number = 42;\n' > "$fixture_dir/app/node_modules/demo/index.ts"
+printf 'export const extra = 3;\n' > "$fixture_dir/app/node_modules/demo/extra.mjs"
+printf '{"type":"module","main":"./index.js"}\n' > "$fixture_dir/app/node_modules/@scope/tool/package.json"
+printf 'export const scoped = 7;\n' > "$fixture_dir/app/node_modules/@scope/tool/index.js"
+printf 'import { value } from "demo"; import { extra } from "demo/extra"; import { scoped } from "@scope/tool"; console.log(value, extra, scoped);\n' > "$fixture_dir/app/packages.ts"
+test "$("$runtime" "$fixture_dir/app/packages.ts")" = '42 3 7'
+printf '{"exports":"./index.mjs"}\n' > "$fixture_dir/vendor/external/package.json"
+printf 'export const value = 11;\n' > "$fixture_dir/vendor/external/index.mjs"
+printf 'import { value } from "external"; console.log("external", value);\n' > "$fixture_dir/app/external.ts"
+test "$(RUNTIME_PACKAGE_PATH="$fixture_dir/vendor" "$runtime" "$fixture_dir/app/external.ts")" = 'external 11'
+printf 'import "demo/private";\n' > "$fixture_dir/app/unexported.ts"
+if "$runtime" "$fixture_dir/app/unexported.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
+    echo 'expected an unexported package subpath to fail' >&2
+    exit 1
+fi
+grep -q 'Cannot resolve package: demo/private' "$fixture_dir/stderr"
+
 printf 'console.log("before"); const cancelled = setTimeout(() => console.log("cancelled"), 1); clearTimeout(cancelled); setTimeout(() => { console.log("after"); Promise.resolve().then(() => console.log("microtask")); }, 1);\n' > "$fixture_dir/timer.ts"
 timer_actual=$("$runtime" "$fixture_dir/timer.ts")
 timer_expected=$(printf 'before\nafter\nmicrotask')
