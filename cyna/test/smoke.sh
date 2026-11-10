@@ -623,8 +623,16 @@ try { await run({ cmd: 'sh', args: ['-c', 'exit 9'] }); } catch (error) { consol
 try { await run({ cmd: 'sh', args: ['-c', 'printf 12345'], maxOutputBytes: 3 }); } catch (error) { console.log('limited', error.message); }
 EOF
 process_actual=$(HAO_CYNA_TEST=works "$runtime" "$fixture_dir/process.ts")
-process_expected=$(printf 'env works\nrun hello warn 0\njson 42\nunchecked 7\nsignaled null 15\ncwd /private/tmp\nlargeLimit ok\ncoerced 42,true,null\nchecked 9\nlimited process output exceeds maxOutputBytes')
+process_expected=$(printf 'env works\nrun hello warn 0\njson 42\nunchecked 7\nsignaled null 15\ncwd /private/tmp\nlargeLimit ok\ncoerced 42,true,null\nchecked 9\nlimited process.run failed')
 test "$process_actual" = "$process_expected"
+cat > "$fixture_dir/process-errors.ts" <<'EOF'
+import { runNative, getEnvNative } from 'std:process/native';
+for (const invoke of [() => getEnvNative(), () => runNative({ cmd: 'sh', maxOutputBytes: 0 }),
+  () => runNative({ cmd: 'sh', args: ['-c', 'printf 12345'], maxOutputBytes: 3 })]) {
+  try { invoke(); } catch (error) { console.log(error.name, error.message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/process-errors.ts")" = "$(printf 'TypeError getEnvNative expects a variable name\nTypeError process.run maxOutputBytes must be positive\nInternalError process.run failed')"
 
 printf 'console.log("before"); const cancelled = setTimeout(() => console.log("cancelled"), 1); clearTimeout(cancelled); setTimeout(() => { console.log("after"); Promise.resolve().then(() => console.log("microtask")); }, 1);\n' > "$fixture_dir/timer.ts"
 timer_actual=$("$runtime" "$fixture_dir/timer.ts")

@@ -84,7 +84,7 @@ static JSValue normalized_options(JSContext *ctx, JSValueConst options) {
 static JSValue hao_get_env_native(JSContext *ctx, JSValueConst this_val,
                                    int argc, JSValueConst *argv) {
     (void)this_val;
-    if (argc < 1) return JS_ThrowTypeError(ctx, "getEnv requires a name");
+    if (argc < 1) return JS_ThrowTypeError(ctx, "getEnvNative expects a variable name");
     const char *name = JS_ToCString(ctx, argv[0]);
     if (!name) return JS_EXCEPTION;
     unsigned char value[65536];
@@ -112,7 +112,7 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
         }
         if (requested < 1) {
             JS_FreeValue(ctx, max_value);
-            return JS_ThrowRangeError(ctx, "process.run maxOutputBytes must be positive");
+            return JS_ThrowTypeError(ctx, "process.run maxOutputBytes must be positive");
         }
         capacity = (size_t)requested;
     }
@@ -142,7 +142,7 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
         hao_free(stdout_buffer);
         hao_free(stderr_buffer);
         if (status == 1) return JS_ThrowTypeError(ctx, "invalid process options");
-        if (status == 3) return JS_ThrowRangeError(ctx, "process output exceeds maxOutputBytes");
+        if (status == 3) return JS_ThrowInternalError(ctx, "process.run failed");
         return JS_ThrowInternalError(ctx, "process.run failed");
     }
     JSValue result = JS_NewObject(ctx);
