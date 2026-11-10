@@ -4,6 +4,13 @@ import { c } from 'std:ffi'
 const { decl: cdecl } = c
 
 describe('c basic', () => {
+  test('classifies invalid declarations as invalid_arg', () => {
+    let error: any = null
+    try { cdecl('m', 'double sqrt(...);') } catch (caught) { error = caught }
+    expect(error).toBeInstanceOf(RuntimeError)
+    expect(error.code).toBe('invalid_arg')
+  })
+
   test('binds direct libm calls through std:ffi.c', () => {
     const libm = cdecl('m', `
       double sqrt(double x);

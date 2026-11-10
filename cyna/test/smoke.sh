@@ -372,7 +372,7 @@ if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixtu
     exit 1
 fi
 ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
-test "$ffi_summary" = '4 passed, 0 failed, 0 skipped'
+test "$ffi_summary" = '5 passed, 0 failed, 0 skipped'
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)
 test "$error_summary" = '2 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/broken.test.ts" <<'EOF'

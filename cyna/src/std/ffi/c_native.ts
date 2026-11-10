@@ -5,12 +5,16 @@ type FunctionSpec = { name: string; params: Parameter[]; returns: string };
 type Prepared = { symbols: string[]; functions: FunctionSpec[]; policies: any; pods: Record<string, PodSpec> };
 const libraries = new Map<number, Prepared>();
 
+function invalidArg(message: string): RuntimeError {
+  return new RuntimeError('invalid_arg', message);
+}
+
 function scalarLayout(type: string): { size: number; alignment: number } {
   if (['bool', 'i8', 'u8'].includes(type)) return { size: 1, alignment: 1 };
   if (['i16', 'u16'].includes(type)) return { size: 2, alignment: 2 };
   if (['i32', 'u32', 'f32'].includes(type)) return { size: 4, alignment: 4 };
   if (['i64', 'u64', 'f64'].includes(type)) return { size: 8, alignment: 8 };
-  throw Error(`unsupported POD field type: ${type}`);
+  throw invalidArg(`unsupported POD field type: ${type}`);
 }
 function podSpec(body: string, resolve: (name: string) => PodSpec | null): PodSpec {
   const fields: PodField[] = [];
@@ -19,7 +23,7 @@ function podSpec(body: string, resolve: (name: string) => PodSpec | null): PodSp
     const declaration = source.trim();
     if (!declaration) continue;
     const match = /^(.+?\s+)([A-Za-z_]\w*)$/.exec(declaration);
-    if (!match) throw Error(`invalid POD field: ${declaration}`);
+    if (!match) throw invalidArg(`invalid POD field: ${declaration}`);
     const name = match[1].trim();
     const nested = resolve(name);
     const type = nested ? 'pod' : ffiType(name);
@@ -29,7 +33,7 @@ function podSpec(body: string, resolve: (name: string) => PodSpec | null): PodSp
     size += layout.size;
     alignment = Math.max(alignment, layout.alignment);
   }
-  if (!fields.length) throw Error('empty POD struct');
+  if (!fields.length) throw invalidArg('empty POD struct');
   return { fields, size: Math.ceil(size / alignment) * alignment, alignment };
 }
 
@@ -51,7 +55,7 @@ function ffiType(type: string, returning = false): string {
     uint8_t: 'u8', uint16_t: 'u16', uint32_t: 'u32', uint64_t: 'u64',
   };
   const result = mapping[normalized];
-  if (!result) throw Error(`unsupported C type: ${type}`);
+  if (!result) throw invalidArg(`unsupported C type: ${type}`);
   return result;
 }
 function stripComments(source: string): string {
@@ -63,7 +67,7 @@ function stripComments(source: string): string {
       result += ' ';
     } else if (source.startsWith('/*', index)) {
       const end = source.indexOf('*/', index + 2);
-      if (end < 0) throw Error('unterminated C block comment');
+      if (end < 0) throw invalidArg('unterminated C block comment');
       index = end + 2;
       result += ' ';
     } else {
@@ -73,18 +77,18 @@ function stripComments(source: string): string {
   return result;
 }
 function parse(declarations: string, opts: any): Prepared {
-  if (typeof declarations !== 'string' || !declarations.trim()) throw Error('cdecl: declarations must be a non-empty string');
+  if (typeof declarations !== 'string' || !declarations.trim()) throw invalidArg('cdecl: declarations must be a non-empty string');
   const source = stripComments(declarations);
-  if (/#|\.\.\./.test(source)) throw Error('unsupported C declarations');
+  if (/#|\.\.\./.test(source)) throw invalidArg('unsupported C declarations');
   if (opts?.search != null) {
     const search = opts.search;
-    if (typeof search !== 'object' || Array.isArray(search)) throw Error('invalid C library search policy');
+    if (typeof search !== 'object' || Array.isArray(search)) throw invalidArg('invalid C library search policy');
     if (search.strategy != null && !['runtime-default', 'relative-first', 'system-first'].includes(search.strategy)) {
-      throw Error('invalid C library search strategy');
+      throw invalidArg('invalid C library search strategy');
     }
     if (search.paths != null && (!Array.isArray(search.paths) ||
         search.paths.some((path: unknown) => typeof path !== 'string' || !path))) {
-      throw Error('invalid C library search paths');
+      throw invalidArg('invalid C library search paths');
     }
   }
   const functions: FunctionSpec[] = [];
@@ -97,7 +101,7 @@ function parse(declarations: string, opts: any): Prepared {
   const resolvePod = (name: string): PodSpec | null => {
     if (pods[name]) return pods[name];
     if (!(name in podBodies)) return null;
-    if (resolving.has(name)) throw Error(`recursive POD struct: ${name}`);
+    if (resolving.has(name)) throw invalidArg(`recursive POD struct: ${name}`);
     resolving.add(name);
     const spec = podSpec(podBodies[name], resolvePod);
     resolving.delete(name);
@@ -110,17 +114,17 @@ function parse(declarations: string, opts: any): Prepared {
     if (!statement) continue;
     if (statement.startsWith('typedef ')) {
       const declaration = /^typedef\s+struct\s+([A-Za-z_]\w*)\s+([A-Za-z_]\w*)$/.exec(statement);
-      if (!declaration || declaration[1] !== declaration[2]) throw Error(`unsupported C typedef: ${statement}`);
+      if (!declaration || declaration[1] !== declaration[2]) throw invalidArg(`unsupported C typedef: ${statement}`);
       opaqueTypes.add(declaration[1]);
       continue;
     }
     const match = /^(.+?[\s*])([A-Za-z_]\w*)\s*\(([^()]*)\)$/.exec(statement);
-    if (!match) throw Error(`invalid C declaration: ${statement}`);
+    if (!match) throw invalidArg(`invalid C declaration: ${statement}`);
     const params: Parameter[] = [];
     if (match[3].trim() && match[3].trim() !== 'void') {
       for (const rawParam of match[3].split(',')) {
         const param = /^(.+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
-        if (!param) throw Error(`invalid C parameter: ${rawParam}`);
+        if (!param) throw invalidArg(`invalid C parameter: ${rawParam}`);
         const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
         const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;
         params.push({ name: param[2], type: ffiType(param[1]), pod });
@@ -128,17 +132,17 @@ function parse(declarations: string, opts: any): Prepared {
     }
     functions.push({ name: match[2], params, returns: ffiType(match[1], true) });
   }
-  if (!functions.length) throw Error('cdecl requires at least one function');
+  if (!functions.length) throw invalidArg('cdecl requires at least one function');
   for (const name of Object.keys(opts?.functions ?? {})) {
-    if (!functions.some(item => item.name === name)) throw Error(`unknown C function policy: ${name}`);
+    if (!functions.some(item => item.name === name)) throw invalidArg(`unknown C function policy: ${name}`);
     const policy = opts.functions[name];
     if (policy?.returns?.out) {
       const out = functions.find(item => item.name === name)!.params.find(param => param.name === policy.returns.out);
-      if (!out || out.type !== 'ptr') throw Error(`invalid C output parameter: ${policy.returns.out}`);
+      if (!out || out.type !== 'ptr') throw invalidArg(`invalid C output parameter: ${policy.returns.out}`);
     }
     if (policy?.returns?.kind === 'handle' &&
         (!opaqueTypes.has(policy.returns.type) || functions.find(item => item.name === name)!.returns !== 'ptr')) {
-      throw Error(`invalid C handle return policy: ${name}`);
+      throw invalidArg(`invalid C handle return policy: ${name}`);
     }
     const message = policy?.errors?.message;
     if (message != null && typeof message !== 'string') {
@@ -146,13 +150,13 @@ function parse(declarations: string, opts: any): Prepared {
           !functions.some(item => item.name === message.from) ||
           message.arg != null && (typeof message.arg !== 'string' ||
             !functions.find(item => item.name === name)!.params.some(param => param.name === message.arg))) {
-        throw Error(`invalid C error message source: ${name}`);
+        throw invalidArg(`invalid C error message source: ${name}`);
       }
     }
   }
   for (const [type, policy] of Object.entries(opts?.handles ?? {}) as [string, any][]) {
     if (!opaqueTypes.has(type) || (policy?.close != null &&
-        !functions.some(item => item.name === policy.close))) throw Error(`invalid C handle policy: ${type}`);
+        !functions.some(item => item.name === policy.close))) throw invalidArg(`invalid C handle policy: ${type}`);
   }
   return { symbols: functions.map(item => item.name), functions, policies: opts ?? {}, pods };
 }
@@ -162,12 +166,12 @@ function bytesPerElement(name: string): number {
 }
 function backingLength(value: any): number {
   if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return value.byteLength;
-  throw Error('buffer argument must be an ArrayBuffer or typed array');
+  throw invalidArg('buffer argument must be an ArrayBuffer or typed array');
 }
 function podField(view: DataView, field: PodField, value?: any, base = 0): any {
   const at = base + field.offset;
   if (value !== undefined) {
-    if (typeof value !== 'number' && typeof value !== 'boolean' && typeof value !== 'bigint') throw Error(`invalid POD field: ${field.name}`);
+    if (typeof value !== 'number' && typeof value !== 'boolean' && typeof value !== 'bigint') throw invalidArg(`invalid POD field: ${field.name}`);
     switch (field.type) {
       case 'bool': case 'u8': view.setUint8(at, Number(value)); break;
       case 'i8': view.setInt8(at, Number(value)); break;
@@ -197,10 +201,10 @@ function podField(view: DataView, field: PodField, value?: any, base = 0): any {
   }
 }
 function writePod(view: DataView, spec: PodSpec, object: any, pods: Record<string, PodSpec>, base = 0): void {
-  if (!object || typeof object !== 'object') throw Error('POD argument must be an object');
+  if (!object || typeof object !== 'object') throw invalidArg('POD argument must be an object');
   for (const field of spec.fields) {
     const value = object[field.name];
-    if (value === undefined) throw Error(`missing POD field: ${field.name}`);
+    if (value === undefined) throw invalidArg(`missing POD field: ${field.name}`);
     if (field.pod) writePod(view, pods[field.pod], value, pods, base + field.offset);
     else podField(view, field, value, base);
   }
@@ -212,7 +216,7 @@ function readPod(view: DataView, spec: PodSpec, object: any, pods: Record<string
   }
 }
 export function prepareNative(name: string, declarations: string, opts?: any): Prepared {
-  if (typeof name !== 'string' || !name) throw Error('cdecl: invalid library name');
+  if (typeof name !== 'string' || !name) throw invalidArg('cdecl: invalid library name');
   return parse(declarations, opts);
 }
 function openWithSearch(name: string, search: any): number {
@@ -222,7 +226,7 @@ function openWithSearch(name: string, search: any): number {
   if (!search || name.includes('/') || name.includes('.')) {
     const handle = open(name);
     if (handle !== null) return handle;
-    throw Error('library unavailable');
+    throw invalidArg('library unavailable');
   }
   const strategy = search.strategy ?? 'runtime-default';
   const paths: string[] = search.paths ?? [];
@@ -239,7 +243,7 @@ function openWithSearch(name: string, search: any): number {
   const handle = strategy === 'relative-first' ? fromPaths() ?? open(name) :
     strategy === 'system-first' ? open(name) ?? fromPaths() : open(name);
   if (handle !== null) return handle;
-  throw Error('library unavailable');
+  throw invalidArg('library unavailable');
 }
 export function openNative(name: string, declarations: string, opts?: any): { handle: number; symbols: string[]; policies: any } {
   const prepared = prepareNative(name, declarations, opts);
@@ -261,16 +265,16 @@ export function openNative(name: string, declarations: string, opts?: any): { ha
 }
 export function callNative(handle: number, symbol: string, args: any[]): unknown {
   const prepared = libraries.get(handle);
-  if (!prepared) throw Error('FFI: invalid library handle');
+  if (!prepared) throw invalidArg('FFI: invalid library handle');
   const fn = prepared.functions.find(item => item.name === symbol);
-  if (!fn) throw Error('FFI: unknown symbol');
+  if (!fn) throw invalidArg('FFI: unknown symbol');
   const policy = prepared.policies?.functions?.[symbol];
   const outIndex = policy?.returns?.out == null ? -1 : fn.params.findIndex(param => param.name === policy.returns.out);
   const buffers = policy?.buffers ?? {};
   const lengths = new Map<string, number>();
   const visible = fn.params.filter(param => param.name !== policy?.returns?.out &&
     !Object.values(buffers).some((buffer: any) => buffer.length === param.name));
-  if (args.length !== visible.length) throw Error('FFI: wrong number of arguments');
+  if (args.length !== visible.length) throw invalidArg('FFI: wrong number of arguments');
   let input = 0;
   const values = new Map<string, any>();
   const staged: { object: any; view: DataView; spec: PodSpec }[] = [];
@@ -287,9 +291,9 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
     const buffer = buffers[param.name];
     if (buffer) {
       const length = backingLength(value) / bytesPerElement(buffer.element);
-      if (!Number.isInteger(length)) throw Error('buffer length is not aligned to its element type');
+      if (!Number.isInteger(length)) throw invalidArg('buffer length is not aligned to its element type');
       const existing = lengths.get(buffer.length);
-      if (existing !== undefined && existing !== length) throw Error('buffer lengths disagree');
+      if (existing !== undefined && existing !== length) throw invalidArg('buffer lengths disagree');
       lengths.set(buffer.length, length);
     }
   }
