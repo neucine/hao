@@ -347,6 +347,15 @@ trace('root', () => setTimeout(() => {
   console.log(records[0].name, records[2].name, records[2].parent_span_id === records[0].span_id);
 }, 1));
 EOF
+cat > "$fixture_dir/telemetry-handles.ts" <<'EOF'
+import telemetry, { startTrace, startSpan } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+const root = startTrace('public-root');
+root.end();
+telemetry.startSpan('public-span').end('err');
+console.log(snapshotTraceRecordsNative().records.map(record => `${record.name}:${record.status}`).join(','));
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-handles.ts")" = 'public-root:unset,public-root:ok,public-span:unset,public-span:err'
 cat > "$fixture_dir/telemetry-disabled.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';

@@ -3,7 +3,10 @@ import telemetry, {
   gauge,
   histogram,
   metrics,
+  startTrace,
+  startSpan,
   type MetricSnapshot,
+  type TraceHandle,
 } from "std:telemetry";
 
 type IsExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
@@ -26,6 +29,10 @@ const snapshot = metrics();
 assertType<IsExact<(typeof snapshot)[number], MetricSnapshot>>();
 
 telemetry.counter({ scope: "pkg.default", name: "events" }).add();
+const root: TraceHandle = startTrace("root");
+root.end("ok");
+telemetry.startSpan("child").end();
+assertType<IsExact<ReturnType<typeof startSpan>, TraceHandle>>();
 
 // @ts-expect-error - metric scope is required
 counter({ name: "missing_scope" });
