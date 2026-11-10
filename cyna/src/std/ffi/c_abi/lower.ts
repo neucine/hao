@@ -35,13 +35,8 @@ export function ffiType(type: string, returning = false): string {
     return 'ptr';
   }
   const mapping: Record<string, string> = {
-    void: 'void', bool: 'bool', _Bool: 'bool', char: 'i8',
-    'unsigned char': 'u8', short: 'i16', 'short int': 'i16',
-    'unsigned short': 'u16', 'unsigned short int': 'u16',
-    int: 'i32', 'unsigned int': 'u32', unsigned: 'u32',
-    long: 'i64', 'long int': 'i64', 'unsigned long': 'u64',
-    'long long': 'i64', 'unsigned long long': 'u64',
-    size_t: 'u64', ssize_t: 'i64', float: 'f32', double: 'f64',
+    void: 'void', bool: 'bool', char: 'i8',
+    size_t: 'u64', float: 'f32', double: 'f64',
     int8_t: 'i8', int16_t: 'i16', int32_t: 'i32', int64_t: 'i64',
     uint8_t: 'u8', uint16_t: 'u16', uint32_t: 'u32', uint64_t: 'u64',
   };

@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'std:test'
 import { c } from 'std:ffi'
+import { prepareNative } from 'std:ffi/c/native'
 
 const { decl: cdecl } = c
 
@@ -9,6 +10,16 @@ describe('c basic', () => {
     try { cdecl('m', 'double sqrt(...);') } catch (caught) { error = caught }
     expect(error).toBeInstanceOf(RuntimeError)
     expect(error.code).toBe('invalid_arg')
+  })
+
+  test('rejects platform width integer names as legacy does', () => {
+    for (const type of ['int', 'short', 'long', 'unsigned int']) {
+      let error: any = null
+      try { prepareNative('m', `${type} sum(${type} a, ${type} b);`) }
+      catch (caught) { error = caught }
+      expect(error).toBeInstanceOf(RuntimeError)
+      expect(error.code).toBe('invalid_arg')
+    }
   })
 
   test('binds direct libm calls through std:ffi.c', () => {

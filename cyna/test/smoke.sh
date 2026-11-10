@@ -372,7 +372,7 @@ if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixtu
     exit 1
 fi
 ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
-test "$ffi_summary" = '5 passed, 0 failed, 0 skipped'
+test "$ffi_summary" = '6 passed, 0 failed, 0 skipped'
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)
 test "$error_summary" = '2 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/broken.test.ts" <<'EOF'
@@ -436,9 +436,9 @@ cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
 const path = getEnv('HAO_FFI_TEST_PATH');
-const library = cdecl('hao_search_fixture', `/* status # ignored */ int hao_search_value(void); // first call
-int hao_make_handle(void **out); int hao_fail_handle(void **out);
-int hao_fail_with_code(int code); const char *hao_error_message(int code);`, {
+const library = cdecl('hao_search_fixture', `/* status # ignored */ int32_t hao_search_value(void); // first call
+int32_t hao_make_handle(void **out); int32_t hao_fail_handle(void **out);
+int32_t hao_fail_with_code(int32_t code); const char *hao_error_message(int32_t code);`, {
   search: { strategy: 'relative-first', paths: [path] },
   functions: {
     hao_make_handle: { returns: { out: 'out' }, errors: { kind: 'status', ok: 0 } },
@@ -451,13 +451,13 @@ console.log(library.hao_make_handle());
 try { library.hao_fail_handle(); } catch (error) { console.log(error.message); }
 try { library.hao_fail_with_code(7); } catch (error) { console.log(error.message); }
 library.close();
-const fallback = cdecl('hao_search_fixture', 'int hao_search_value(void);', {
+const fallback = cdecl('hao_search_fixture', 'int32_t hao_search_value(void);', {
   search: { strategy: 'system-first', paths: [path] },
 });
 console.log(fallback.hao_search_value());
 fallback.close();
 const boxes = cdecl('hao_search_fixture',
-  'typedef struct HaoBox HaoBox; HaoBox *hao_box_open(void); int hao_box_value(HaoBox *box); void hao_box_close(HaoBox *box);', {
+  'typedef struct HaoBox HaoBox; HaoBox *hao_box_open(void); int32_t hao_box_value(HaoBox *box); void hao_box_close(HaoBox *box);', {
     search: { strategy: 'relative-first', paths: [path] },
     handles: { HaoBox: { close: 'hao_box_close' } },
     functions: { hao_box_open: { returns: { kind: 'handle', type: 'HaoBox' } } },
