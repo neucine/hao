@@ -2,16 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
-
-int hao_fs_within_limit(const unsigned char *path, size_t length, size_t limit) {
-    if (!path || length > PATH_MAX) return 0;
-    char buffer[PATH_MAX + 1];
-    memcpy(buffer, path, length);
-    buffer[length] = 0;
-    struct stat info;
-    return stat(buffer, &info) == 0 && info.st_size >= 0 && (uintmax_t)info.st_size <= limit;
-}
+#include "runtime_allocator.h"
 
 int hao_fs_read_limited(const unsigned char *path, size_t length, unsigned char *output, size_t capacity) {
     if (!path || !output || length > PATH_MAX || capacity > INT_MAX) return -1;
@@ -31,4 +22,43 @@ int hao_fs_read_limited(const unsigned char *path, size_t length, unsigned char 
 done:
     fclose(file);
     return result;
+}
+
+unsigned char *hao_fs_read_alloc_limited(const unsigned char *path, size_t length,
+                                         size_t limit) {
+    if (!path || length > PATH_MAX || memchr(path, 0, length)) return NULL;
+    char buffer[PATH_MAX + 1];
+    memcpy(buffer, path, length);
+    buffer[length] = 0;
+    FILE *file = fopen(buffer, "rb");
+    if (!file) return NULL;
+    unsigned char *storage = NULL;
+    if (fseek(file, 0, SEEK_END) != 0) goto done;
+    long size = ftell(file);
+    if (size < 0 || (uintmax_t)size > limit || (size_t)size > SIZE_MAX - sizeof(size_t)) goto done;
+    if (fseek(file, 0, SEEK_SET) != 0) goto done;
+    size_t content_size = (size_t)size;
+    storage = hao_alloc(sizeof(size_t) + content_size);
+    if (!storage) goto done;
+    memcpy(storage, &content_size, sizeof(size_t));
+    unsigned char *content = storage + sizeof(size_t);
+    if (fread(content, 1, content_size, file) != content_size ||
+        fgetc(file) != EOF || ferror(file)) {
+        hao_free(storage);
+        storage = NULL;
+        goto done;
+    }
+done:
+    fclose(file);
+    return storage ? storage + sizeof(size_t) : NULL;
+}
+
+size_t hao_fs_buffer_length(const unsigned char *buffer) {
+    size_t length = 0;
+    if (buffer) memcpy(&length, buffer - sizeof(size_t), sizeof(size_t));
+    return length;
+}
+
+void hao_fs_free_buffer(unsigned char *buffer) {
+    if (buffer) hao_free(buffer - sizeof(size_t));
 }

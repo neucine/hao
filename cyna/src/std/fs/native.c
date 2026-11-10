@@ -8,7 +8,8 @@
 #include <sys/stat.h>
 
 extern int hao_fs_exists(const unsigned char *path);
-extern int hao_fs_read_into(const unsigned char *path, unsigned char *output, size_t capacity);
+extern int hao_fs_read_limited(const unsigned char *path, size_t path_length,
+                               unsigned char *output, size_t capacity);
 extern int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);
 
 unsigned char hao_byte_at(const unsigned char *pointer, size_t index) {
@@ -45,7 +46,7 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
         JS_FreeCString(ctx, path);
         return JS_ThrowOutOfMemory(ctx);
     }
-    int length = hao_fs_read_into((const unsigned char *)path, buffer, capacity);
+    int length = hao_fs_read_limited((const unsigned char *)path, strlen(path), buffer, capacity);
     JS_FreeCString(ctx, path);
     if (length < 0) {
         hao_free(buffer);

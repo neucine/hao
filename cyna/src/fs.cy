@@ -1,16 +1,17 @@
-import { exists, read_file, read_bytes, write_bytes } from std.fs;
-import { copy_bytes, copy_output, text_from_c } from .c_bytes;
-import { within_limit } from .fs_limit;
+import { exists, write_bytes } from std.fs;
+import { copy_bytes, text_from_c } from .c_bytes;
+import { read_alloc_limited, buffer_length, free_buffer } from .fs_limit;
 
 pub fn read_file_limited(path: string, max_bytes: usize): ?string {
     const bytes = path.bytes();
-    if within_limit(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
-        max_bytes as c_size_t) == 0 {
-        return none;
+    if read_alloc_limited(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
+        max_bytes as c_size_t) is content {
+        defer free_buffer(content);
+        const length = buffer_length(content as! *const c_uchar);
+        const source = copy_bytes(content as! *const c_uchar, length as usize);
+        return string.from(source[..]);
     }
-    const source = read_file(path) catch (code) { return none; };
-    if source.len() > max_bytes { return none; }
-    return source;
+    return none;
 }
 
 export c("hao_fs_exists") fn fs_exists(path_pointer: *const c_uchar): c_int {
@@ -20,19 +21,6 @@ export c("hao_fs_exists") fn fs_exists(path_pointer: *const c_uchar): c_int {
         return 1;
     }
     return 0;
-}
-
-export c("hao_fs_read_into") fn fs_read_into(path_pointer: *const c_uchar, output: *c_uchar, capacity: c_size_t): c_int {
-    const path = text_from_c(path_pointer);
-    const content = read_bytes(path) catch (code) {
-        return -1;
-    };
-    if content.len() > capacity as usize {
-        return -1;
-    }
-    const view = content[..];
-    copy_output(output, view.ptr as! *const c_uchar, content.len() as c_size_t);
-    return content.len() as c_int;
 }
 
 export c("hao_fs_write") fn fs_write(path_pointer: *const c_uchar, data_pointer: *const c_uchar, length: c_size_t): c_int {

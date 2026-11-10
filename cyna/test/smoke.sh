@@ -158,6 +158,13 @@ printf "import fs from 'std:fs'; const path = '%s/data.txt'; console.log(fs.exis
 filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
 filesystem_expected=$(printf 'false\ntrue hello 5')
 test "$filesystem_actual" = "$filesystem_expected"
+python3 - "$fixture_dir/oversize-read.bin" <<'PY'
+import sys
+with open(sys.argv[1], 'wb') as output:
+    output.truncate(100 * 1024 * 1024 + 1)
+PY
+printf "import { readFileSync } from 'std:fs'; try { readFileSync('%s/oversize-read.bin'); } catch (error) { console.log(error.message); }\n" "$fixture_dir" > "$fixture_dir/filesystem-limit.ts"
+test "$("$runtime" "$fixture_dir/filesystem-limit.ts")" = 'failed to read file'
 
 printf "import { figure, plot, render, savefig } from 'std:plot'; import fs from 'std:fs'; figure({ title: 'Demo' }); plot([1, 2, 3]); console.log(render().includes('<svg')); savefig('%s/chart.svg'); console.log(fs.readFileSync('%s/chart.svg').includes('Demo'));\n" "$fixture_dir" "$fixture_dir" > "$fixture_dir/plot.ts"
 plot_actual=$("$runtime" "$fixture_dir/plot.ts")
