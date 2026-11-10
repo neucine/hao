@@ -36,6 +36,7 @@ export function parse(declarations: string, opts: any): Prepared {
     }
   }
   const functions: FunctionSpec[] = [];
+  const typeReferences: string[] = [];
   const opaqueTypes = new Set<string>();
   const pods: Record<string, PodSpec> = {};
   const podBodies: Record<string, string> = {};
@@ -75,14 +76,26 @@ export function parse(declarations: string, opts: any): Prepared {
       for (const rawParam of match[3].split(',')) {
         const param = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
         if (!param) throw invalidArg(`invalid C parameter: ${rawParam}`);
+        if (params.some(item => item.name === param[2])) throw invalidArg(`duplicate C parameter: ${param[2]}`);
         const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
         const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;
         params.push({ name: param[2], type: ffiType(param[1]), pod });
+        typeReferences.push(param[1]);
       }
     }
     functions.push({ name: match[2], params, returns: ffiType(match[1], true) });
+    typeReferences.push(match[1]);
   }
   if (!functions.length) throw invalidArg('cdecl requires at least one function');
+  const primitives = new Set(['void', 'bool', 'char', 'size_t', 'float', 'double',
+    'int8_t', 'int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t']);
+  for (const reference of typeReferences) {
+    const base = reference.replace(/^\s*const\s+/, '').replace(/\*\s*const\b/g, '*')
+      .replace(/\*/g, '').trim();
+    if (!primitives.has(base) && !opaqueTypes.has(base) && !(base in pods)) {
+      throw invalidArg(`unknown C type: ${base}`);
+    }
+  }
   for (const name of Object.keys(opts?.functions ?? {})) {
     if (!functions.some(item => item.name === name)) throw invalidArg(`unknown C function policy: ${name}`);
     const policy = opts.functions[name];

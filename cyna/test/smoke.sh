@@ -705,17 +705,25 @@ EOF
 test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-char-pointer.ts")" = "$(printf 'number constant\nnumber\nrejected\nrejected')"
 cat > "$fixture_dir/ffi-duplicate.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
+import { getEnv } from 'std:process';
+const path = getEnv('HAO_FFI_TEST_PATH');
 for (const declarations of [
   'double sqrt(double value); double sqrt(double value);',
   'typedef struct { double value; } HaoPoint; typedef struct { double value; } HaoPoint; double sqrt(double value);',
   'typedef struct HaoBox HaoBox; typedef struct HaoBox HaoBox; double sqrt(double value);',
   'typedef struct HaoBox HaoBox; typedef struct { double value; } HaoBox; double sqrt(double value);',
+  'double pow(double value, double value);',
+  'Missing *hao_box_open(void);',
 ]) {
-  try { cdecl('m', declarations); console.log('accepted'); }
+  try { cdecl(`${path}/libhao_search_fixture.dylib`, declarations); console.log('accepted'); }
   catch { console.log('rejected'); }
 }
+const forward = cdecl(`${path}/libhao_search_fixture.dylib`,
+  'HaoBox *hao_box_open(void); typedef struct HaoBox HaoBox;');
+console.log(typeof forward.hao_box_open());
+forward.close();
 EOF
-test "$("$runtime" "$fixture_dir/ffi-duplicate.ts")" = "$(printf 'rejected\nrejected\nrejected\nrejected')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-duplicate.ts")" = "$(printf 'rejected\nrejected\nrejected\nrejected\nrejected\nrejected\nnumber')"
 cat > "$fixture_dir/ffi-u64.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 import { getEnv } from 'std:process';
