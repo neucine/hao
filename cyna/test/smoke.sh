@@ -7,6 +7,14 @@ fixture_dir=$(mktemp -d)
 trap 'rm -rf "$fixture_dir"' EXIT HUP INT TERM
 test "$("$runtime" --version)" = 'hao 0.1.2'
 test "$("$runtime" -v)" = 'hao 0.1.2'
+python3 - "$runtime" <<'PY'
+import subprocess, sys
+for args in ([], ['jupyter', 'unknown']):
+    result = subprocess.run([sys.argv[1], *args], capture_output=True, text=True)
+    assert result.returncode == 2 and result.stdout == ''
+    assert result.stderr.startswith('Usage:\n  hao <file.ts|file.js>\n')
+    assert 'hao jupyter install\n' in result.stderr
+PY
 
 printf 'export const answer: number = 42;\n' > "$fixture_dir/value.ts"
 printf 'import { answer } from "./value.ts"; console.log("answer", answer); Promise.resolve().then(() => console.log("drained"));\n' > "$fixture_dir/main.ts"

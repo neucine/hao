@@ -7,6 +7,16 @@ import { load_dotenv } from .config;
 import { run as run_jupyter } from .jupyter;
 import { install as install_jupyter } from .jupyter_install;
 
+extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
+
+fn usage(): void {
+    const message = "Usage:\n  hao <file.ts|file.js>\n  hao test [--grep pattern] <file-or-dir>...\n  hao jupyter --connection-file <file>\n  hao jupyter install\n  hao --version\n";
+    const bytes = message.bytes();
+    if write_fd(2, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) < 0 {
+        return;
+    }
+}
+
 fn run_file(host: &const Runtime, path: string): i32 {
     const source = read_file(path.clone()) catch (code) {
         println("Unable to read script");
@@ -22,7 +32,7 @@ fn main(): i32 {
     }
     const arguments = args();
     if arguments.len() < 2 {
-        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>... | hao jupyter --connection-file <file>");
+        usage();
         return 2;
     }
     if arguments.len() == 2 and (arguments[1] == "--version" or arguments[1] == "-v") {
@@ -36,12 +46,12 @@ fn main(): i32 {
         if arguments.len() == 4 and arguments[2] == "--connection-file" {
             return run_jupyter(arguments[3].clone());
         }
-        println("Usage: hao jupyter install | hao jupyter --connection-file <file>");
+        usage();
         return 2;
     }
     const is_test = arguments[1] == "test";
     if not is_test and arguments.len() != 2 {
-        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>... | hao jupyter --connection-file <file>");
+        usage();
         return 2;
     }
     var test_files: List<string> = list<string>();
