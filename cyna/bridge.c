@@ -54,6 +54,8 @@ extern void hao_http_server_cleanup(JSContext *ctx);
 extern void hao_install_telemetry_globals(JSContext *ctx, JSValue global);
 extern void hao_install_ffi_globals(JSContext *ctx, JSValue global);
 extern void hao_ffi_cleanup(JSContext *ctx);
+extern JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
+extern void hao_addon_cleanup(JSContext *ctx);
 extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                                unsigned char *output, size_t capacity);
 void hao_runtime_free(uintptr_t handle);
@@ -120,8 +122,15 @@ static char *hao_normalize_module(JSContext *ctx, const char *base,
             return NULL;
         }
         size_t len = strlen(resolved);
+        const char *extension = strrchr(resolved, '.');
+        bool addon = extension && (!strcmp(extension, ".dylib") || !strcmp(extension, ".so") ||
+                                   !strcmp(extension, ".dll") || !strcmp(extension, ".node"));
+        if (addon) len += strlen(specifier) + 7;
         char *normalized = js_malloc(ctx, len + 1);
-        if (normalized) memcpy(normalized, resolved, len + 1);
+        if (normalized) {
+            if (addon) snprintf(normalized, len + 1, "addon:%s\n%s", specifier, resolved);
+            else memcpy(normalized, resolved, len + 1);
+        }
         free(resolved);
         return normalized;
     }
@@ -148,6 +157,7 @@ static char *hao_normalize_module(JSContext *ctx, const char *base,
 }
 
 static JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
+    if (strncmp(name, "addon:", 6) == 0) return hao_load_addon(ctx, name);
     HaoRuntime *host = opaque;
     HaoSourceModule *module = hao_find_module(host, name);
     if (module) {
@@ -499,6 +509,7 @@ void hao_runtime_free(uintptr_t handle) {
     HaoRuntime *host = (HaoRuntime *)handle;
     hao_http_server_cleanup(host->context);
     hao_ffi_cleanup(host->context);
+    hao_addon_cleanup(host->context);
     while (host->timers) {
         HaoTimer *timer = host->timers;
         hao_unlink_timer(host, timer);

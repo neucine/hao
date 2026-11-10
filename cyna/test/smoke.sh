@@ -14,6 +14,19 @@ test "$actual" = "$expected"
 relative_actual=$(cd "$fixture_dir" && "$runtime" main.ts)
 test "$relative_actual" = "$expected"
 
+mkdir -p "$fixture_dir/node_modules/foo"
+clang -dynamiclib -I "$repo_root/include" "$repo_root/examples/native-addon/native.c" -o "$fixture_dir/node_modules/foo/native.dylib"
+cat > "$fixture_dir/node_modules/foo/package.json" <<'EOF'
+{"type":"module","exports":{"./native":"./native.dylib","./extra":"./native.dylib"}}
+EOF
+cat > "$fixture_dir/addon.ts" <<'EOF'
+import native from 'foo:native';
+import extra from 'foo:extra';
+console.log(native.foo(), native.add(2, 3), native.pair('a', 'b').join(','), extra.label());
+EOF
+addon_actual=$("$runtime" "$fixture_dir/addon.ts")
+test "$addon_actual" = 'hao 5 a,b extra'
+
 printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name, namespace, runtime.name);\n' > "$fixture_dir/standard.ts"
 standard_actual=$("$runtime" "$fixture_dir/standard.ts")
 test "$standard_actual" = 'hao std: hao'

@@ -4,7 +4,7 @@ This is the Cyna implementation under development. It currently runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
 exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
 `std:plot`, `std:test`, `std:telemetry`, and `std:ffi`, and supports console output,
-timers, and QuickJS promise jobs. Native addons, the telemetry console,
+timers, QuickJS promise jobs, and native addon modules. The telemetry console
 and Jupyter integration still need to move from the Zig runtime.
 
 `src/runtime.cy` owns the event loop and module registry, `src/fs_host.cy` owns
@@ -16,6 +16,10 @@ between sizing and reading.
 `node_modules` directories, package `exports` and `main`, and the ESM entry
 extension policy. It limits parsed manifests to 256 KiB, disallows entries
 containing `..`, and reports unresolved packages through the QuickJS loader.
+Addon entries (`.dylib`, `.so`, `.dll`, `.node`) load through the stable ABI in
+`include/addon.h`; package specifiers select among modules registered by one
+library. The callback value and collection APIs work, while addon metric
+callbacks currently return failure.
 The Cyna host currently targets macOS arm64.
 
 `src/process_host.cy` uses Cyna's process library for `getEnv` and `run`.
@@ -60,8 +64,7 @@ remain to be ported.
 argument classes and typed array pointers. The C declaration wrapper supports
 direct function declarations and pointer plus length buffer policies. Calls
 are limited to eight arguments. Opaque struct handles, out parameters, POD
-structs, custom library search policies, and native addon loading remain to
-be ported.
+structs and custom library search policies remain to be ported.
 
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
