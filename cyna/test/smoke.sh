@@ -738,6 +738,11 @@ printf '{"type":"module","main":"./index.js"}\n' > "$fixture_dir/app/node_module
 printf 'export const scoped = 7;\n' > "$fixture_dir/app/node_modules/@scope/tool/index.js"
 printf 'import { value } from "demo"; import { extra } from "demo/extra"; import { scoped } from "@scope/tool"; console.log(value, extra, scoped);\n' > "$fixture_dir/app/packages.ts"
 test "$("$runtime" "$fixture_dir/app/packages.ts")" = '42 3 7'
+mkdir -p "$fixture_dir/app/node_modules/dotted"
+printf '{"exports":"./foo..bar.mjs"}\n' > "$fixture_dir/app/node_modules/dotted/package.json"
+printf 'export const dotted = 23;\n' > "$fixture_dir/app/node_modules/dotted/foo..bar.mjs"
+printf 'import { dotted } from "dotted"; console.log(dotted);\n' > "$fixture_dir/app/dotted.ts"
+test "$("$runtime" "$fixture_dir/app/dotted.ts")" = '23'
 mkdir -p "$fixture_dir/app/node_modules/colon/child"
 printf '{"exports":{"./native":"./wrong.mjs"}}\n' > "$fixture_dir/app/node_modules/colon/package.json"
 printf 'export const selected = "wrong";\n' > "$fixture_dir/app/node_modules/colon/wrong.mjs"

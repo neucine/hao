@@ -128,8 +128,24 @@ fn supported_entry(path: string, package_type: ?string): bool {
     return false;
 }
 
+fn has_parent_segment(path: string): bool {
+    const bytes = path.bytes();
+    var start: usize = 0;
+    var index: usize = 0;
+    while index <= bytes.len() {
+        if index == bytes.len() or bytes[index] == 47 {
+            if index - start == 2 and bytes[start] == 46 and bytes[start + 1] == 46 {
+                return true;
+            }
+            start = index + 1;
+        }
+        index = index + 1;
+    }
+    return false;
+}
+
 fn find_entry(root: string, entry: string, package_type: ?string): ?string {
-    if entry.len() == 0 or entry.starts_with("/") or entry.contains("..") {
+    if entry.len() == 0 or entry.starts_with("/") or has_parent_segment(entry) {
         return none;
     }
     var relative = entry.clone();
