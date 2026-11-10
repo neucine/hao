@@ -29,9 +29,10 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
 }
 
 export function ffiType(type: string, returning = false): string {
+  const constCharPointer = /\bconst\b/.test(type);
   const normalized = type.replace(/\b(const|volatile|restrict|signed)\b/g, '').replace(/\s+/g, ' ').trim();
   if (/\*/.test(normalized)) {
-    if (/\bchar\s*\*/.test(normalized)) return returning ? 'cstring' : 'cstring';
+    if (constCharPointer && /^char\s*\*$/.test(normalized)) return 'cstring';
     return 'ptr';
   }
   const mapping: Record<string, string> = {

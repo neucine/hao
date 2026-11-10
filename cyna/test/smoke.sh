@@ -641,6 +641,8 @@ cat > "$fixture_dir/ffi-search.c" <<'EOF'
 #include <string.h>
 int hao_search_value(void) { return 29; }
 char hao_char_255(void) { return (char)255; }
+char *hao_mutable_char_pointer(void) { static char value[] = "mutable"; return value; }
+const char *hao_const_char_pointer(void) { return "constant"; }
 uint64_t hao_high_bit(uint64_t value) { return value >> 63; }
 static char hao_long_text[1024 * 1024 + 18];
 const char *hao_long_string(void) {
@@ -673,6 +675,16 @@ console.log(library.hao_char_255());
 library.close();
 EOF
 test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-char.ts")" = '255'
+cat > "$fixture_dir/ffi-char-pointer.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+import { getEnv } from 'std:process';
+const path = getEnv('HAO_FFI_TEST_PATH');
+const library = cdecl(`${path}/libhao_search_fixture.dylib`,
+  'char *hao_mutable_char_pointer(void); const char *hao_const_char_pointer(void);');
+console.log(typeof library.hao_mutable_char_pointer(), library.hao_const_char_pointer());
+library.close();
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-char-pointer.ts")" = 'number constant'
 cat > "$fixture_dir/ffi-u64.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 import { getEnv } from 'std:process';
