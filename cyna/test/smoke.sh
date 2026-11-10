@@ -738,6 +738,10 @@ const cases: [string, any][] = [
     { functions: { hao_box_close: { buffers: { box: { length: 'missing', element: 'u8' } } } } }],
   ['int32_t hao_fail_with_code(int32_t code);',
     { functions: { hao_fail_with_code: { buffers: { code: { length: 'code', element: 'u8' } } } } }],
+  ['void hao_fill_bytes(uint8_t *data, size_t length);',
+    { functions: { hao_fill_bytes: { buffers: { data: { length: 'length', element: 'bad' } } } } }],
+  ['void hao_fill_bytes(uint8_t *data, size_t length);',
+    { functions: { hao_fill_bytes: { buffers: { data: { length: 'length', element: 'u8', direction: 'sideways' } } } } }],
 ];
 for (const [declarations, options] of cases) {
   try { const library = cdecl(path, declarations, options); library.close(); console.log('accepted'); }
@@ -751,7 +755,7 @@ valid.hao_fill_bytes(bytes);
 console.log(Array.from(bytes).join(','));
 valid.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-policy-validation.ts")" = "$(printf 'rejected\nrejected\nrejected\nrejected\n1,2,3')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-policy-validation.ts")" = "$(printf 'rejected\nrejected\nrejected\nrejected\nrejected\nrejected\n1,2,3')"
 cat > "$fixture_dir/ffi-u64.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 import { getEnv } from 'std:process';

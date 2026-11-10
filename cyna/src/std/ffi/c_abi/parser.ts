@@ -120,6 +120,10 @@ export function parse(declarations: string, opts: any): Prepared {
           rawLength?.replace(/^const\s+/, '') !== 'size_t') {
         throw invalidArg(`invalid C buffer policy: ${name}.${pointerName}`);
       }
+      if (!['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', 'f32', 'f64'].includes(buffer.element) ||
+          buffer.direction != null && !['in', 'out', 'inout'].includes(buffer.direction)) {
+        throw invalidArg(`invalid C buffer policy: ${name}.${pointerName}`);
+      }
     }
     const message = policy?.errors?.message;
     if (message != null && typeof message !== 'string') {
