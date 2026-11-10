@@ -22,6 +22,10 @@ class Handler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self):
+        if self.path == "/redirect-with-body":
+            self._send(302, b"redirect body", content_type="text/plain",
+                       extra_headers={"Location": "/json", "Content-Length": "13"})
+            return
         if self.path == "/download-redirect":
             self._send(302, b"", extra_headers={"Location": "/large"})
             return

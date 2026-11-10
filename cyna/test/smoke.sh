@@ -238,10 +238,12 @@ const binary = await get('http://127.0.0.1:$server_port/bytes');
 console.log(Array.from(binary.bytes()).join(','));
 const manual = await get('http://127.0.0.1:$server_port/download-redirect', { redirect: 'manual' });
 console.log(manual.status, manual.headers['Location']);
+const manualBody = await get('http://127.0.0.1:$server_port/redirect-with-body', { redirect: 'manual' });
+console.log(manualBody.status, manualBody.text());
 try { await get('http://127.0.0.1:$server_port/large', { maxBytes: 10 }); } catch (error) { console.log(error.message); }
 EOF
 http_actual=$("$runtime" "$fixture_dir/http.ts")
-http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\nhttp response exceeds maxBytes')
+http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\n302 redirect body\nhttp response exceeds maxBytes')
 test "$http_actual" = "$http_expected"
 cat > "$fixture_dir/http-native-body.ts" <<EOF
 import { requestNative } from 'std:http/native';

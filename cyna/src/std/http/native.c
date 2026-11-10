@@ -28,6 +28,7 @@ typedef struct {
     char status_text[128];
     int failed;
     int skip_body;
+    bool manual_redirect;
     FILE *download_file;
     EVP_MD_CTX *digest;
 } HaoHttpResponse;
@@ -136,7 +137,8 @@ static size_t receive_header(char *data, size_t size, size_t count, void *opaque
         char *space = memchr(data, ' ', length);
         if (space) {
             long status = strtol(space + 1, NULL, 10);
-            response->skip_body = (status >= 100 && status < 200) || (status >= 300 && status < 400);
+            response->skip_body = (status >= 100 && status < 200) ||
+                (!response->manual_redirect && status >= 300 && status < 400);
         }
         free_headers(response->headers);
         response->headers = NULL;
@@ -183,6 +185,7 @@ static void set_error(HaoHttpJob *job, const char *message) {
 static void perform_http(uv_work_t *work) {
     HaoHttpJob *job = work->data;
     HaoHttpResponse *response = &job->response;
+    response->manual_redirect = job->manual_redirect;
     CURL *curl = NULL;
     char *temporary_path = NULL;
     if (job->download_path) {
