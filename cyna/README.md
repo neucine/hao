@@ -1,11 +1,10 @@
 # Hao Cyna port
 
-This is the Cyna implementation under development. It currently runs JavaScript
+This is the Cyna implementation for Apple Silicon macOS. It runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
 exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
 `std:plot`, `std:test`, `std:telemetry`, and `std:ffi`, and supports console output,
-timers, QuickJS promise jobs, and native addon modules. Remaining Jupyter
-features still need to move from the Zig runtime.
+timers, QuickJS promise jobs, and native addon modules.
 The `jupyter --connection-file <file>` command uses the Cyna connection parser
 and kernel dispatcher. A native adapter binds the five ZeroMQ sockets, checks
 HMAC signatures, and exchanges bounded multipart messages. Basic TypeScript
@@ -14,8 +13,8 @@ under the user's Jupyter directory; `HAO_JUPYTER_KERNEL_DIR` overrides that path
 Notebook cells support `std:` and relative static imports. Objects with a
 `repr({ mode: "text" })` method can return text or `{ mime, data }`; nontext
 results are published as Jupyter `display_data`. Promise results are awaited,
-including timer delayed resolution and rejection. Broader rich display parity
-is still pending.
+including timer delayed resolution and rejection. Results contain one MIME
+representation; explicit display calls and multi-MIME bundles are not exposed.
 Silent notebook requests execute without publishing cell input, streams, or
 results and return a null execution count without advancing visible history.
 Visible requests with `store_history: false` publish their results without
@@ -90,7 +89,8 @@ lexicographic path order, matching the Zig runner.
 from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The runner prints elapsed time and
 skip categories; set `RUNTIME_TEST_REPORTER=ansi` for colored case labels.
-Further test isolation parity is pending. Test file load failures are counted
+Test files share one JavaScript context, so global state can cross file
+boundaries. Test file load failures are counted
 separately; registrations made before a file fails to load are discarded,
 successfully loaded files still run, and a load failure sets the command's
 exit status. The runner loads `std:test` before test files so its automatic
