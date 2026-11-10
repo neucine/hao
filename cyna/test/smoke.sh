@@ -837,6 +837,19 @@ mv "$fixture_dir/libhao_search_fixture.dylib" "$fixture_dir/libhao_search_fixtur
 test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
+mkdir -p "$fixture_dir/symlink-app" "$fixture_dir/symlink-target"
+printf "import { value } from './link.ts'; console.log(value);\n" > "$fixture_dir/symlink-app/main.ts"
+printf "import { value } from './local.ts'; export { value };\n" > "$fixture_dir/symlink-target/dep.ts"
+printf "export const value = 'app';\n" > "$fixture_dir/symlink-app/local.ts"
+printf "export const value = 'target';\n" > "$fixture_dir/symlink-target/local.ts"
+ln -s "$fixture_dir/symlink-target/dep.ts" "$fixture_dir/symlink-app/link.ts"
+test "$("$runtime" "$fixture_dir/symlink-app/main.ts")" = 'app'
+mkdir -p "$fixture_dir/symlink-app/node_modules/demo-symlink"
+printf '{"exports":"./link.ts"}\n' > "$fixture_dir/symlink-app/node_modules/demo-symlink/package.json"
+printf "export const value = 'package';\n" > "$fixture_dir/symlink-app/node_modules/demo-symlink/local.ts"
+ln -s "$fixture_dir/symlink-target/dep.ts" "$fixture_dir/symlink-app/node_modules/demo-symlink/link.ts"
+printf "import { value } from 'demo-symlink'; console.log(value);\n" > "$fixture_dir/symlink-app/package-main.ts"
+test "$("$runtime" "$fixture_dir/symlink-app/package-main.ts")" = 'package'
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
 printf 'export const value: number = 42;\n' > "$fixture_dir/app/node_modules/demo/index.ts"
 printf 'export const extra = 3;\n' > "$fixture_dir/app/node_modules/demo/extra.mjs"
