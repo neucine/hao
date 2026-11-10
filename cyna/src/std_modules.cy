@@ -15,13 +15,7 @@ fn install_one(runtime: &const Runtime, directory: string, name: string, filenam
     return runtime.register_source_module(name, source);
 }
 
-pub fn install(runtime: &const Runtime): i32 {
-    const executable = exe_path() catch (code) {
-        return 1;
-    };
-    const binary_directory = dirname(executable);
-    const parts: [2]string = [binary_directory, "modules"];
-    const module_directory = join(parts[..]);
+pub fn install_from(runtime: &const Runtime, module_directory: string): i32 {
     if install_one(runtime, module_directory, "std:runtime", "runtime.ts") != 0 {
         return 1;
     }
@@ -65,4 +59,13 @@ pub fn install(runtime: &const Runtime): i32 {
         return 1;
     }
     return install_one(runtime, module_directory, "std:test", "test.ts");
+}
+
+pub fn install(runtime: &const Runtime): i32 {
+    const executable = exe_path() catch (code) {
+        return 1;
+    };
+    const binary_directory = dirname(executable);
+    const parts: [2]string = [binary_directory, "modules"];
+    return install_from(runtime, join(parts[..]));
 }

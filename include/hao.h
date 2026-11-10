@@ -1,6 +1,31 @@
-#ifndef HAO_H
-#define HAO_H
+#ifndef HAO_EMBED_H
+#define HAO_EMBED_H
 
-#include "addon.h"
+#include <stddef.h>
+#include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* A runtime handle is owned by the caller and must be freed once. */
+typedef uintptr_t HaoRuntimeHandle;
+
+HaoRuntimeHandle hao_embed_new(void);
+void hao_embed_free(HaoRuntimeHandle runtime);
+
+/* Return zero on success. Source and names are copied before returning. */
+int hao_embed_eval(HaoRuntimeHandle runtime, const unsigned char *source,
+                   size_t source_len, const unsigned char *filename, size_t filename_len);
+int hao_embed_register_module(HaoRuntimeHandle runtime, const unsigned char *specifier,
+                              size_t specifier_len, const unsigned char *source, size_t source_len);
+int hao_embed_run_until_idle(HaoRuntimeHandle runtime);
+
+/* Install the standard modules from the directory shipped with Hao. */
+int hao_embed_install_std(HaoRuntimeHandle runtime, const unsigned char *directory,
+                          size_t directory_len);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -9,7 +9,7 @@ extern c("hao_runtime_test_failures") fn runtime_test_failures(handle: c_size_t)
 extern c("hao_runtime_set_executable") fn runtime_set_executable(handle: c_size_t, path: *const c_uchar, path_len: c_size_t): c_int;
 
 pub struct Runtime {
-    handle: c_size_t;
+    pub handle: c_size_t;
 
     pub fn init(): ?Runtime {
         const handle = runtime_new();

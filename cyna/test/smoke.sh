@@ -13,6 +13,14 @@ expected=$(printf 'answer 42\ndrained')
 test "$actual" = "$expected"
 relative_actual=$(cd "$fixture_dir" && "$runtime" main.ts)
 test "$relative_actual" = "$expected"
+cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
+clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
+    "$repo_root/cyna/embed/build/libhao-cyna-embed.a" \
+    -L "$cyna_dir/targets/aarch64-apple-darwin/lib" -lcyna_std -lcyna \
+    -L "$repo_root/zig-out/lib" -lquickjs -luv \
+    -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
+    -lcurl -lffi -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
+test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules")" = '42'
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
 if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then

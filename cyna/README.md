@@ -6,6 +6,8 @@ exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
 `std:plot`, `std:test`, `std:telemetry`, and `std:ffi`, and supports console output,
 timers, QuickJS promise jobs, and native addon modules. The telemetry console
 and Jupyter integration still need to move from the Zig runtime.
+The build also produces a Cyna runtime static library with the C API in
+`include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 
 `src/runtime.cy` owns the event loop and module registry, `src/fs_host.cy` owns
 file access, and `bridge.c` and `fs_bridge.c` adapt QuickJS values to the Cyna

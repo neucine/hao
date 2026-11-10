@@ -5,6 +5,7 @@ repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_root"
 zig build -Doptimize=ReleaseFast
 cyna build cyna
+cyna build cyna/embed
 mkdir -p cyna/build/modules
 cp src/std/runtime/index.ts cyna/build/modules/runtime.ts
 cp cyna/modules/fs.ts cyna/build/modules/fs.ts

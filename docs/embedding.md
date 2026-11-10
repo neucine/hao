@@ -1,5 +1,23 @@
 # Embedding Hao
 
+## Cyna Runtime C API
+
+The Cyna port builds `cyna/embed/build/libhao-cyna-embed.a` and exposes its C
+interface in `include/hao.h`. Create a runtime with `hao_embed_new`, register
+source modules with `hao_embed_register_module`, evaluate a module with
+`hao_embed_eval`, drain pending Promise and native work with
+`hao_embed_run_until_idle`, and release the handle with `hao_embed_free`.
+`hao_embed_install_std` installs the standard modules from the directory
+produced by `sh cyna/build.sh` (`cyna/build/modules`). An application that does
+not use `std:` modules can omit that call.
+
+The archive currently targets macOS arm64. Link it with the Cyna runtime and
+standard library archives, QuickJS, libuv, the Hao transpiler, libcurl, and
+libffi. The exact compiler and linker invocation used by the checked C
+consumer is in `cyna/test/smoke.sh`.
+
+## Zig Runtime Environment
+
 Hao exposes one environment from Zig. It owns the runtime, async loop, globals,
 module loader, package registry support, and optionally the built-in `std:`
 modules.
