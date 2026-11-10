@@ -19,6 +19,9 @@ pub fn install_from(runtime: &const Runtime, module_directory: string): i32 {
     if install_one(runtime, module_directory, "std:runtime", "runtime.ts") != 0 {
         return 1;
     }
+    if install_one(runtime, module_directory.clone(), "std:fs/native", "fs_native.ts") != 0 {
+        return 1;
+    }
     if install_one(runtime, module_directory, "std:fs", "fs.ts") != 0 {
         return 1;
     }

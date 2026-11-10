@@ -15,6 +15,7 @@ cyna build cyna/embed
 mkdir -p cyna/build/modules
 cp cyna/src/std/runtime/index.ts cyna/build/modules/runtime.ts
 cp cyna/src/std/fs/index.ts cyna/build/modules/fs.ts
+cp cyna/src/std/fs/native.ts cyna/build/modules/fs_native.ts
 cp cyna/src/std/process/index.ts cyna/build/modules/process.ts
 cp cyna/src/std/plot/index.ts cyna/build/modules/plot.ts
 cp cyna/src/std/util/index.ts cyna/build/modules/util.ts

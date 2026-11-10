@@ -1,11 +1,17 @@
 import { describe, test, expect } from 'std:test'
 import { existsSync, readFileSync, statSync, writeFileSync } from 'std:fs'
+import * as native from 'std:fs/native'
 
 describe('fs read-file', () => {
   test('readFileSync reads the current file', () => {
     const content = readFileSync('test/e2e/fs/read-file.test.ts')
     expect(content).toContain("import { existsSync, readFileSync, statSync, writeFileSync } from 'std:fs'")
     expect(content).toContain("describe('fs read-file'")
+  })
+
+  test('native filesystem module is importable', () => {
+    expect(native.existsSync('test/e2e/fs/read-file.test.ts')).toBe(true)
+    expect(native.statSync('test/e2e/fs/read-file.test.ts').size > 0).toBe(true)
   })
 
   test('writeFileSync creates files and statSync reports size', () => {

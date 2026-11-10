@@ -1,6 +1,8 @@
-export const existsSync = globalThis.__hao_fs_existsSync;
-export const readFileSync = globalThis.__hao_fs_readFileSync;
-export const writeFileSync = globalThis.__hao_fs_writeFileSync;
-export const statSync = globalThis.__hao_fs_statSync;
+import * as native from "std:fs/native";
+
+export const existsSync = native.existsSync;
+export const readFileSync = native.readFileSync;
+export const writeFileSync = native.writeFileSync;
+export const statSync = native.statSync;
 
 export default { existsSync, readFileSync, writeFileSync, statSync };
