@@ -27,3 +27,30 @@ pub fn collect(path: string, files: &List<string>): i32 {
     }
     return 0;
 }
+
+fn path_less(left: &const string, right: &const string): bool {
+    const a = left.bytes();
+    const b = right.bytes();
+    var index: usize = 0;
+    while index < a.len() and index < b.len() {
+        if a[index] != b[index] {
+            return a[index] < b[index];
+        }
+        index = index + 1;
+    }
+    return a.len() < b.len();
+}
+
+pub fn sort(files: &List<string>): void {
+    var index: usize = 1;
+    while index < files.len() {
+        var cursor = index;
+        while cursor > 0 and path_less(&files[cursor], &files[cursor - 1]) {
+            const previous = files[cursor - 1].clone();
+            files[cursor - 1] = files[cursor].clone();
+            files[cursor] = previous;
+            cursor = cursor - 1;
+        }
+        index = index + 1;
+    }
+}

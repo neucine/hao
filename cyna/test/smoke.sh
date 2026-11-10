@@ -208,6 +208,17 @@ import { test, expect } from 'std:test';
 test('explicit file', () => expect(2 + 2).toBe(4));
 EOF
 test "$("$runtime" test "$fixture_dir/explicit.ts" | tail -1)" = '1 passed, 0 failed, 0 skipped'
+cat > "$fixture_dir/z-order.test.ts" <<'EOF'
+import { test } from 'std:test';
+test('z order', () => {});
+EOF
+cat > "$fixture_dir/a-order.test.ts" <<'EOF'
+import { test } from 'std:test';
+test('a order', () => {});
+EOF
+order_actual=$("$runtime" test "$fixture_dir/z-order.test.ts" "$fixture_dir/a-order.test.ts" | sed -n '/^PASS /p')
+order_expected=$(printf 'PASS a order\nPASS z order')
+test "$order_actual" = "$order_expected"
 python3 - "$runtime" "$repo_root/test/e2e/runtime/hello.test.ts" <<'PY'
 import os, subprocess, sys
 result = subprocess.run([sys.argv[1], 'test', sys.argv[2]], env=dict(os.environ, RUNTIME_TEST_REPORTER='ansi'),

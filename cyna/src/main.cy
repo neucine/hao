@@ -2,7 +2,7 @@ import { args, exe_path } from std.process;
 import { read_file } from std.fs;
 import { Runtime } from .runtime;
 import { install } from .std_modules;
-import { collect } from .test_files;
+import { collect, sort } from .test_files;
 import { load_dotenv } from .config;
 import { run as run_jupyter } from .jupyter;
 import { install as install_jupyter } from .jupyter_install;
@@ -78,6 +78,7 @@ fn main(): i32 {
             println("No test files found");
             return 1;
         }
+        sort(&test_files);
     }
     const runtime = Runtime.init();
     if runtime is host {
