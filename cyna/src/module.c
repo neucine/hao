@@ -1,4 +1,5 @@
 #include "runtime_host.h"
+#include "runtime_allocator.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,14 +23,14 @@ int hao_runtime_register(uintptr_t handle, const char *name, size_t name_len,
                          const char *source, size_t source_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
     if (name_len == SIZE_MAX || source_len == SIZE_MAX) return 1;
-    HaoSourceModule *module = calloc(1, sizeof(*module));
+    HaoSourceModule *module = hao_calloc(1, sizeof(*module));
     if (!module) return 1;
-    module->name = malloc(name_len + 1);
-    module->source = malloc(source_len + 1);
+    module->name = hao_alloc(name_len + 1);
+    module->source = hao_alloc(source_len + 1);
     if (!module->name || !module->source) {
-        free(module->name);
-        free(module->source);
-        free(module);
+        hao_free(module->name);
+        hao_free(module->source);
+        hao_free(module);
         return 1;
     }
     memcpy(module->name, name, name_len);
@@ -38,9 +39,9 @@ int hao_runtime_register(uintptr_t handle, const char *name, size_t name_len,
     module->source[source_len] = 0;
     module->source_len = source_len;
     if (hao_find_module(host, module->name)) {
-        free(module->name);
-        free(module->source);
-        free(module);
+        hao_free(module->name);
+        hao_free(module->source);
+        hao_free(module);
         return 1;
     }
     module->next = host->modules;
@@ -88,14 +89,14 @@ char *hao_normalize_module(JSContext *ctx, const char *base,
     const char *slash = strrchr(base, '/');
     size_t dir_len = slash ? (size_t)(slash - base) : 1;
     size_t spec_len = strlen(specifier);
-    char *joined = malloc(dir_len + spec_len + 3);
+    char *joined = hao_alloc(dir_len + spec_len + 3);
     if (!joined) return NULL;
     if (slash) memcpy(joined, base, dir_len);
     else joined[0] = '.';
     joined[dir_len] = '/';
     memcpy(joined + dir_len + 1, specifier, spec_len + 1);
     char *resolved = realpath(joined, NULL);
-    free(joined);
+    hao_free(joined);
     if (!resolved) {
         JS_ThrowReferenceError(ctx, "Module not found: %s", specifier);
         return NULL;
@@ -113,12 +114,12 @@ JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
     HaoSourceModule *module = hao_find_module(host, name);
     if (module) {
         size_t name_len = strlen(name);
-        char *typescript_path = malloc(name_len + 4);
+        char *typescript_path = hao_alloc(name_len + 4);
         if (!typescript_path) return NULL;
         memcpy(typescript_path, name, name_len);
         memcpy(typescript_path + name_len, ".ts", 4);
         char *transformed = hao_transpile_types_for_path(module->source, typescript_path);
-        free(typescript_path);
+        hao_free(typescript_path);
         if (!transformed) {
             char *error = hao_transpiler_last_error();
             JS_ThrowSyntaxError(ctx, "%s", error ? error : "Module transpilation failed");
@@ -147,7 +148,7 @@ JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
         fclose(file);
         return NULL;
     }
-    char *source = malloc((size_t)size + 1);
+    char *source = hao_alloc((size_t)size + 1);
     if (!source) {
         fclose(file);
         return NULL;
@@ -155,12 +156,12 @@ JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
     size_t read_count = fread(source, 1, (size_t)size, file);
     fclose(file);
     if (read_count != (size_t)size) {
-        free(source);
+        hao_free(source);
         return NULL;
     }
     source[size] = 0;
     char *transformed = hao_transpile_types_for_path(source, name);
-    free(source);
+    hao_free(source);
     if (!transformed) {
         char *error = hao_transpiler_last_error();
         JS_ThrowSyntaxError(ctx, "%s", error ? error : "Module transpilation failed");
@@ -180,9 +181,9 @@ void hao_module_cleanup(HaoRuntime *host) {
     HaoSourceModule *module = host->modules;
     while (module) {
         HaoSourceModule *next = module->next;
-        free(module->name);
-        free(module->source);
-        free(module);
+        hao_free(module->name);
+        hao_free(module->source);
+        hao_free(module);
         module = next;
     }
 }
