@@ -5,6 +5,7 @@ import { install } from .std_modules;
 import { collect } from .test_files;
 import { load_dotenv } from .config;
 import { run as run_jupyter } from .jupyter;
+import { install as install_jupyter } from .jupyter_install;
 
 fn run_file(host: &const Runtime, path: string): i32 {
     const source = read_file(path.clone()) catch (code) {
@@ -29,10 +30,13 @@ fn main(): i32 {
         return 0;
     }
     if arguments[1] == "jupyter" {
+        if arguments.len() == 3 and arguments[2] == "install" {
+            return install_jupyter();
+        }
         if arguments.len() == 4 and arguments[2] == "--connection-file" {
             return run_jupyter(arguments[3].clone());
         }
-        println("Usage: hao jupyter --connection-file <file>");
+        println("Usage: hao jupyter install | hao jupyter --connection-file <file>");
         return 2;
     }
     const is_test = arguments[1] == "test";

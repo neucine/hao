@@ -9,8 +9,9 @@ and remaining Jupyter features still need to move from the Zig runtime.
 The `jupyter --connection-file <file>` command uses the Cyna connection parser
 and kernel dispatcher. A native adapter binds the five ZeroMQ sockets, checks
 HMAC signatures, and exchanges bounded multipart messages. Basic TypeScript
-cells share a persistent QuickJS context; notebook import handling, rich values,
-and kernel installation are still pending.
+cells share a persistent QuickJS context. `jupyter install` writes a kernelspec
+under the user's Jupyter directory; `HAO_JUPYTER_KERNEL_DIR` overrides that path.
+Notebook import handling and rich values are still pending.
 The build also produces a Cyna runtime static library with the C API in
 `include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
 

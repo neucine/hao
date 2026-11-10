@@ -28,6 +28,14 @@ test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'
 clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_kernel_test.c" \
     -L /opt/homebrew/lib -lzmq -o "$fixture_dir/jupyter-kernel-test"
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime")" = 'kernel ok'
+HAO_JUPYTER_KERNEL_DIR="$fixture_dir/kernels/hao" "$runtime" jupyter install > "$fixture_dir/kernelspec-output"
+python3 - "$fixture_dir/kernels/hao/kernel.json" "$runtime" <<'PY'
+import json, sys
+with open(sys.argv[1]) as source:
+    spec = json.load(source)
+assert spec['argv'] == [sys.argv[2], 'jupyter', '--connection-file', '{connection_file}']
+assert spec['display_name'] == 'Hao (TypeScript)'
+PY
 cat > "$fixture_dir/jupyter-connection.json" <<'EOF'
 {"shell_port":57503,"control_port":57504,"iopub_port":57505,"stdin_port":57506,"hb_port":57507}
 EOF
