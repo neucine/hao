@@ -24,8 +24,10 @@ records. Do not use the current trace output as a complete distributed trace.
 Set `RUNTIME_TELEMETRY_CONSOLE=1` to start the in-process console on loopback.
 `RUNTIME_TELEMETRY_CONSOLE_PORT` chooses its port; zero selects an available
 port. The console serves the dashboard, health, metric, and trace endpoints.
-The trace endpoint returns up to 512 retained start and end records with
-sequence cursors and a `missed` flag when history has been overwritten.
+The trace buffer retains 4096 start and end records by default. Set
+`RUNTIME_TELEMETRY_TRACE_RECORDS` to a positive capacity up to 1048576 to
+change it at startup. The trace endpoint uses sequence cursors and a `missed`
+flag when history has been overwritten.
 
 Metrics include QuickJS memory gauges and process resident and physical
 footprint gauges, including their observed peaks. On macOS, allocator gauges

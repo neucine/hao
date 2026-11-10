@@ -337,7 +337,12 @@ for (let i = 0; i < 260; i++) trace(`span-${i}`, () => {});
 const page = snapshotTraceRecordsNative(1, 3);
 console.log(page.missed, page.records.length, page.records[0].sequence, page.next_cursor);
 EOF
-test "$("$runtime" "$fixture_dir/telemetry-ring.ts")" = 'true 3 9 11'
+test "$("$runtime" "$fixture_dir/telemetry-ring.ts")" = 'false 3 2 4'
+test "$(RUNTIME_TELEMETRY_TRACE_RECORDS=8 "$runtime" "$fixture_dir/telemetry-ring.ts")" = 'true 3 513 515'
+if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/trace-config.stdout" 2> "$fixture_dir/trace-config.stderr"; then
+    echo 'expected zero trace capacity to fail' >&2
+    exit 1
+fi
 ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
 test "$ffi_summary" = '4 passed, 0 failed, 0 skipped'
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)

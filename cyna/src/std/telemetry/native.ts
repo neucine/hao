@@ -6,6 +6,7 @@ export type MetricSnapshot = {
 };
 
 declare global {
+  var __hao_trace_capacity: number;
   var __hao_telemetry_register: (definition: MetricDefinition) => number;
   var __hao_telemetry_add: (id: number, delta: number) => void;
   var __hao_telemetry_set: (id: number, value: number) => void;
@@ -42,6 +43,7 @@ type TraceRecord = { sequence: number; kind: 'span_start' | 'span_end'; timestam
 const spans = new Map<number, Span>();
 const spanTraceIds = new Map<number, number>();
 const records: TraceRecord[] = [];
+const traceCapacity = globalThis.__hao_trace_capacity;
 const scopes = new Map<number, number | null>();
 let nextSpanId = 1;
 let nextSequence = 1;
@@ -62,7 +64,7 @@ function recordSpan(span: Span, kind: 'span_start' | 'span_end', status = 'unset
   records.push({ sequence: nextSequence++, kind, timestamp_ns: Date.now() * 1000000,
     trace_id: hex(span.traceId, 32), span_id: hex(span.id, 16), parent_span_id: hex(span.parent, 16),
     name: span.name, status, attributes: {} });
-  if (records.length > 512) records.shift();
+  if (records.length > traceCapacity) records.shift();
 }
 export function snapshotTraceRecordsNative(since = 0, limit = 100) {
   if (!Number.isSafeInteger(since) || since < 0 || !Number.isSafeInteger(limit) || limit < 1) {
@@ -71,7 +73,7 @@ export function snapshotTraceRecordsNative(since = 0, limit = 100) {
   const latest = nextSequence - 1;
   if (!records.length || since >= latest) return { next_cursor: latest, missed: false, records: [] };
   const missed = since + 1 < records[0].sequence;
-  const selected = records.filter(record => record.sequence > since).slice(0, Math.min(limit, 512));
+  const selected = records.filter(record => record.sequence > since).slice(0, Math.min(limit, traceCapacity));
   return { next_cursor: selected.length ? selected[selected.length - 1].sequence : since,
     missed, records: selected.map(record => ({ ...record })) };
 }

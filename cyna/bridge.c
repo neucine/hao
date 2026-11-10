@@ -129,10 +129,13 @@ size_t hao_embed_last_error(uintptr_t handle, unsigned char *output, size_t capa
 
 uintptr_t hao_runtime_new(void) {
     size_t stack_size = 8 * 1024 * 1024, gc_threshold = 0, thread_pool_size = 0;
-    bool stack_present = false, gc_present = false, pool_present = false;
+    size_t trace_records = 4096;
+    bool stack_present = false, gc_present = false, pool_present = false, trace_present = false;
     if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &stack_size, &stack_present) ||
         !positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &gc_threshold, &gc_present) ||
-        !positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &thread_pool_size, &pool_present)) {
+        !positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &thread_pool_size, &pool_present) ||
+        !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &trace_records, &trace_present) ||
+        trace_records > 1048576) {
         fprintf(stderr, "Invalid Hao runtime size setting\n");
         return 0;
     }
@@ -168,6 +171,7 @@ uintptr_t hao_runtime_new(void) {
     JS_SetContextOpaque(host->context, host);
     JS_SetModuleLoaderFunc(host->runtime, hao_normalize_module, hao_load_module, host);
     JSValue global = JS_GetGlobalObject(host->context);
+    JS_SetPropertyStr(host->context, global, "__hao_trace_capacity", JS_NewUint32(host->context, (uint32_t)trace_records));
     hao_install_fs_globals(host->context, global);
     hao_install_process_globals(host->context, global);
     hao_install_http_globals(host->context, global);
