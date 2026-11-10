@@ -88,6 +88,7 @@ fn main(): i32 {
             return 1;
         }
         if is_test {
+            if host.eval("import 'std:test';", "<hao-test-setup>") != 0 { return 1; }
             var files_loaded: usize = 0;
             var file_failures: usize = 0;
             const files_total = test_files.len();

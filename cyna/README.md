@@ -86,7 +86,8 @@ skip categories; set `RUNTIME_TEST_REPORTER=ansi` for colored case labels.
 Further test isolation parity is pending. Test file load failures are counted
 separately; registrations made before a file fails to load are discarded,
 successfully loaded files still run, and a load failure sets the command's
-exit status.
+exit status. The runner loads `std:test` before test files so its automatic
+mock cleanup hook survives a failed file import.
 
 `std:telemetry` retains Hao's metric and trace APIs. Metric registration lives
 in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use

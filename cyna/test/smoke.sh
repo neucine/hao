@@ -351,15 +351,17 @@ describe('partially loaded', () => {
 throw new Error('load failed');
 EOF
 cat > "$fixture_dir/after-broken.test.ts" <<'EOF'
-import { test, expect } from 'std:test';
-test('still runs', () => expect(3).toBe(3));
+import { test, expect, replaceProperty } from 'std:test';
+const target = { value: 3 };
+test('still runs', () => { replaceProperty(target, 'value', 9); expect(target.value).toBe(9); });
+test('cleanup hook still runs', () => expect(target.value).toBe(3));
 EOF
 if load_result=$("$runtime" test "$fixture_dir/broken.test.ts" "$fixture_dir/after-broken.test.ts" 2>&1); then
     echo 'expected a failed test file to return failure' >&2
     exit 1
 fi
 case "$load_result" in
-    *'Test Files: 1 loaded, 1 failed, 2 total'*'1 passed, 0 failed, 0 skipped'*) ;;
+    *'Test Files: 1 loaded, 1 failed, 2 total'*'2 passed, 0 failed, 0 skipped'*) ;;
     *) echo "$load_result" >&2; exit 1 ;;
 esac
 cat > "$fixture_dir/ffi-mixed.ts" <<'EOF'
