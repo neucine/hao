@@ -210,6 +210,13 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(runtime);
     b.installArtifact(exe);
 
+    const cyna_deps = b.step("cyna-deps", "Build libraries needed by the Cyna runtime");
+    const install_cyna_uv = b.addInstallArtifact(libuv, .{});
+    const install_cyna_quickjs = b.addInstallArtifact(quickjs, .{});
+    cyna_deps.dependOn(&install_cyna_uv.step);
+    cyna_deps.dependOn(&install_cyna_quickjs.step);
+    cyna_deps.dependOn(&build_transpiler.step);
+
     const tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/hao.zig"),

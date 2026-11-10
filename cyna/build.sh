@@ -3,7 +3,7 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_root"
-zig build -Doptimize=ReleaseFast
+zig build cyna-deps -Doptimize=ReleaseFast
 cyna build cyna
 cyna build cyna/embed
 mkdir -p cyna/build/modules
