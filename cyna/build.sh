@@ -13,5 +13,7 @@ cp src/std/plot/index.ts cyna/build/modules/plot.ts
 cp cyna/modules/util.ts cyna/build/modules/util.ts
 cp cyna/modules/http.ts cyna/build/modules/http.ts
 cp cyna/modules/http_server.ts cyna/build/modules/http_server.ts
+cp src/std/telemetry/index.ts cyna/build/modules/telemetry.ts
+cp cyna/modules/telemetry_native.ts cyna/build/modules/telemetry_native.ts
 cp cyna/modules/test_native.ts cyna/build/modules/test_native.ts
 cp src/std/test/index.ts cyna/build/modules/test.ts

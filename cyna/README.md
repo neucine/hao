@@ -2,9 +2,10 @@
 
 This is the Cyna implementation under development. It currently runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
-exposes `std:runtime`, `std:fs`, `std:process`, `std:plot`, and `std:util`, and supports
-`console.log`, timers, and QuickJS promise jobs. Native addons, libuv I/O beyond
-timers, and the remaining `std:` modules still need to move from the Zig runtime.
+exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
+`std:plot`, `std:test`, and `std:telemetry`, and supports console output,
+timers, and QuickJS promise jobs. Native addons, FFI, the telemetry console,
+and Jupyter integration still need to move from the Zig runtime.
 
 `src/runtime.cy` owns the event loop and module registry, `src/fs_host.cy` owns
 file access, and `bridge.c` and `fs_bridge.c` adapt QuickJS values to the Cyna
@@ -47,6 +48,13 @@ supports async tests and hooks, skip and only modes, and a failing exit status.
 from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The original runner's reporting and
 isolation behavior remain to be ported.
+
+`std:telemetry` retains Hao's metric and trace APIs. Metric registration and
+bounded trace records live in its standard module. QuickJS memory gauges use
+`JS_ComputeMemoryUsage`; `allocator_active_bytes` and `allocator_peak_bytes`
+use the macOS malloc zone totals rather than the Zig runtime allocator. Trace
+context integration with timers and HTTP workers, plus the telemetry console,
+remain to be ported.
 
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust

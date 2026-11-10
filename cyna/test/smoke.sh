@@ -134,6 +134,8 @@ test('captures a child file', async () => {
 EOF
 capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" | tail -1)
 test "$capture_summary" = '2 passed, 0 failed, 0 skipped'
+telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" | tail -1)
+test "$telemetry_summary" = '4 passed, 0 failed, 0 skipped'
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

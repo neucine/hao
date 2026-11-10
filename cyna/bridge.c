@@ -51,6 +51,7 @@ extern void hao_install_process_globals(JSContext *ctx, JSValue global);
 extern void hao_install_http_globals(JSContext *ctx, JSValue global);
 extern void hao_install_http_server_globals(JSContext *ctx, JSValue global);
 extern void hao_http_server_cleanup(JSContext *ctx);
+extern void hao_install_telemetry_globals(JSContext *ctx, JSValue global);
 extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                                unsigned char *output, size_t capacity);
 
@@ -471,6 +472,7 @@ uintptr_t hao_runtime_new(void) {
     hao_install_process_globals(host->context, global);
     hao_install_http_globals(host->context, global);
     hao_install_http_server_globals(host->context, global);
+    hao_install_telemetry_globals(host->context, global);
     JS_FreeValue(host->context, global);
     return (uintptr_t)host;
 }
