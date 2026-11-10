@@ -4,8 +4,8 @@ This is the Cyna implementation under development. It currently runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
 exposes `std:runtime`, `std:fs`, `std:process`, `std:http`, `std:util`,
 `std:plot`, `std:test`, `std:telemetry`, and `std:ffi`, and supports console output,
-timers, QuickJS promise jobs, and native addon modules. The telemetry console
-and remaining Jupyter features still need to move from the Zig runtime.
+timers, QuickJS promise jobs, and native addon modules. Remaining Jupyter
+features still need to move from the Zig runtime.
 The `jupyter --connection-file <file>` command uses the Cyna connection parser
 and kernel dispatcher. A native adapter binds the five ZeroMQ sockets, checks
 HMAC signatures, and exchanges bounded multipart messages. Basic TypeScript
@@ -78,8 +78,13 @@ isolation behavior remain to be ported.
 in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use
 `JS_ComputeMemoryUsage`; `allocator_active_bytes` and `allocator_peak_bytes`
 use the macOS malloc zone totals rather than the Zig runtime allocator. Trace
-context integration with HTTP workers and the telemetry console remain to be
-ported. `setTimeout` callbacks retain the trace parent active when scheduled.
+context integration with HTTP workers remains to be ported. `setTimeout`
+callbacks retain the trace parent active when scheduled. Set
+`RUNTIME_TELEMETRY_CONSOLE=1` to start an in-process console on loopback;
+`RUNTIME_TELEMETRY_CONSOLE_PORT` selects the port and defaults to an available
+port. The console serves Hao's dashboard, health, metrics, and trace endpoints.
+The Cyna trace endpoint currently reports one record per span, so its history
+is less detailed than the Zig trace stream.
 
 `std:ffi` binds typed dynamic symbols through libffi, including mixed numeric
 argument classes and typed array pointers. The C declaration wrapper supports

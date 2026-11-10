@@ -255,6 +255,35 @@ capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" | tail -1)
 test "$capture_summary" = '2 passed, 0 failed, 0 skipped'
 telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" | tail -1)
 test "$telemetry_summary" = '4 passed, 0 failed, 0 skipped'
+cat > "$fixture_dir/telemetry-console.ts" <<'EOF'
+import { counter, trace } from 'std:telemetry';
+counter({ scope: 'fixture', name: 'requests' }).add(3);
+trace('fixture-trace', () => {});
+setTimeout(() => {}, 1500);
+EOF
+python3 - "$runtime" "$fixture_dir/telemetry-console.ts" <<'PY'
+import json, os, re, subprocess, sys, urllib.request
+env = dict(os.environ, RUNTIME_TELEMETRY_CONSOLE='1', RUNTIME_TELEMETRY_CONSOLE_PORT='0')
+process = subprocess.Popen([sys.argv[1], sys.argv[2]], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+try:
+    line = process.stderr.readline()
+    match = re.search(r'http://127\.0\.0\.1:(\d+)/', line)
+    assert match, line
+    base = 'http://127.0.0.1:' + match.group(1)
+    def get(path):
+        with urllib.request.urlopen(base + path, timeout=2) as response:
+            return response.read().decode()
+    assert json.loads(get('/api/health')) == {'ok': True}
+    assert any(metric['scope'] == 'fixture' and metric['value'] == 3 for metric in json.loads(get('/api/metrics')))
+    traces = json.loads(get('/api/traces?since=0&limit=10'))
+    assert any(record['name'] == 'fixture-trace' for record in traces['records'])
+    assert '<title>Hao Telemetry</title>' in get('/')
+    assert process.wait(timeout=5) == 0
+finally:
+    if process.poll() is None:
+        process.terminate()
+        process.wait(timeout=5)
+PY
 cat > "$fixture_dir/telemetry-timer.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTracesNative } from 'std:telemetry/native';

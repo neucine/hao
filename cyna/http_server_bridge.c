@@ -249,6 +249,15 @@ static JSValue stop_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     }
     return JS_UNDEFINED;
 }
+static JSValue unref_native(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    int64_t id = 0;
+    if (!argc || JS_ToInt64(ctx, &id, argv[0]) < 0) return JS_ThrowTypeError(ctx, "HTTP server id required");
+    HaoServer *server = find_server(id);
+    if (!server || server->ctx != ctx || server->closing) return JS_ThrowTypeError(ctx, "invalid HTTP server id");
+    uv_unref((uv_handle_t *)&server->listener);
+    return JS_UNDEFINED;
+}
 static JSValue pause_native(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     int64_t id = 0;
@@ -323,6 +332,7 @@ static JSValue decode_native(JSContext *ctx, JSValueConst this_val, int argc, JS
 }
 void hao_install_http_server_globals(JSContext *ctx, JSValue global) {
     JS_SetPropertyStr(ctx, global, "__hao_http_serveNative", JS_NewCFunction(ctx, serve_native, "serveNative", 2));
+    JS_SetPropertyStr(ctx, global, "__hao_http_unrefServerNative", JS_NewCFunction(ctx, unref_native, "unrefServerNative", 1));
     JS_SetPropertyStr(ctx, global, "__hao_http_stopServerNative", JS_NewCFunction(ctx, stop_native, "stopServerNative", 1));
     JS_SetPropertyStr(ctx, global, "__hao_http_pauseClientNative", JS_NewCFunction(ctx, pause_native, "pauseClientNative", 1));
     JS_SetPropertyStr(ctx, global, "__hao_http_respondNative", JS_NewCFunction(ctx, respond_native, "respondNative", 2));

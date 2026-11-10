@@ -40,6 +40,12 @@ pub fn install_from(runtime: &const Runtime, module_directory: string): i32 {
     if install_one(runtime, module_directory.clone(), "std:telemetry/native", "telemetry_native.ts") != 0 {
         return 1;
     }
+    if install_one(runtime, module_directory.clone(), "std:telemetry/dashboard", "telemetry_dashboard.ts") != 0 {
+        return 1;
+    }
+    if install_one(runtime, module_directory.clone(), "std:telemetry/console", "telemetry_console.ts") != 0 {
+        return 1;
+    }
     if install_one(runtime, module_directory.clone(), "std:telemetry", "telemetry.ts") != 0 {
         return 1;
     }
@@ -58,7 +64,10 @@ pub fn install_from(runtime: &const Runtime, module_directory: string): i32 {
     if install_one(runtime, module_directory.clone(), "std:test/native", "test_native.ts") != 0 {
         return 1;
     }
-    return install_one(runtime, module_directory, "std:test", "test.ts");
+    if install_one(runtime, module_directory, "std:test", "test.ts") != 0 {
+        return 1;
+    }
+    return runtime.eval("import 'std:telemetry/console';", "<hao-telemetry-console>");
 }
 
 pub fn install(runtime: &const Runtime): i32 {

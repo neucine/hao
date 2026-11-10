@@ -123,5 +123,6 @@ export function serve(options: any) {
       try { reply(id, { status: 500, body: maxResponseBytes >= 21 ? 'Internal Server Error' : '' }, request.method); } catch { /* connection deadline closes it */ }
     });
   });
+  if (options.unref === true) globalThis.__hao_http_unrefServerNative(native.id);
   return { hostname, port: native.port, close() { if (!stopped) { stopped = true; pending.clear(); stopServerNative(native.id); } } };
 }

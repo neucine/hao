@@ -16,6 +16,11 @@ cp cyna/modules/http.ts cyna/build/modules/http.ts
 cp cyna/modules/http_server.ts cyna/build/modules/http_server.ts
 cp src/std/telemetry/index.ts cyna/build/modules/telemetry.ts
 cp cyna/modules/telemetry_native.ts cyna/build/modules/telemetry_native.ts
+cp cyna/modules/telemetry_console.ts cyna/build/modules/telemetry_console.ts
+python3 - src/telemetry/dashboard.html cyna/build/modules/telemetry_dashboard.ts <<'PY'
+import json, pathlib, sys
+pathlib.Path(sys.argv[2]).write_text('export const dashboard = ' + json.dumps(pathlib.Path(sys.argv[1]).read_text()) + ';\n')
+PY
 cp src/std/ffi/index.ts cyna/build/modules/ffi.ts
 cp src/std/ffi/c.ts cyna/build/modules/ffi_c.ts
 cp cyna/modules/ffi_native.ts cyna/build/modules/ffi_native.ts
