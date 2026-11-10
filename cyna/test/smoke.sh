@@ -70,6 +70,10 @@ EOF
 cyna build "$repo_root/cyna/checks/jupyter-connection" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-connection.json")" = "$(printf 'tcp://127.0.0.1:57503\n\nhmac-sha256')"
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-explicit.json")" = "$(printf 'ipc://0.0.0.0:1\nsecret\nhmac-sha256')"
+cat > "$fixture_dir/jupyter-exponent-port.json" <<'EOF'
+{"shell_port":1e0,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5}
+EOF
+test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-exponent-port.json")" = "$(printf 'tcp://127.0.0.1:1\n\nhmac-sha256')"
 if "$fixture_dir/jupyter-connection-check" "$fixture_dir/main.ts" > "$fixture_dir/jupyter-invalid.log" 2>&1; then
     exit 1
 fi

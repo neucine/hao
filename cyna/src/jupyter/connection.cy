@@ -34,19 +34,22 @@ fn string_field(value: &const Value, key: string): ?string {
 
 fn port_text(value: string): ?u16 {
     const bytes = value.bytes();
-    if bytes.len() == 0 or bytes.len() > 5 {
+    if bytes.len() == 0 {
         return none;
     }
     var port: u32 = 0;
+    var found = false;
     for byte in bytes {
         if byte < 48 or byte > 57 {
-            return none;
+            break;
         }
+        found = true;
         port = port * 10 + (byte - 48) as u32;
         if port > 65535 {
             return none;
         }
     }
+    if not found { return none; }
     return port as u16;
 }
 
