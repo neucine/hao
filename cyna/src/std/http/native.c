@@ -289,6 +289,15 @@ static char *copy_property(JSContext *ctx, JSValueConst object, const char *name
     JS_FreeValue(ctx, value);
     return copy;
 }
+static bool valid_method(const char *method) {
+    static const char *const methods[] = {
+        "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "QUERY"
+    };
+    for (size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
+        if (strcmp(method, methods[i]) == 0) return true;
+    }
+    return false;
+}
 static bool parse_options(HaoHttpJob *job, JSValueConst options) {
     JSContext *ctx = job->ctx;
     job->url = copy_property(ctx, options, "url");
@@ -305,12 +314,13 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
         return false;
     }
     JS_FreeValue(ctx, limit);
-    if (!job->url || !job->method) return false;
+    if (!job->url || !job->method || !valid_method(job->method)) return false;
     job->response.limit = (size_t)max_bytes;
     JSValue path = JS_GetPropertyStr(ctx, options, "downloadPath");
-    if (JS_IsString(path)) {
-        const char *text = JS_ToCString(ctx, path);
-        job->download_path = text ? hao_strdup(text) : NULL;
+    if (!JS_IsUndefined(path) && !JS_IsNull(path)) {
+        size_t length = 0;
+        const char *text = JS_ToCStringLen(ctx, &length, path);
+        if (text && length && !memchr(text, 0, length)) job->download_path = hao_strdup(text);
         if (text) JS_FreeCString(ctx, text);
         if (!job->download_path) { JS_FreeValue(ctx, path); return false; }
     }
@@ -336,17 +346,21 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
         job->body_length = length;
         job->has_body = true;
         JS_FreeValue(ctx, buffer);
-    } else if (!JS_IsUndefined(body)) { JS_FreeValue(ctx, body); return false; }
+    } else if (!JS_IsUndefined(body) && !JS_IsNull(body)) { JS_FreeValue(ctx, body); return false; }
     JS_FreeValue(ctx, body);
     if (job->has_body && !job->body) return false;
+    if (job->download_path && (strcmp(job->method, "GET") != 0 || job->has_body)) return false;
     JSValue headers = JS_GetPropertyStr(ctx, options, "headers");
+    if (JS_IsUndefined(headers) || JS_IsNull(headers)) { JS_FreeValue(ctx, headers); return true; }
+    if (!JS_IsObject(headers)) { JS_FreeValue(ctx, headers); return false; }
     JSValue count_value = JS_GetPropertyStr(ctx, headers, "length");
-    uint32_t count = 0;
-    JS_ToUint32(ctx, &count, count_value);
+    int32_t count = 0;
+    int count_status = JS_ToInt32(ctx, &count, count_value);
     JS_FreeValue(ctx, count_value);
-    if (count > 128) { JS_FreeValue(ctx, headers); return false; }
-    for (uint32_t i = 0; i < count; i++) {
+    if (count_status < 0 || count < 0) { JS_FreeValue(ctx, headers); return false; }
+    for (int32_t i = 0; i < count; i++) {
         JSValue pair = JS_GetPropertyUint32(ctx, headers, i);
+        if (!JS_IsObject(pair)) { JS_FreeValue(ctx, pair); JS_FreeValue(ctx, headers); return false; }
         JSValue name_value = JS_GetPropertyUint32(ctx, pair, 0);
         JSValue value_value = JS_GetPropertyUint32(ctx, pair, 1);
         const char *name = JS_ToCString(ctx, name_value);

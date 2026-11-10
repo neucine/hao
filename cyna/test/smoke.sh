@@ -220,6 +220,21 @@ for (const maxBytes of [0, 0.5, 1.5, Infinity, NaN]) {
 }
 EOF
 test "$("$runtime" "$fixture_dir/http-native-limits.ts")" = "$(printf 'TypeError http.request options are invalid\n%.0s' 1 2 3 4 5)"
+cat > "$fixture_dir/http-native-options.ts" <<'EOF'
+import { requestNative } from 'std:http/native';
+const base: any = { url: 'http://127.0.0.1:1/', method: 'GET', headers: [] };
+for (const override of [
+  { method: 'BOGUS' }, { method: 'get' }, { downloadPath: '' },
+  { method: 'POST', downloadPath: '/tmp/hao-invalid-download' },
+  { downloadPath: '/tmp/hao-invalid-download', bodyText: 'x' },
+  { downloadPath: '/tmp/hao-invalid-download', bodyBytes: new Uint8Array([1]) },
+  { headers: 3 }, { headers: [5] }, { headers: { length: -1 } },
+]) {
+  try { await requestNative({ ...base, ...override }); console.log('accepted'); }
+  catch (error) { console.log(error.name, error.message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/http-native-options.ts")" = "$(printf 'TypeError http.request options are invalid\n%.0s' 1 2 3 4 5 6 7 8 9)"
 cat > "$fixture_dir/download.ts" <<EOF
 import { download } from 'std:http';
 import fs from 'std:fs';
