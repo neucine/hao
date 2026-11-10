@@ -267,6 +267,7 @@ math.close();
 EOF
 test "$("$runtime" "$fixture_dir/ffi-mixed.ts")" = 12
 cat > "$fixture_dir/ffi-search.c" <<'EOF'
+#include <stdint.h>
 int hao_search_value(void) { return 29; }
 int hao_make_handle(void **out) { *out = (void *)0x1234; return 0; }
 int hao_fail_handle(void **out) { *out = (void *)0x1234; return 5; }
@@ -274,6 +275,10 @@ typedef struct HaoBox { int value; } HaoBox;
 HaoBox *hao_box_open(void) { static HaoBox box = { 37 }; return &box; }
 int hao_box_value(HaoBox *box) { return box->value; }
 void hao_box_close(HaoBox *box) { (void)box; }
+typedef struct { double x; double y; } HaoPoint;
+void hao_move_point(HaoPoint *point) { point->x += 2.5; point->y *= 3; }
+typedef struct { uint8_t flag; double value; } HaoMixed;
+void hao_update_mixed(HaoMixed *item) { item->flag = 7; item->value += 1.25; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
@@ -306,8 +311,24 @@ const box = boxes.hao_box_open();
 console.log(boxes.hao_box_value(box));
 box.close();
 boxes.close();
+const geometry = cdecl('hao_search_fixture',
+  'typedef struct { double x; double y; } HaoPoint; void hao_move_point(HaoPoint *point);', {
+    search: { strategy: 'relative-first', paths: [path] },
+  });
+const point = { x: 1.5, y: 4 };
+geometry.hao_move_point(point);
+console.log(point.x, point.y);
+geometry.close();
+const mixed = cdecl('hao_search_fixture',
+  'typedef struct { uint8_t flag; double value; } HaoMixed; void hao_update_mixed(HaoMixed *item);', {
+    search: { strategy: 'relative-first', paths: [path] },
+  });
+const item = { flag: 1, value: 2.5 };
+mixed.hao_update_mixed(item);
+console.log(item.flag, item.value);
+mixed.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29\n37')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29\n37\n4 12\n7 3.75')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

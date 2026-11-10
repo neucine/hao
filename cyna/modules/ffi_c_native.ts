@@ -1,7 +1,35 @@
-type Parameter = { name: string; type: string };
+type PodField = { name: string; type: string; offset: number };
+type PodSpec = { fields: PodField[]; size: number };
+type Parameter = { name: string; type: string; pod?: string };
 type FunctionSpec = { name: string; params: Parameter[]; returns: string };
-type Prepared = { symbols: string[]; functions: FunctionSpec[]; policies: any };
+type Prepared = { symbols: string[]; functions: FunctionSpec[]; policies: any; pods: Record<string, PodSpec> };
 const libraries = new Map<number, Prepared>();
+
+function scalarLayout(type: string): { size: number; alignment: number } {
+  if (['bool', 'i8', 'u8'].includes(type)) return { size: 1, alignment: 1 };
+  if (['i16', 'u16'].includes(type)) return { size: 2, alignment: 2 };
+  if (['i32', 'u32', 'f32'].includes(type)) return { size: 4, alignment: 4 };
+  if (['i64', 'u64', 'f64'].includes(type)) return { size: 8, alignment: 8 };
+  throw Error(`unsupported POD field type: ${type}`);
+}
+function podSpec(body: string): PodSpec {
+  const fields: PodField[] = [];
+  let size = 0, alignment = 1;
+  for (const source of body.split(';')) {
+    const declaration = source.trim();
+    if (!declaration) continue;
+    const match = /^(.+?\s+)([A-Za-z_]\w*)$/.exec(declaration);
+    if (!match) throw Error(`invalid POD field: ${declaration}`);
+    const type = ffiType(match[1]);
+    const layout = scalarLayout(type);
+    size = Math.ceil(size / layout.alignment) * layout.alignment;
+    fields.push({ name: match[2], type, offset: size });
+    size += layout.size;
+    alignment = Math.max(alignment, layout.alignment);
+  }
+  if (!fields.length) throw Error('empty POD struct');
+  return { fields, size: Math.ceil(size / alignment) * alignment };
+}
 
 function ffiType(type: string, returning = false): string {
   const normalized = type.replace(/\b(const|volatile|restrict|signed)\b/g, '').replace(/\s+/g, ' ').trim();
@@ -40,7 +68,10 @@ function parse(declarations: string, opts: any): Prepared {
   }
   const functions: FunctionSpec[] = [];
   const opaqueTypes = new Set<string>();
-  for (const raw of declarations.split(';')) {
+  const pods: Record<string, PodSpec> = {};
+  const withoutPods = declarations.replace(/typedef\s+struct\s*\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;/g,
+    (_whole, body: string, name: string) => { pods[name] = podSpec(body); return ''; });
+  for (const raw of withoutPods.split(';')) {
     const statement = raw.trim();
     if (!statement) continue;
     if (statement.startsWith('typedef ')) {
@@ -56,7 +87,9 @@ function parse(declarations: string, opts: any): Prepared {
       for (const rawParam of match[3].split(',')) {
         const param = /^(.+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
         if (!param) throw Error(`invalid C parameter: ${rawParam}`);
-        params.push({ name: param[2], type: ffiType(param[1]) });
+        const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
+        const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;
+        params.push({ name: param[2], type: ffiType(param[1]), pod });
       }
     }
     functions.push({ name: match[2], params, returns: ffiType(match[1], true) });
@@ -81,7 +114,7 @@ function parse(declarations: string, opts: any): Prepared {
     if (!opaqueTypes.has(type) || (policy?.close != null &&
         !functions.some(item => item.name === policy.close))) throw Error(`invalid C handle policy: ${type}`);
   }
-  return { symbols: functions.map(item => item.name), functions, policies: opts ?? {} };
+  return { symbols: functions.map(item => item.name), functions, policies: opts ?? {}, pods };
 }
 function bytesPerElement(name: string): number {
   return ['u8', 'i8'].includes(name) ? 1 : ['u16', 'i16'].includes(name) ? 2 :
@@ -90,6 +123,38 @@ function bytesPerElement(name: string): number {
 function backingLength(value: any): number {
   if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return value.byteLength;
   throw Error('buffer argument must be an ArrayBuffer or typed array');
+}
+function podField(view: DataView, field: PodField, value?: any): any {
+  const at = field.offset;
+  if (value !== undefined) {
+    if (typeof value !== 'number' && typeof value !== 'boolean' && typeof value !== 'bigint') throw Error(`invalid POD field: ${field.name}`);
+    switch (field.type) {
+      case 'bool': case 'u8': view.setUint8(at, Number(value)); break;
+      case 'i8': view.setInt8(at, Number(value)); break;
+      case 'u16': view.setUint16(at, Number(value), true); break;
+      case 'i16': view.setInt16(at, Number(value), true); break;
+      case 'u32': view.setUint32(at, Number(value), true); break;
+      case 'i32': view.setInt32(at, Number(value), true); break;
+      case 'f32': view.setFloat32(at, Number(value), true); break;
+      case 'f64': view.setFloat64(at, Number(value), true); break;
+      case 'u64': view.setBigUint64(at, BigInt(value), true); break;
+      case 'i64': view.setBigInt64(at, BigInt(value), true); break;
+    }
+    return;
+  }
+  switch (field.type) {
+    case 'bool': return view.getUint8(at) !== 0;
+    case 'u8': return view.getUint8(at);
+    case 'i8': return view.getInt8(at);
+    case 'u16': return view.getUint16(at, true);
+    case 'i16': return view.getInt16(at, true);
+    case 'u32': return view.getUint32(at, true);
+    case 'i32': return view.getInt32(at, true);
+    case 'f32': return view.getFloat32(at, true);
+    case 'f64': return view.getFloat64(at, true);
+    case 'u64': return view.getBigUint64(at, true);
+    case 'i64': return view.getBigInt64(at, true);
+  }
 }
 export function prepareNative(name: string, declarations: string, opts?: any): Prepared {
   if (typeof name !== 'string' || !name) throw Error('cdecl: invalid library name');
@@ -151,9 +216,20 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
   if (args.length !== visible.length) throw Error('FFI: wrong number of arguments');
   let input = 0;
   const values = new Map<string, any>();
+  const staged: { object: any; view: DataView; spec: PodSpec }[] = [];
   for (const param of visible) {
     const value = args[input++];
-    values.set(param.name, value);
+    if (param.pod && value && typeof value === 'object' && !ArrayBuffer.isView(value)) {
+      const spec = prepared.pods[param.pod];
+      const bytes = new Uint8Array(spec.size);
+      const view = new DataView(bytes.buffer);
+      for (const field of spec.fields) {
+        if (value[field.name] === undefined) throw Error(`missing POD field: ${field.name}`);
+        podField(view, field, value[field.name]);
+      }
+      values.set(param.name, bytes);
+      staged.push({ object: value, view, spec });
+    } else values.set(param.name, value);
     const buffer = buffers[param.name];
     if (buffer) {
       const length = backingLength(value) / bytesPerElement(buffer.element);
@@ -174,6 +250,9 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
     const error: any = new Error(typeof errors.message === 'string' ? errors.message : `${symbol} failed`);
     if (errors.code) error.code = errors.code;
     throw error;
+  }
+  for (const item of staged) {
+    for (const field of item.spec.fields) item.object[field.name] = podField(item.view, field);
   }
   return outIndex < 0 ? raw : native.out;
 }
