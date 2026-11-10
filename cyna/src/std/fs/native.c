@@ -67,7 +67,8 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
 
 static JSValue hao_fs_write_file_sync(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
-    if (argc < 2) return JS_ThrowTypeError(ctx, "writeFileSync expects path and data");
+    if (argc < 1) return JS_ThrowTypeError(ctx, "writeFileSync expects a path");
+    if (argc < 2) return JS_ThrowTypeError(ctx, "writeFileSync expects data");
     const char *path = JS_ToCString(ctx, argv[0]);
     if (!path) return JS_EXCEPTION;
     size_t length = 0;
