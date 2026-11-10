@@ -417,6 +417,9 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
     if (!name) return 1;
     memcpy(name, filename, filename_len);
     name[filename_len] = 0;
+    JSValue global = JS_GetGlobalObject(host->context);
+    JS_SetPropertyStr(host->context, global, "__hao_test_filePath", JS_NewStringLen(host->context, filename, filename_len));
+    JS_FreeValue(host->context, global);
     char *input = malloc(source_len + 1);
     if (!input) {
         free(name);
@@ -445,6 +448,35 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
     }
     JS_FreeValue(host->context, result);
     return status;
+}
+
+int hao_runtime_start_tests(uintptr_t handle, const char *grep, size_t grep_len) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    JSContext *ctx = host->context;
+    JSValue global = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(ctx, global, "__hao_test_grep", JS_NewStringLen(ctx, grep, grep_len));
+    JS_FreeValue(ctx, global);
+    const char *source = "globalThis.__hao_test_run()";
+    JSValue result = JS_Eval(ctx, source, strlen(source), "<hao-test-runner>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(result)) {
+        hao_print_exception(ctx);
+        JS_FreeValue(ctx, result);
+        return 1;
+    }
+    JS_FreeValue(ctx, result);
+    return 0;
+}
+
+int hao_runtime_test_failures(uintptr_t handle) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    JSContext *ctx = host->context;
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue value = JS_GetPropertyStr(ctx, global, "__hao_test_failed");
+    int32_t failures = -1;
+    if (JS_IsNumber(value)) JS_ToInt32(ctx, &failures, value);
+    JS_FreeValue(ctx, value);
+    JS_FreeValue(ctx, global);
+    return failures;
 }
 
 int hao_runtime_drain(uintptr_t handle) {

@@ -2,22 +2,56 @@ import { args } from std.process;
 import { read_file } from std.fs;
 import { Runtime } from .runtime;
 import { install } from .std_modules;
+import { collect } from .test_files;
 
-fn main(): i32 {
-    const arguments = args();
-    if arguments.len() != 2 {
-        println("Usage: hao <file.js>");
-        return 2;
-    }
-    const path = arguments[1];
-    if path == "--version" or path == "-v" {
-        println("hao 0.1.2 (Cyna runtime preview)");
-        return 0;
-    }
-    const source = read_file(path) catch (code) {
+fn run_file(host: &const Runtime, path: string): i32 {
+    const source = read_file(path.clone()) catch (code) {
         println("Unable to read script");
         return 1;
     };
+    return host.eval(source, path);
+}
+
+fn main(): i32 {
+    const arguments = args();
+    if arguments.len() < 2 {
+        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>...");
+        return 2;
+    }
+    if arguments.len() == 2 and (arguments[1] == "--version" or arguments[1] == "-v") {
+        println("hao 0.1.2 (Cyna runtime preview)");
+        return 0;
+    }
+    const is_test = arguments[1] == "test";
+    if not is_test and arguments.len() != 2 {
+        println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>...");
+        return 2;
+    }
+    var test_files: List<string> = list<string>();
+    var grep = "";
+    if is_test {
+        var index: usize = 2;
+        while index < arguments.len() {
+            if arguments[index] == "--grep" {
+                if index + 1 >= arguments.len() {
+                    println("--grep requires a pattern");
+                    return 2;
+                }
+                grep = arguments[index + 1].clone();
+                index = index + 2;
+            } else {
+                if collect(arguments[index].clone(), &test_files) != 0 {
+                    println("Unable to discover test files");
+                    return 1;
+                }
+                index = index + 1;
+            }
+        }
+        if test_files.len() == 0 {
+            println("No test files found");
+            return 1;
+        }
+    }
     const runtime = Runtime.init();
     if runtime is host {
         defer host.deinit();
@@ -25,11 +59,28 @@ fn main(): i32 {
             println("Unable to install standard modules");
             return 1;
         }
-        const status = host.eval(source, path);
-        if status != 0 {
-            return status;
+        if is_test {
+            for path in test_files {
+                if run_file(&host, path.clone()) != 0 {
+                    return 1;
+                }
+            }
+            if host.start_tests(grep) != 0 {
+                return 1;
+            }
+        } else {
+            if run_file(&host, arguments[1].clone()) != 0 {
+                return 1;
+            }
         }
-        return host.run_until_idle();
+        const loop_status = host.run_until_idle();
+        if loop_status != 0 {
+            return loop_status;
+        }
+        if is_test and host.test_failures() != 0 {
+            return 1;
+        }
+        return 0;
     }
     println("Unable to initialize JavaScript runtime");
     return 1;

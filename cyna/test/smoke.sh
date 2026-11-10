@@ -80,6 +80,18 @@ download_expected=$(printf '200 4194304 2b07811057df887086f06a67edc6ebf911de8b67
 test "$download_actual" = "$download_expected"
 test "$(find "$fixture_dir" -name 'download.bin.hao-*' | wc -l | tr -d ' ')" = 0
 
+test_summary=$("$runtime" test "$repo_root/test/e2e/test" | tail -1)
+test "$test_summary" = '30 passed, 0 failed, 7 skipped'
+cat > "$fixture_dir/expected-failure.test.ts" <<'EOF'
+import { test, expect } from 'std:test';
+test('failure changes exit status', () => expect(1).toBe(2));
+EOF
+if "$runtime" test "$fixture_dir/expected-failure.test.ts" > "$fixture_dir/test-output" 2> "$fixture_dir/stderr"; then
+    echo 'expected a failing test to exit with an error' >&2
+    exit 1
+fi
+grep -q '0 passed, 1 failed, 0 skipped' "$fixture_dir/test-output"
+
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
 printf 'export const value: number = 42;\n' > "$fixture_dir/app/node_modules/demo/index.ts"
