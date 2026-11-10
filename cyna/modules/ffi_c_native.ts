@@ -27,7 +27,17 @@ function ffiType(type: string, returning = false): string {
 function parse(declarations: string, opts: any): Prepared {
   if (typeof declarations !== 'string' || !declarations.trim()) throw Error('cdecl: declarations must be a non-empty string');
   if (/#|\.\.\./.test(declarations)) throw Error('unsupported C declarations');
-  if (opts?.search) throw Error('C library search policies are not ported yet');
+  if (opts?.search != null) {
+    const search = opts.search;
+    if (typeof search !== 'object' || Array.isArray(search)) throw Error('invalid C library search policy');
+    if (search.strategy != null && !['runtime-default', 'relative-first', 'system-first'].includes(search.strategy)) {
+      throw Error('invalid C library search strategy');
+    }
+    if (search.paths != null && (!Array.isArray(search.paths) ||
+        search.paths.some((path: unknown) => typeof path !== 'string' || !path))) {
+      throw Error('invalid C library search paths');
+    }
+  }
   const functions: FunctionSpec[] = [];
   for (const raw of declarations.split(';')) {
     const statement = raw.trim();
@@ -68,10 +78,34 @@ export function prepareNative(name: string, declarations: string, opts?: any): P
   if (typeof name !== 'string' || !name) throw Error('cdecl: invalid library name');
   return parse(declarations, opts);
 }
+function openWithSearch(name: string, search: any): number {
+  const open = (candidate: string): number | null => {
+    try { return globalThis.__hao_ffi_open(candidate); } catch (_) { return null; }
+  };
+  if (!search || name.includes('/') || name.includes('.')) {
+    const handle = open(name);
+    if (handle !== null) return handle;
+    throw Error('library unavailable');
+  }
+  const strategy = search.strategy ?? 'runtime-default';
+  const paths: string[] = search.paths ?? [];
+  const basename = `lib${name}.dylib`;
+  const fromPaths = (): number | null => {
+    for (const path of paths) {
+      const handle = open(`${path.replace(/\/$/, '')}/${basename}`);
+      if (handle !== null) return handle;
+    }
+    return null;
+  };
+  const handle = strategy === 'relative-first' ? fromPaths() ?? open(name) :
+    strategy === 'system-first' ? open(name) ?? fromPaths() : open(name);
+  if (handle !== null) return handle;
+  throw Error('library unavailable');
+}
 export function openNative(name: string, declarations: string, opts?: any): { handle: number; symbols: string[]; policies: any } {
   const prepared = prepareNative(name, declarations, opts);
   let handle: number;
-  try { handle = globalThis.__hao_ffi_open(name); }
+  try { handle = openWithSearch(name, prepared.policies?.search); }
   catch (_) { throw new RuntimeError('io_error', 'openNative: failed to open library'); }
   try {
     for (const fn of prepared.functions) {

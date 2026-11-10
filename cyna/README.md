@@ -85,7 +85,9 @@ remain to be ported.
 argument classes and typed array pointers. The C declaration wrapper supports
 direct function declarations and pointer plus length buffer policies. Calls
 are limited to eight arguments. Opaque struct handles, out parameters, POD
-structs and custom library search policies remain to be ported.
+structs remain to be ported. C declarations support `runtime-default`,
+`relative-first`, and `system-first` library search strategies with explicit
+search directories.
 
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust

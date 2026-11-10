@@ -266,6 +266,24 @@ console.log(math.ldexp(1.5, 3));
 math.close();
 EOF
 test "$("$runtime" "$fixture_dir/ffi-mixed.ts")" = 12
+printf 'int hao_search_value(void) { return 29; }\n' > "$fixture_dir/ffi-search.c"
+clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
+cat > "$fixture_dir/ffi-search.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+import { getEnv } from 'std:process';
+const path = getEnv('HAO_FFI_TEST_PATH');
+const library = cdecl('hao_search_fixture', 'int hao_search_value(void);', {
+  search: { strategy: 'relative-first', paths: [path] },
+});
+console.log(library.hao_search_value());
+library.close();
+const fallback = cdecl('hao_search_fixture', 'int hao_search_value(void);', {
+  search: { strategy: 'system-first', paths: [path] },
+});
+console.log(fallback.hao_search_value());
+fallback.close();
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n29')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
