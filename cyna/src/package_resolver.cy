@@ -92,6 +92,9 @@ fn entry_for(manifest: &const Value, subpath: string): ?string {
 }
 
 fn supported_entry(path: string, package_type: ?string): bool {
+    if path.ends_with(".dylib") or path.ends_with(".so") or path.ends_with(".dll") or path.ends_with(".node") {
+        return true;
+    }
     if path.ends_with(".ts") or path.ends_with(".mts") or path.ends_with(".mjs") {
         return true;
     }
@@ -108,7 +111,7 @@ fn find_entry(root: string, entry: string, package_type: ?string): ?string {
         return none;
     }
     const relative = entry.slice(2, entry.len());
-    const extensions: [5]string = ["", ".ts", ".js", ".mts", ".mjs"];
+    const extensions: [9]string = ["", ".ts", ".js", ".mts", ".mjs", ".dylib", ".so", ".dll", ".node"];
     for extension in extensions {
         const candidate = $"{relative}{extension}";
         if supported_entry(candidate, package_type) {
