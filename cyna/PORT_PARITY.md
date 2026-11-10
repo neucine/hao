@@ -27,8 +27,18 @@ The legacy TypeScript standard modules are byte identical in the port except
 
 ## Open behavior checks
 
-- Verify trace context while HTTP client work completes. The Zig native client
-  captures and restores it; the Cyna port currently does not claim this parity.
+- Restore trace context while HTTP client work completes. This is a confirmed
+  difference: with the same local HTTP server, `await trace('parent', async () =>
+  { await get(url); trace('child', () => {}); })` produces a child whose
+  `parent_span_id` equals the parent's `span_id` on Zig `legacy`, but a separate
+  trace on Cyna. Both were run on macOS arm64 with
+  `RUNTIME_TELEMETRY_CONSOLE=1`; the Zig and Cyna results were respectively
+  `{"sameTrace":true,"parented":true}` and
+  `{"sameTrace":false,"parented":false}`. A worker completion hook that entered
+  and restored the JavaScript trace context around `JS_Call(resolve)` still
+  produced the latter result: QuickJS resumes the `await` continuation after
+  that hook returns. The fix must preserve context through Promise jobs and
+  concurrent requests.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
