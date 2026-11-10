@@ -38,9 +38,11 @@ export function clearMetricsNative(): void {
 }
 
 type Span = { id: number; traceId: number; name: string; parent: number | null; start: number };
-type TraceRecord = { sequence: number; kind: 'span_start' | 'span_end'; timestamp_ns: number;
+type TraceAttributeValue = boolean | number | string;
+type TraceAttributes = Record<string, TraceAttributeValue>;
+type TraceRecord = { sequence: number; kind: 'span_start' | 'event' | 'span_end'; timestamp_ns: number;
   trace_id: string; span_id: string; parent_span_id: string; name: string;
-  status: string; attributes: Record<string, unknown> };
+  status: string; attributes: TraceAttributes };
 const spans = new Map<number, Span>();
 const spanTraceIds = new Map<number, number>();
 const records: TraceRecord[] = [];
@@ -65,11 +67,38 @@ globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ..
   }, delay);
 }) as typeof setTimeout;
 function hex(id: number | null, width: number): string { return (id ?? 0).toString(16).padStart(width, '0'); }
-function recordSpan(span: Span, kind: 'span_start' | 'span_end', status = 'unset'): void {
+function utf8Length(value: string): number {
+  let bytes = 0;
+  for (const character of value) {
+    const point = character.codePointAt(0)!;
+    bytes += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+  }
+  return bytes;
+}
+function copyAttributes(attributes: TraceAttributes): TraceAttributes {
+  if (attributes === null || typeof attributes !== 'object' || Array.isArray(attributes)) throw Error('invalid trace attributes');
+  const entries = Object.entries(attributes);
+  if (entries.length > 16) throw Error('too many trace attributes');
+  const copy: TraceAttributes = {};
+  for (const [key, value] of entries) {
+    if (utf8Length(key) > 64) throw Error('trace attribute key too long');
+    if (typeof value === 'string') {
+      if (utf8Length(value) > 256) throw Error('trace attribute value too long');
+    } else if (typeof value !== 'boolean' && (typeof value !== 'number' || !Number.isFinite(value))) {
+      throw Error('invalid trace attribute value');
+    }
+    Object.defineProperty(copy, key, { value, enumerable: true, configurable: true, writable: true });
+  }
+  return copy;
+}
+function recordSpan(span: Span, kind: 'span_start' | 'span_end' | 'event', status = 'unset',
+                    name = span.name, attributes: TraceAttributes = {}): void {
   if (traceCapacity === 0) return;
+  if (utf8Length(name) > 96) throw Error('trace name too long');
+  const copied = copyAttributes(attributes);
   records.push({ sequence: nextSequence++, kind, timestamp_ns: globalThis.__hao_telemetry_monotonicNs(),
-    trace_id: hex(span.traceId, 32), span_id: hex(span.id, 16), parent_span_id: hex(span.parent, 16),
-    name: span.name, status, attributes: {} });
+    trace_id: hex(span.traceId, 32), span_id: hex(span.id, 16), parent_span_id: hex(kind === 'event' ? null : span.parent, 16),
+    name, status, attributes: copied });
   if (records.length > traceCapacity) records.shift();
 }
 export function snapshotTraceRecordsNative(since = 0, limit = 100) {
@@ -81,10 +110,10 @@ export function snapshotTraceRecordsNative(since = 0, limit = 100) {
   const missed = since + 1 < records[0].sequence;
   const selected = records.filter(record => record.sequence > since).slice(0, Math.min(limit, traceCapacity));
   return { next_cursor: selected.length ? selected[selected.length - 1].sequence : since,
-    missed, records: selected.map(record => ({ ...record })) };
+    missed, records: selected.map(record => ({ ...record, attributes: { ...record.attributes } })) };
 }
-function createSpan(name: string, parent: number | null): number {
-  if (typeof name !== 'string' || !name) throw Error('trace name must be a non-empty string');
+function createSpan(name: string, parent: number | null, attributes: TraceAttributes = {}): number {
+  if (typeof name !== 'string' || !name || utf8Length(name) > 96) throw Error('invalid trace name');
   const id = nextSpanId++;
   const traceId = parent === null ? id :
     parent === currentSpan && currentTraceId !== null ? currentTraceId : spanTraceIds.get(parent) ?? parent;
@@ -92,7 +121,8 @@ function createSpan(name: string, parent: number | null): number {
   spans.set(id, span);
   spanTraceIds.set(id, traceId);
   trimTraceIds();
-  recordSpan(span, 'span_start');
+  try { recordSpan(span, 'span_start', 'unset', name, attributes); }
+  catch (error) { spans.delete(id); spanTraceIds.delete(id); throw error; }
   return id;
 }
 function trimTraceIds(): void {
@@ -102,8 +132,14 @@ function trimTraceIds(): void {
     if (spanTraceIds.size <= 512) break;
   }
 }
-export function startTraceNative(name: string): number { return createSpan(name, currentSpan); }
-export function startRootTraceNative(name: string): number { return createSpan(name, null); }
+export function startTraceNative(name: string, attributes: TraceAttributes = {}): number { return createSpan(name, currentSpan, attributes); }
+export function startRootTraceNative(name: string, attributes: TraceAttributes = {}): number { return createSpan(name, null, attributes); }
+export function addTraceEventNative(id: number, name: string, attributes: TraceAttributes = {}): void {
+  const span = spans.get(id);
+  if (!span) throw Error('unknown trace span');
+  if (typeof name !== 'string' || !name || utf8Length(name) > 96) throw Error('invalid trace name');
+  recordSpan(span, 'event', 'unset', name, attributes);
+}
 export function enterTraceNative(id: number): number {
   if (!spans.has(id)) throw Error('unknown trace span');
   const scope = nextScopeId++;

@@ -292,8 +292,12 @@ telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.
 test "$telemetry_summary" = '4 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/telemetry-console.ts" <<'EOF'
 import { counter, trace } from 'std:telemetry';
+import { startRootTraceNative, addTraceEventNative, endTraceNative } from 'std:telemetry/native';
 counter({ scope: 'fixture', name: 'requests' }).add(3);
 trace('fixture-trace', () => {});
+const span = startRootTraceNative('fixture-event', { method: 'GET' });
+addTraceEventNative(span, 'fixture-received', { bytes: 42 });
+endTraceNative(span);
 setTimeout(() => {}, 1500);
 EOF
 python3 - "$runtime" "$fixture_dir/telemetry-console.ts" <<'PY'
@@ -313,6 +317,8 @@ for flag in ('1', 'true', 'yes', 'on'):
         assert any(metric['scope'] == 'fixture' and metric['value'] == 3 for metric in json.loads(get('/api/metrics')))
         traces = json.loads(get('/api/traces?since=0&limit=10'))
         assert [record['kind'] for record in traces['records'] if record['name'] == 'fixture-trace'] == ['span_start', 'span_end']
+        assert [record['kind'] for record in traces['records'] if record['name'] in ('fixture-event', 'fixture-received')] == ['span_start', 'event', 'span_end']
+        assert next(record for record in traces['records'] if record['name'] == 'fixture-received')['attributes']['bytes'] == 42
         later = json.loads(get('/api/traces?since=1&limit=1'))
         assert later['records'][0]['sequence'] == 2 and later['next_cursor'] == 2
         assert '<title>Hao Telemetry</title>' in get('/')
@@ -354,6 +360,23 @@ console.log(records.length, records[0].timestamp_ns > 0,
   records[0].timestamp_ns < Date.now() * 1000000 / 10);
 EOF
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-clock.ts")" = '2 true true true'
+cat > "$fixture_dir/telemetry-event.ts" <<'EOF'
+import { startRootTraceNative, addTraceEventNative, endTraceNative,
+  snapshotTraceRecordsNative } from 'std:telemetry/native';
+const id = startRootTraceNative('request', { method: 'GET', secure: true });
+addTraceEventNative(id, 'received', { bytes: 42, valid: true });
+endTraceNative(id);
+const records = snapshotTraceRecordsNative().records;
+console.log(records.map(record => record.kind).join(','), records[0].attributes.method,
+  records[1].attributes.bytes, records[1].parent_span_id === '0000000000000000');
+records[0].attributes.method = 'changed';
+console.log(snapshotTraceRecordsNative().records[0].attributes.method);
+for (const attributes of [{ value: 'x'.repeat(257) },
+  Object.fromEntries(Array.from({ length: 17 }, (_, i) => ['key' + i, i]))]) {
+  try { startRootTraceNative('invalid', attributes); } catch (error) { console.log('rejected'); }
+}
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-event.ts")" = "$(printf 'span_start,event,span_end GET 42 true\nGET\nrejected\nrejected')"
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-timer.ts")" = 'root child true'
 cat > "$fixture_dir/telemetry-ring.ts" <<'EOF'
 import { trace } from 'std:telemetry';
