@@ -256,6 +256,7 @@ pub fn run(path: string): i32 {
             var history: List<HistoryEntry> = list<HistoryEntry>();
             while true {
                 const channel = transport.poll(100);
+                if channel == -2 { continue; }
                 if channel < 0 { return 1; }
                 if channel == 0 or channel == 1 { continue; }
                 const header_text = text_or_empty(transport.header());

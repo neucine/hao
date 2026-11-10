@@ -19,14 +19,19 @@ static void sign_request(const char *header, const char *content, char out[65]) 
     out[64] = 0;
 }
 
-static int send_request(void *socket, const char *kind, const char *content) {
+static int send_request_signed(void *socket, const char *kind, const char *content, int corrupt) {
     char header[256], digest[65];
     snprintf(header, sizeof(header), "{\"msg_type\":\"%s\",\"msg_id\":\"test\"}", kind);
     sign_request(header, content, digest);
+    if (corrupt) digest[0] = digest[0] == 'a' ? 'b' : 'a';
     const char *frames[] = {"<IDS|MSG>", digest, header, "{}", "{}", content};
     for (int i = 0; i < 6; i++)
         if (zmq_send(socket, frames[i], strlen(frames[i]), i == 5 ? 0 : ZMQ_SNDMORE) < 0) return -1;
     return 0;
+}
+
+static int send_request(void *socket, const char *kind, const char *content) {
+    return send_request_signed(socket, kind, content, 0);
 }
 
 static int receive_content(void *socket, char *out, size_t capacity) {
@@ -80,6 +85,7 @@ int main(int argc, char **argv) {
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:3", base); zmq_connect(iopub, endpoint);
     usleep(300000);
     char content[65536]; int status = 0;
+    if (send_request_signed(shell, "kernel_info_request", "{}", 1) < 0) status = 63;
     if (send_request(shell, "kernel_info_request", "{}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"implementation\":\"hao\"")) status = 5;

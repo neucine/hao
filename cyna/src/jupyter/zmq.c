@@ -169,13 +169,19 @@ int hao_jupyter_wire_poll(uintptr_t handle, int timeout_ms) {
     if (status <= 0) return status;
     if (items[0].revents & ZMQ_POLLIN) {
         HaoFrame frame = {0}; int more = 0;
-        if (read_frame(wire->heartbeat, &frame, &more) < 0) return -1;
+        if (read_frame(wire->heartbeat, &frame, &more) < 0) return -2;
         int sent = zmq_send(wire->heartbeat, frame.data, frame.length, 0);
         hao_free(frame.data);
-        return sent < 0 ? -1 : HAO_HEARTBEAT;
+        return sent < 0 ? -2 : HAO_HEARTBEAT;
     }
-    if (items[1].revents & ZMQ_POLLIN) return receive_message(wire, wire->control, HAO_CONTROL);
-    if (items[2].revents & ZMQ_POLLIN) return receive_message(wire, wire->shell, HAO_SHELL);
+    if (items[1].revents & ZMQ_POLLIN) {
+        int channel = receive_message(wire, wire->control, HAO_CONTROL);
+        return channel < 0 ? -2 : channel;
+    }
+    if (items[2].revents & ZMQ_POLLIN) {
+        int channel = receive_message(wire, wire->shell, HAO_SHELL);
+        return channel < 0 ? -2 : channel;
+    }
     return 0;
 }
 

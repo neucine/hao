@@ -58,7 +58,11 @@ int main(void) {
     digest[0] = digest[0] == 'a' ? 'b' : 'a';
     for (size_t i = 0; i < 6; i++)
         if (zmq_send(client, frames[i], strlen(frames[i]), i == 5 ? 0 : ZMQ_SNDMORE) < 0) return 9;
-    if (hao_jupyter_wire_poll(wire, 1000) != -1) return 10;
+    if (hao_jupyter_wire_poll(wire, 1000) != -2) return 10;
+    sign(key, header, "{}", "{}", "{}", digest);
+    for (size_t i = 0; i < 6; i++)
+        if (zmq_send(client, frames[i], strlen(frames[i]), i == 5 ? 0 : ZMQ_SNDMORE) < 0) return 11;
+    if (hao_jupyter_wire_poll(wire, 1000) != 3) return 12;
     zmq_close(client); zmq_ctx_term(context); hao_jupyter_wire_close(wire);
     for (int port = 1; port <= 5; port++) {
         snprintf(endpoint, sizeof(endpoint), "%s:%d", ip, port);
