@@ -11,6 +11,12 @@ printf 'import { answer } from "./value.ts"; console.log("answer", answer); Prom
 actual=$("$runtime" "$fixture_dir/main.ts")
 expected=$(printf 'answer 42\ndrained')
 test "$actual" = "$expected"
+relative_actual=$(cd "$fixture_dir" && "$runtime" main.ts)
+test "$relative_actual" = "$expected"
+
+printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name, namespace, runtime.name);\n' > "$fixture_dir/standard.ts"
+standard_actual=$("$runtime" "$fixture_dir/standard.ts")
+test "$standard_actual" = 'hao std: hao'
 
 printf 'throw new Error("expected failure");\n' > "$fixture_dir/failure.js"
 if "$runtime" "$fixture_dir/failure.js" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then

@@ -1,6 +1,7 @@
 import { args } from std.process;
 import { read_file } from std.fs;
 import { Runtime } from .runtime;
+import { install } from .std_modules;
 
 fn main(): i32 {
     const arguments = args();
@@ -20,6 +21,10 @@ fn main(): i32 {
     const runtime = Runtime.init();
     if runtime is host {
         defer host.deinit();
+        if install(&host) != 0 {
+            println("Unable to install standard modules");
+            return 1;
+        }
         const status = host.eval(source, path);
         if status != 0 {
             return status;
