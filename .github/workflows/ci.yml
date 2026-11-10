@@ -5,75 +5,23 @@ on:
     branches: [main]
   pull_request:
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  test:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
+  source-checks:
+    runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Checkout shared Zig libraries
-        uses: actions/checkout@v4
-        with:
-          repository: neucine/zig-libs
-          ref: a91b58271be94a4e402a856403fe0fa83add1709
-          path: zig-libs
-
-      - name: Link shared Zig libraries
-        run: ln -s "$GITHUB_WORKSPACE/zig-libs" "$GITHUB_WORKSPACE/../zig-libs"
-
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.17.0
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
-      - name: Build and test Zig
-        run: zig build test
-
-      - name: Build CLI
-        run: zig build
-
-      - name: Check CLI version
-        run: ./zig-out/bin/hao --version
-
-      - name: Check root TypeScript
-        run: bun x tsc@5.5.4 -p tsconfig.json --pretty false
-
-      - name: Check std TypeScript
-        run: bun x tsc@5.5.4 -p src/tsconfig.json --pretty false
-
-      - name: Check type tests
-        run: bun x tsc -p test/types/tsconfig.json --noEmit --pretty false
-
-      - name: Compile C addon header example
-        run: cc -Iinclude -c examples/native-addon/native.c -o .zig-cache/js-addon-example.o
-
-      - name: Check addon headers
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Check public TypeScript types
         run: |
-          printf '#include "addon.h"\nint main(void) { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o .zig-cache/js-addon-header-c.o -
-          printf '#include "hao.h"\nint main(void) { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o .zig-cache/js-addon-header-compat.o -
-          printf '#include "addon.h"\nint main() { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | c++ -Iinclude -std=c++11 -x c++ -c -o .zig-cache/js-addon-header-cxx.o -
-
-      - name: Run e2e suite
-        run: ./zig-out/bin/hao test test/e2e/runtime test/e2e/test test/e2e/fs test/e2e/process test/e2e/http test/e2e/ffi test/e2e/util test/e2e/telemetry
+          bun x tsc@5.5.4 -p tsconfig.json --pretty false
+          bun x tsc@5.5.4 -p test/types/tsconfig.json --pretty false
+      - name: Check C headers and addon example
+        run: |
+          cc -Iinclude -c examples/native-addon/native.c -o /tmp/hao-addon-example.o
+          printf '#include "addon.h"\nint main(void) { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o /tmp/hao-addon-header.o -
+          printf '#include "hao.h"\nint main(void) { return HAO_EMBED_ABI_VERSION == 2 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o /tmp/hao-embed-header.o -
+      - name: Check build scripts
+        run: |
+          sh -n cyna/build.sh
+          sh -n cyna/build_deps.sh
+          sh -n cyna/test/smoke.sh

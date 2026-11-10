@@ -27,7 +27,7 @@ cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
 clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
     "$repo_root/cyna/embed/build/libhao-cyna-embed.a" \
     -L "$cyna_dir/targets/aarch64-apple-darwin/lib" -lcyna_std -lcyna \
-    -L "$repo_root/zig-out/lib" -lquickjs -luv \
+    -L "$repo_root/cyna/.deps/install/lib" -lquickjs -luv \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
 test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'

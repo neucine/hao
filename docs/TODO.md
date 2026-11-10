@@ -31,7 +31,7 @@ dependency used by Affon and other hosts.
 
 ## Docs And Examples
 
-- Add a small Zig embedding example.
+- Add a complete C embedding example.
 - Add a complete addon package example.
 - Add a short std module usage example.
 

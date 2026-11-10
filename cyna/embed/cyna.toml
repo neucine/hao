@@ -6,8 +6,8 @@ entry = "../src/embed.cy"
 
 [c]
 sources = ["../bridge.c", "../fs_bridge.c", "../process_bridge.c", "../http_bridge.c", "../http_server_bridge.c", "../telemetry_bridge.c", "../ffi_bridge.c", "../addon_bridge.c", "../jupyter_wire_bridge.c"]
-include_paths = ["../.deps/quickjs", "../.deps/libuv/include", "/opt/homebrew/include"]
+include_paths = ["../.deps/install/include", "/opt/homebrew/include"]
 
 [link]
 libs = ["quickjs", "uv", "hao_transpiler", "curl", "ffi", "zmq", "crypto"]
-search_paths = ["../../zig-out/lib", "../../libs/transpiler/target/release", "/opt/homebrew/lib"]
+search_paths = ["../.deps/install/lib", "../../libs/transpiler/target/release", "/opt/homebrew/lib"]

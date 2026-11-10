@@ -4,7 +4,7 @@ Native addons are dynamic libraries that export `js_register_modules`.
 They use the C ABI in `include/addon.h` and can be imported from TypeScript with
 package-owned specifiers such as `foo:native`.
 
-`include/hao.h` is kept as a compatibility wrapper for existing addons.
+`include/hao.h` defines the separate Cyna runtime embedding API.
 
 ## Package Layout
 

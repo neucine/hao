@@ -2,8 +2,8 @@ import { test, expect } from 'std:test'
 import { serve, get, post, request } from 'std:http'
 
 test('native server handles async JSON, UTF-8, bytes, HEAD and errors', async () => {
-  const server = serve({ port: 0, async handler(req) {
-    await new Promise(resolve => setTimeout(resolve, 2))
+  const server = serve({ port: 0, async handler(req): Promise<HttpServerResponse> {
+    await new Promise<void>(resolve => setTimeout(() => resolve(), 2))
     if (req.url === '/json') return { json: { method: req.method, ...req.json<any>() } }
     if (req.url === '/bytes') return { body: req.bytes() }
     if (req.url === '/error') throw Error('private details')
@@ -40,7 +40,7 @@ test('native server enforces request and response limits', async () => {
 
 test('native server validates wire framing and expires incomplete or slow requests', async () => {
   const { run } = await import('std:process')
-  const result = await run({ cmd: 'python3', args: ['test/e2e/http/server-wire.py', 'zig-out/bin/hao'], check: false })
+  const result = await run({ cmd: 'python3', args: ['test/e2e/http/server-wire.py', 'cyna/build/hao-cyna'], check: false })
   if (result.exitCode !== 0) throw Error(result.stderr)
   expect(result.stdout).toContain('checks passed')
 })

@@ -84,15 +84,9 @@ Run tests:
 hao test test/e2e/runtime
 ```
 
-The Zig test runner uses ANSI colors by default. Use plain Unicode output:
-
-```bash
-RUNTIME_TEST_REPORTER=plain hao test test/e2e/runtime
-```
-
 ## Development
 
-Build the Cyna port on macOS arm64:
+Build Hao on macOS arm64:
 
 ```bash
 sh cyna/build.sh
@@ -100,12 +94,6 @@ sh cyna/build.sh
 ./cyna/build/hao-cyna test test/e2e
 ```
 
-The Cyna test runner currently prints plain output. The port's implementation
-boundaries and additional checks are in [cyna/README.md](cyna/README.md).
-
-Build the Zig reference CLI:
-
-```bash
-zig build
-./zig-out/bin/hao path/to/main.ts
-```
+The implementation boundaries and additional checks are in
+[cyna/README.md](cyna/README.md). The previous Zig implementation is retained
+on the `legacy` branch.

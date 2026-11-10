@@ -48,7 +48,7 @@ HTTP download hashing and Jupyter HMAC signatures use OpenSSL 3 through a
 shared C adapter.
 Startup settings `RUNTIME_QJS_STACK_SIZE`, `RUNTIME_QJS_GC_THRESHOLD`, and
 `RUNTIME_LIBUV_THREADPOOL_SIZE` configure QuickJS and libuv before evaluation.
-The stack defaults to 8 MiB, matching the Zig runtime. Invalid positive size
+The stack defaults to 8 MiB. Invalid positive size
 settings fail initialization.
 At startup, the Cyna host loads an optional `.env` file from the current
 directory. Set `DOTENV` to require a specific file, or set it to an empty value
@@ -84,7 +84,7 @@ supports async tests and hooks, skip and only modes, a failing exit status,
 reverse cleanup hook order, and blocked suites after failed setup.
 Directory discovery selects `.test.ts` files; explicit file paths can have
 other names or supported JavaScript/TypeScript extensions. Files run in
-lexicographic path order, matching the Zig runner.
+lexicographic path order.
 `captureOutput` captures `console.log`, `console.error`, and `console.warn`
 from callbacks, or runs a child file and captures its process output. Callback
 capture is limited to 16 MiB per stream. The runner prints elapsed time and
@@ -99,7 +99,7 @@ mock cleanup hook survives a failed file import.
 `std:telemetry` retains Hao's metric and trace APIs. Metric registration lives
 in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use
 `JS_ComputeMemoryUsage`; `allocator_active_bytes` and `allocator_peak_bytes`
-use the macOS malloc zone totals rather than the Zig runtime allocator. Trace
+use the macOS malloc zone totals. Trace
 context integration with HTTP workers remains to be ported. `setTimeout`
 callbacks retain the trace parent active when scheduled. Set
 `RUNTIME_TELEMETRY_CONSOLE=1` to start an in-process console on loopback;
@@ -125,18 +125,17 @@ declarations support `runtime-default`,
 search directories.
 Library searches accept `.dylib` and `.so` names in configured directories.
 
-Builds currently require Apple Silicon macOS, Zig 0.17.0, Cyna
-0.5.1-beta.1, Rust, and the Homebrew curl, libffi, zeromq, and openssl@3
+Builds currently require Apple Silicon macOS, Cyna 0.5.1-beta.1, Rust,
+CMake, a C compiler, and the Homebrew curl, libffi, zeromq, and openssl@3
 libraries. The pinned Cyna beta is not available from the public release
 installer yet, so use an installed development distribution of that version.
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
-transpiler archives and libuv through `zig build cyna-deps`, builds the Cyna
+transpiler archive and pinned QuickJS and libuv C libraries through
+`cyna/build_deps.sh`, builds the Cyna
 executable and embedding archive, and installs the module files.
-It derives the C header include paths from the pinned QuickJS and libuv hashes
-in `build.zig.zon` and creates ignored links under `cyna/.deps/`.
-It uses Zig's release mode because its debug QuickJS archive emits sanitizer
-symbols that the Cyna linker does not supply.
+It verifies the dependency archive SHA-256 values before extracting them into
+the ignored `cyna/.deps/` directory.
 
 Run `sh cyna/test/smoke.sh` after building to check TypeScript imports,
 `std:runtime`, `std:fs`, `std:process`, `std:plot`, package imports, timers,
