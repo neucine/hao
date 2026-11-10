@@ -45,6 +45,23 @@ describe('c basic', () => {
     libc.close()
   })
 
+  test('accepts C types split across declaration lines', () => {
+    const libc = cdecl('c', `
+      const
+      char *strerror(int32_t
+        code);
+    `)
+
+    expect(typeof libc.strerror(2)).toBe('string')
+    libc.close()
+
+    prepareNative('c', `
+      typedef struct { double
+        x; double y; } HaoPoint;
+      void hao_move_point(HaoPoint *point);
+    `)
+  })
+
   test('maps pointer-plus-length buffer policies onto typed-array arguments', () => {
     const libc = cdecl('c', `
       void* memcpy(void* dest, const void* src, size_t n);

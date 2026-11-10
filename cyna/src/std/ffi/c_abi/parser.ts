@@ -62,12 +62,12 @@ export function parse(declarations: string, opts: any): Prepared {
       opaqueTypes.add(declaration[1]);
       continue;
     }
-    const match = /^(.+?[\s*])([A-Za-z_]\w*)\s*\(([^()]*)\)$/.exec(statement);
+    const match = /^([\s\S]+?[\s*])([A-Za-z_]\w*)\s*\(([^()]*)\)$/.exec(statement);
     if (!match) throw invalidArg(`invalid C declaration: ${statement}`);
     const params: Parameter[] = [];
     if (match[3].trim() && match[3].trim() !== 'void') {
       for (const rawParam of match[3].split(',')) {
-        const param = /^(.+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
+        const param = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
         if (!param) throw invalidArg(`invalid C parameter: ${rawParam}`);
         const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
         const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;

@@ -171,9 +171,12 @@ declare module "std:ffi" {
     CTrim<S> extends `${infer _Head}\t${infer Tail}` ? CLastToken<Tail> :
     CTrim<S>;
 
+  type CFunctionIdentifier<S extends string> =
+    CTrim<S> extends `*${infer Rest}` ? CFunctionIdentifier<Rest> : CTrim<S>;
+
   type CFunctionNameFromStatement<Stmt extends string> =
     CTrim<Stmt> extends `typedef ${string}` ? never :
-    CTrim<Stmt> extends `${infer Head}(${string}` ? CLastToken<Head> :
+    CTrim<Stmt> extends `${infer Head}(${string}` ? CFunctionIdentifier<CLastToken<Head>> :
     never;
 
   type CFunctionNames<Decls extends string> =

@@ -13,7 +13,7 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
   for (const source of body.split(';')) {
     const declaration = source.trim();
     if (!declaration) continue;
-    const match = /^(.+?\s+)([A-Za-z_]\w*)$/.exec(declaration);
+    const match = /^([\s\S]+?\s+)([A-Za-z_]\w*)$/.exec(declaration);
     if (!match) throw invalidArg(`invalid POD field: ${declaration}`);
     const name = match[1].trim();
     const nested = resolve(name);
