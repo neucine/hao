@@ -12,7 +12,6 @@ typedef struct {
     int has_signal;
 } HaoRunResult;
 
-extern int hao_process_get_env(const unsigned char *name, unsigned char *output, size_t capacity);
 extern int hao_process_run_json(const unsigned char *options, size_t options_len,
                                 unsigned char *stdout_output, unsigned char *stderr_output,
                                 size_t capacity, HaoRunResult *result);
@@ -87,12 +86,9 @@ static JSValue hao_get_env_native(JSContext *ctx, JSValueConst this_val,
     if (argc < 1) return JS_ThrowTypeError(ctx, "getEnvNative expects a variable name");
     const char *name = JS_ToCString(ctx, argv[0]);
     if (!name) return JS_EXCEPTION;
-    unsigned char value[65536];
-    int length = hao_process_get_env((const unsigned char *)name, value, sizeof(value));
+    const char *value = getenv(name);
     JS_FreeCString(ctx, name);
-    if (length == -1) return JS_NULL;
-    if (length < 0) return JS_ThrowInternalError(ctx, "environment value is too large");
-    return JS_NewStringLen(ctx, (const char *)value, (size_t)length);
+    return value ? JS_NewString(ctx, value) : JS_NULL;
 }
 
 static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,

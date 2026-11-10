@@ -1,6 +1,5 @@
-import { env_get } from std.process;
 import { Value, parse } from std.json;
-import { copy_bytes, copy_output, text_from_c } from .c_bytes;
+import { copy_bytes } from .c_bytes;
 
 extern c("hao_process_execute") fn execute(program: *const c_uchar, program_len: c_size_t,
     args: *const c_uchar, args_len: c_size_t, args_count: c_size_t,
@@ -65,19 +64,6 @@ fn arguments(value: &const Value): ?List<string> {
         }
     }
     return result;
-}
-
-export c("hao_process_get_env") fn get_env(name_pointer: *const c_uchar, output: *c_uchar, capacity: c_size_t): c_int {
-    const name = text_from_c(name_pointer);
-    if env_get(name) is value {
-        const bytes = value.bytes();
-        if bytes.len() >= capacity as usize {
-            return -2;
-        }
-        copy_output(output, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t);
-        return bytes.len() as c_int;
-    }
-    return -1;
 }
 
 export c("hao_process_run_json") fn run_json(options_pointer: *const c_uchar, options_len: c_size_t, stdout_output: *c_uchar, stderr_output: *c_uchar, capacity: c_size_t, result: *RunResult): c_int {

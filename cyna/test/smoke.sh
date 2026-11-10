@@ -633,6 +633,16 @@ for (const invoke of [() => getEnvNative(), () => runNative({ cmd: 'sh', maxOutp
 }
 EOF
 test "$("$runtime" "$fixture_dir/process-errors.ts")" = "$(printf 'TypeError getEnvNative expects a variable name\nTypeError process.run maxOutputBytes must be positive\nInternalError process.run failed')"
+cat > "$fixture_dir/process-large-env.ts" <<'EOF'
+import { getEnvNative } from 'std:process/native';
+console.log(getEnvNative('HAO_BIG_ENV')?.length);
+EOF
+python3 - "$runtime" "$fixture_dir/process-large-env.ts" <<'PY'
+import os, subprocess, sys
+result = subprocess.run(sys.argv[1:], env={**os.environ, 'HAO_BIG_ENV': 'x' * 70000},
+    capture_output=True, text=True, check=True)
+assert result.stdout.strip() == '70000', result.stdout
+PY
 
 printf 'console.log("before"); const cancelled = setTimeout(() => console.log("cancelled"), 1); clearTimeout(cancelled); setTimeout(() => { console.log("after"); Promise.resolve().then(() => console.log("microtask")); }, 1);\n' > "$fixture_dir/timer.ts"
 timer_actual=$("$runtime" "$fixture_dir/timer.ts")
