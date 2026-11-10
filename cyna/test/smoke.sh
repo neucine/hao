@@ -279,6 +279,8 @@ typedef struct { double x; double y; } HaoPoint;
 void hao_move_point(HaoPoint *point) { point->x += 2.5; point->y *= 3; }
 typedef struct { uint8_t flag; double value; } HaoMixed;
 void hao_update_mixed(HaoMixed *item) { item->flag = 7; item->value += 1.25; }
+typedef struct { uint8_t tag; HaoPoint point; int16_t tail; } HaoNested;
+void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
@@ -327,8 +329,16 @@ const item = { flag: 1, value: 2.5 };
 mixed.hao_update_mixed(item);
 console.log(item.flag, item.value);
 mixed.close();
+const nested = cdecl('hao_search_fixture',
+  'typedef struct { double x; double y; } HaoPoint; typedef struct { uint8_t tag; HaoPoint point; int16_t tail; } HaoNested; void hao_update_nested(HaoNested *item);', {
+    search: { strategy: 'relative-first', paths: [path] },
+  });
+const tree = { tag: 2, point: { x: 3, y: 4 }, tail: 5 };
+nested.hao_update_nested(tree);
+console.log(tree.tag, tree.point.x, tree.point.y, tree.tail);
+nested.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29\n37\n4 12\n7 3.75')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\n29\n37\n4 12\n7 3.75\n2 11 4 9')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"

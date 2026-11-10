@@ -87,9 +87,9 @@ direct function declarations and pointer plus length buffer policies. Calls
 are limited to eight arguments. The C declaration wrapper supports one hidden
 pointer output parameter through `returns.out`, including status error policies.
 Opaque struct typedefs and returned handle policies are supported, including
-configured close functions. Scalar POD struct pointers stage fields with C
-alignment and copy changed fields back to the JavaScript object. Nested POD
-structs remain to be ported. C declarations support `runtime-default`,
+configured close functions. POD struct pointers stage scalar and nested fields
+with C alignment and copy changed fields back to the JavaScript object. C
+declarations support `runtime-default`,
 `relative-first`, and `system-first` library search strategies with explicit
 search directories.
 

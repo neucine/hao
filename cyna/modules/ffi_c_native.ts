@@ -1,5 +1,5 @@
-type PodField = { name: string; type: string; offset: number };
-type PodSpec = { fields: PodField[]; size: number };
+type PodField = { name: string; type: string; offset: number; pod?: string };
+type PodSpec = { fields: PodField[]; size: number; alignment: number };
 type Parameter = { name: string; type: string; pod?: string };
 type FunctionSpec = { name: string; params: Parameter[]; returns: string };
 type Prepared = { symbols: string[]; functions: FunctionSpec[]; policies: any; pods: Record<string, PodSpec> };
@@ -12,7 +12,7 @@ function scalarLayout(type: string): { size: number; alignment: number } {
   if (['i64', 'u64', 'f64'].includes(type)) return { size: 8, alignment: 8 };
   throw Error(`unsupported POD field type: ${type}`);
 }
-function podSpec(body: string): PodSpec {
+function podSpec(body: string, resolve: (name: string) => PodSpec | null): PodSpec {
   const fields: PodField[] = [];
   let size = 0, alignment = 1;
   for (const source of body.split(';')) {
@@ -20,15 +20,17 @@ function podSpec(body: string): PodSpec {
     if (!declaration) continue;
     const match = /^(.+?\s+)([A-Za-z_]\w*)$/.exec(declaration);
     if (!match) throw Error(`invalid POD field: ${declaration}`);
-    const type = ffiType(match[1]);
-    const layout = scalarLayout(type);
+    const name = match[1].trim();
+    const nested = resolve(name);
+    const type = nested ? 'pod' : ffiType(name);
+    const layout = nested ?? scalarLayout(type);
     size = Math.ceil(size / layout.alignment) * layout.alignment;
-    fields.push({ name: match[2], type, offset: size });
+    fields.push({ name: match[2], type, offset: size, pod: nested ? name : undefined });
     size += layout.size;
     alignment = Math.max(alignment, layout.alignment);
   }
   if (!fields.length) throw Error('empty POD struct');
-  return { fields, size: Math.ceil(size / alignment) * alignment };
+  return { fields, size: Math.ceil(size / alignment) * alignment, alignment };
 }
 
 function ffiType(type: string, returning = false): string {
@@ -69,8 +71,21 @@ function parse(declarations: string, opts: any): Prepared {
   const functions: FunctionSpec[] = [];
   const opaqueTypes = new Set<string>();
   const pods: Record<string, PodSpec> = {};
+  const podBodies: Record<string, string> = {};
   const withoutPods = declarations.replace(/typedef\s+struct\s*\{([^{}]*)\}\s*([A-Za-z_]\w*)\s*;/g,
-    (_whole, body: string, name: string) => { pods[name] = podSpec(body); return ''; });
+    (_whole, body: string, name: string) => { podBodies[name] = body; return ''; });
+  const resolving = new Set<string>();
+  const resolvePod = (name: string): PodSpec | null => {
+    if (pods[name]) return pods[name];
+    if (!(name in podBodies)) return null;
+    if (resolving.has(name)) throw Error(`recursive POD struct: ${name}`);
+    resolving.add(name);
+    const spec = podSpec(podBodies[name], resolvePod);
+    resolving.delete(name);
+    pods[name] = spec;
+    return spec;
+  };
+  for (const name of Object.keys(podBodies)) resolvePod(name);
   for (const raw of withoutPods.split(';')) {
     const statement = raw.trim();
     if (!statement) continue;
@@ -124,8 +139,8 @@ function backingLength(value: any): number {
   if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return value.byteLength;
   throw Error('buffer argument must be an ArrayBuffer or typed array');
 }
-function podField(view: DataView, field: PodField, value?: any): any {
-  const at = field.offset;
+function podField(view: DataView, field: PodField, value?: any, base = 0): any {
+  const at = base + field.offset;
   if (value !== undefined) {
     if (typeof value !== 'number' && typeof value !== 'boolean' && typeof value !== 'bigint') throw Error(`invalid POD field: ${field.name}`);
     switch (field.type) {
@@ -154,6 +169,21 @@ function podField(view: DataView, field: PodField, value?: any): any {
     case 'f64': return view.getFloat64(at, true);
     case 'u64': return view.getBigUint64(at, true);
     case 'i64': return view.getBigInt64(at, true);
+  }
+}
+function writePod(view: DataView, spec: PodSpec, object: any, pods: Record<string, PodSpec>, base = 0): void {
+  if (!object || typeof object !== 'object') throw Error('POD argument must be an object');
+  for (const field of spec.fields) {
+    const value = object[field.name];
+    if (value === undefined) throw Error(`missing POD field: ${field.name}`);
+    if (field.pod) writePod(view, pods[field.pod], value, pods, base + field.offset);
+    else podField(view, field, value, base);
+  }
+}
+function readPod(view: DataView, spec: PodSpec, object: any, pods: Record<string, PodSpec>, base = 0): void {
+  for (const field of spec.fields) {
+    if (field.pod) readPod(view, pods[field.pod], object[field.name], pods, base + field.offset);
+    else object[field.name] = podField(view, field, undefined, base);
   }
 }
 export function prepareNative(name: string, declarations: string, opts?: any): Prepared {
@@ -223,10 +253,7 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
       const spec = prepared.pods[param.pod];
       const bytes = new Uint8Array(spec.size);
       const view = new DataView(bytes.buffer);
-      for (const field of spec.fields) {
-        if (value[field.name] === undefined) throw Error(`missing POD field: ${field.name}`);
-        podField(view, field, value[field.name]);
-      }
+      writePod(view, spec, value, prepared.pods);
       values.set(param.name, bytes);
       staged.push({ object: value, view, spec });
     } else values.set(param.name, value);
@@ -251,9 +278,7 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
     if (errors.code) error.code = errors.code;
     throw error;
   }
-  for (const item of staged) {
-    for (const field of item.spec.fields) item.object[field.name] = podField(item.view, field);
-  }
+  for (const item of staged) readPod(item.view, item.spec, item.object, prepared.pods);
   return outIndex < 0 ? raw : native.out;
 }
 export function closeNative(handle: number): void {
