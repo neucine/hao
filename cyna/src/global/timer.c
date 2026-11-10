@@ -1,4 +1,5 @@
 #include "../runtime_host.h"
+#include "../runtime_allocator.h"
 #include <limits.h>
 #include <stdlib.h>
 
@@ -23,7 +24,7 @@ static void hao_unlink_timer(HaoRuntime *host, HaoTimer *timer) {
 
 static void hao_timer_closed(uv_handle_t *handle) {
     HaoTimer *timer = handle->data;
-    free(timer);
+    hao_free(timer);
 }
 
 static void hao_timer_fired(uv_timer_t *handle) {
@@ -55,10 +56,10 @@ static JSValue hao_set_timeout(JSContext *ctx, JSValueConst this_val,
     int64_t delay = 0;
     if (argc >= 2 && JS_ToInt64(ctx, &delay, argv[1]) < 0) return JS_EXCEPTION;
     if (delay < 0) delay = 0;
-    HaoTimer *timer = calloc(1, sizeof(*timer));
+    HaoTimer *timer = hao_calloc(1, sizeof(*timer));
     if (!timer) return JS_ThrowOutOfMemory(ctx);
     if (uv_timer_init(host->loop, &timer->handle) != 0) {
-        free(timer);
+        hao_free(timer);
         return JS_ThrowInternalError(ctx, "Timer initialization failed");
     }
     timer->host = host;

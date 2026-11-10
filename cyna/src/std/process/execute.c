@@ -1,4 +1,5 @@
 #define _DARWIN_C_SOURCE 1
+#include "../../runtime_allocator.h"
 #include <errno.h>
 #include <poll.h>
 #include <signal.h>
@@ -22,7 +23,7 @@ extern char **environ;
 
 static char *copy_text(const unsigned char *bytes, size_t length) {
     if (!bytes || !length || memchr(bytes, 0, length) || length == SIZE_MAX) return NULL;
-    char *text = malloc(length + 1);
+    char *text = hao_alloc(length + 1);
     if (!text) return NULL;
     memcpy(text, bytes, length);
     text[length] = 0;
@@ -31,8 +32,8 @@ static char *copy_text(const unsigned char *bytes, size_t length) {
 
 static void free_argv(char **argv, size_t count) {
     if (!argv) return;
-    for (size_t i = 0; i <= count; ++i) free(argv[i]);
-    free(argv);
+    for (size_t i = 0; i <= count; ++i) hao_free(argv[i]);
+    hao_free(argv);
 }
 
 static int capture_pipes(int out_fd, int err_fd, unsigned char *out, unsigned char *err,
@@ -104,31 +105,31 @@ int hao_process_execute(const unsigned char *program, size_t program_len,
     char *directory = NULL;
     if (cwd_len) {
         directory = copy_text(cwd, cwd_len);
-        if (!directory) { free(command); return 1; }
+        if (!directory) { hao_free(command); return 1; }
     }
-    char **argv = calloc(args_count + 2, sizeof(char *));
-    if (!argv) { free(command); free(directory); return 2; }
+    char **argv = hao_calloc(args_count + 2, sizeof(char *));
+    if (!argv) { hao_free(command); hao_free(directory); return 2; }
     argv[0] = command;
     size_t offset = 0;
     for (size_t i = 0; i < args_count; ++i) {
-        if (offset >= args_len) { free_argv(argv, args_count); free(directory); return 1; }
+        if (offset >= args_len) { free_argv(argv, args_count); hao_free(directory); return 1; }
         const unsigned char *end = memchr(args + offset, 0, args_len - offset);
-        if (!end) { free_argv(argv, args_count); free(directory); return 1; }
+        if (!end) { free_argv(argv, args_count); hao_free(directory); return 1; }
         size_t length = (size_t)(end - args - offset);
-        argv[i + 1] = malloc(length + 1);
-        if (!argv[i + 1]) { free_argv(argv, args_count); free(directory); return 2; }
+        argv[i + 1] = hao_alloc(length + 1);
+        if (!argv[i + 1]) { free_argv(argv, args_count); hao_free(directory); return 2; }
         memcpy(argv[i + 1], args + offset, length);
         argv[i + 1][length] = 0;
         offset += length + 1;
     }
-    if (offset != args_len) { free_argv(argv, args_count); free(directory); return 1; }
+    if (offset != args_len) { free_argv(argv, args_count); hao_free(directory); return 1; }
     int out_pipe[2] = { -1, -1 }, err_pipe[2] = { -1, -1 };
     if (pipe(out_pipe) || pipe(err_pipe)) {
         if (out_pipe[0] >= 0) close(out_pipe[0]);
         if (out_pipe[1] >= 0) close(out_pipe[1]);
         if (err_pipe[0] >= 0) close(err_pipe[0]);
         if (err_pipe[1] >= 0) close(err_pipe[1]);
-        free_argv(argv, args_count); free(directory); return 2;
+        free_argv(argv, args_count); hao_free(directory); return 2;
     }
     posix_spawn_file_actions_t actions;
     int rc = posix_spawn_file_actions_init(&actions);
@@ -144,7 +145,7 @@ int hao_process_execute(const unsigned char *program, size_t program_len,
     if (!rc) rc = posix_spawnp(&pid, command, &actions, NULL, argv, environ);
     if (actions_initialized) posix_spawn_file_actions_destroy(&actions);
     close(out_pipe[1]); close(err_pipe[1]);
-    free_argv(argv, args_count); free(directory);
+    free_argv(argv, args_count); hao_free(directory);
     if (rc) { close(out_pipe[0]); close(err_pipe[0]); return 2; }
     return capture_pipes(out_pipe[0], err_pipe[0], stdout_output, stderr_output,
                          capacity, result, pid);

@@ -18,6 +18,7 @@ void *hao_calloc(size_t count, size_t size);
 void *hao_realloc(void *pointer, size_t size);
 void hao_free(void *pointer);
 char *hao_strdup(const char *text);
+char *hao_strndup(const char *text, size_t length);
 HaoAllocatorStats hao_allocator_stats(void);
 
 #endif

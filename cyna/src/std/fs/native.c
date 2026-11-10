@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include "../../runtime_allocator.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +39,7 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
         return JS_ThrowInternalError(ctx, "failed to read file");
     }
     size_t capacity = (size_t)info.st_size;
-    unsigned char *buffer = malloc(capacity ? capacity : 1);
+    unsigned char *buffer = hao_alloc(capacity ? capacity : 1);
     if (!buffer) {
         JS_FreeCString(ctx, path);
         return JS_ThrowOutOfMemory(ctx);
@@ -46,11 +47,11 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
     int length = hao_fs_read_into((const unsigned char *)path, buffer, capacity);
     JS_FreeCString(ctx, path);
     if (length < 0) {
-        free(buffer);
+        hao_free(buffer);
         return JS_ThrowInternalError(ctx, "failed to read file");
     }
     JSValue result = JS_NewStringLen(ctx, (const char *)buffer, (size_t)length);
-    free(buffer);
+    hao_free(buffer);
     return result;
 }
 

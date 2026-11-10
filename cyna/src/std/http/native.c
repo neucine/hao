@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include "../../runtime_allocator.h"
 #include <uv.h>
 #include <curl/curl.h>
 #include <openssl/evp.h>
@@ -52,24 +53,24 @@ typedef struct {
 static void free_headers(HaoHeader *header) {
     while (header) {
         HaoHeader *next = header->next;
-        free(header->name);
-        free(header->value);
-        free(header);
+        hao_free(header->name);
+        hao_free(header->value);
+        hao_free(header);
         header = next;
     }
 }
 static void destroy_job(HaoHttpJob *job) {
-    free(job->url);
-    free(job->method);
-    free(job->download_path);
-    free(job->body);
-    free(job->final_url);
-    free(job->response.body);
+    hao_free(job->url);
+    hao_free(job->method);
+    hao_free(job->download_path);
+    hao_free(job->body);
+    hao_free(job->final_url);
+    hao_free(job->response.body);
     free_headers(job->response.headers);
     curl_slist_free_all(job->request_headers);
     JS_FreeValue(job->ctx, job->resolve);
     JS_FreeValue(job->ctx, job->reject);
-    free(job);
+    hao_free(job);
 }
 static size_t receive_body(char *data, size_t size, size_t count, void *opaque) {
     HaoHttpResponse *response = opaque;
@@ -89,7 +90,7 @@ static size_t receive_body(char *data, size_t size, size_t count, void *opaque) 
             if (capacity > response->limit / 2) { capacity = response->limit; break; }
             capacity *= 2;
         }
-        unsigned char *next = realloc(response->body, capacity);
+        unsigned char *next = hao_realloc(response->body, capacity);
         if (!next) { response->failed = 2; return 0; }
         response->body = next;
         response->capacity = capacity;
@@ -132,10 +133,10 @@ static size_t receive_header(char *data, size_t size, size_t count, void *opaque
     size_t value_length = (size_t)(data + length - value);
     while (value_length && isspace((unsigned char)*value)) { value++; value_length--; }
     while (value_length && isspace((unsigned char)value[value_length - 1])) value_length--;
-    HaoHeader *header = calloc(1, sizeof(*header));
+    HaoHeader *header = hao_calloc(1, sizeof(*header));
     if (!header) { response->failed = 2; return 0; }
-    header->name = malloc(name_length + 1);
-    header->value = malloc(value_length + 1);
+    header->name = hao_alloc(name_length + 1);
+    header->value = hao_alloc(value_length + 1);
     if (!header->name || !header->value) {
         free_headers(header);
         response->failed = 2;
@@ -158,7 +159,7 @@ static void perform_http(uv_work_t *work) {
     char *temporary_path = NULL;
     if (job->download_path) {
         size_t length = strlen(job->download_path);
-        temporary_path = malloc(length + 17);
+        temporary_path = hao_alloc(length + 17);
         if (!temporary_path) { set_error(job, "out of memory"); goto done; }
         snprintf(temporary_path, length + 17, "%s.hao-XXXXXX", job->download_path);
         int fd = mkstemp(temporary_path);
@@ -199,7 +200,7 @@ static void perform_http(uv_work_t *work) {
     char *effective_url = NULL;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &job->status);
     curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective_url);
-    job->final_url = strdup(effective_url ? effective_url : job->url);
+    job->final_url = hao_strdup(effective_url ? effective_url : job->url);
     if (!job->final_url) { set_error(job, "out of memory"); goto done; }
     if (job->download_path) {
         if (job->status < 200 || job->status >= 300) { set_error(job, "http.download requires a successful response"); goto done; }
@@ -229,7 +230,7 @@ static void perform_http(uv_work_t *work) {
     EVP_MD_CTX_free(response->digest);
     response->digest = NULL;
     if (response->download_file) fclose(response->download_file);
-    if (temporary_path) { unlink(temporary_path); free(temporary_path); }
+    if (temporary_path) { unlink(temporary_path); hao_free(temporary_path); }
     if (curl) curl_easy_cleanup(curl);
 }
 static JSValue make_response(HaoHttpJob *job) {
@@ -282,7 +283,7 @@ static void finish_http(uv_work_t *work, int status) {
 static char *copy_property(JSContext *ctx, JSValueConst object, const char *name) {
     JSValue value = JS_GetPropertyStr(ctx, object, name);
     const char *text = JS_ToCString(ctx, value);
-    char *copy = text ? strdup(text) : NULL;
+    char *copy = text ? hao_strdup(text) : NULL;
     if (text) JS_FreeCString(ctx, text);
     JS_FreeValue(ctx, value);
     return copy;
@@ -292,7 +293,7 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
     job->url = copy_property(ctx, options, "url");
     job->method = copy_property(ctx, options, "method");
     char *redirect = copy_property(ctx, options, "redirect");
-    if (redirect) { job->manual_redirect = strcmp(redirect, "manual") == 0; free(redirect); }
+    if (redirect) { job->manual_redirect = strcmp(redirect, "manual") == 0; hao_free(redirect); }
     JSValue limit = JS_GetPropertyStr(ctx, options, "maxBytes");
     int64_t max_bytes = 0;
     int limit_status = JS_ToInt64(ctx, &max_bytes, limit);
@@ -302,7 +303,7 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
     JSValue path = JS_GetPropertyStr(ctx, options, "downloadPath");
     if (JS_IsString(path)) {
         const char *text = JS_ToCString(ctx, path);
-        job->download_path = text ? strdup(text) : NULL;
+        job->download_path = text ? hao_strdup(text) : NULL;
         if (text) JS_FreeCString(ctx, text);
         if (!job->download_path) { JS_FreeValue(ctx, path); return false; }
     }
@@ -312,7 +313,7 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
         size_t length = 0;
         const char *text = JS_ToCStringLen(ctx, &length, body);
         if (!text) { JS_FreeValue(ctx, body); return false; }
-        job->body = malloc(length ? length : 1);
+        job->body = hao_alloc(length ? length : 1);
         if (job->body) memcpy(job->body, text, length);
         job->body_length = length;
         job->has_body = true;
@@ -323,7 +324,7 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
         if (JS_IsException(buffer)) { JS_FreeValue(ctx, body); return false; }
         uint8_t *bytes = JS_GetArrayBuffer(ctx, &total, buffer);
         if (!bytes || offset > total || length > total - offset) { JS_FreeValue(ctx, buffer); JS_FreeValue(ctx, body); return false; }
-        job->body = malloc(length ? length : 1);
+        job->body = hao_alloc(length ? length : 1);
         if (job->body) memcpy(job->body, bytes + offset, length);
         job->body_length = length;
         job->has_body = true;
@@ -350,13 +351,13 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
             return false;
         }
         size_t length = strlen(name) + strlen(value) + 3;
-        char *line = malloc(length);
+        char *line = hao_alloc(length);
         bool appended = false;
         if (line) {
             snprintf(line, length, "%s: %s", name, value);
             struct curl_slist *next = curl_slist_append(job->request_headers, line);
             if (next) { job->request_headers = next; appended = true; }
-            free(line);
+            hao_free(line);
         }
         JS_FreeCString(ctx, name); JS_FreeCString(ctx, value);
         JS_FreeValue(ctx, name_value); JS_FreeValue(ctx, value_value); JS_FreeValue(ctx, pair);
@@ -368,7 +369,7 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
 static JSValue request_native(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     if (argc < 1 || !JS_IsObject(argv[0])) return JS_ThrowTypeError(ctx, "http request options required");
-    HaoHttpJob *job = calloc(1, sizeof(*job));
+    HaoHttpJob *job = hao_calloc(1, sizeof(*job));
     if (!job) return JS_ThrowOutOfMemory(ctx);
     job->ctx = ctx;
     job->resolve = JS_UNDEFINED;

@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include "../../runtime_allocator.h"
 #include <ffi/ffi.h>
 #include <dlfcn.h>
 #include <stdbool.h>
@@ -49,12 +50,12 @@ static void free_library(HaoLibrary *library) {
     HaoBinding *binding = library->bindings;
     while (binding) {
         HaoBinding *next = binding->next;
-        free(binding->name);
-        free(binding);
+        hao_free(binding->name);
+        hao_free(binding);
         binding = next;
     }
     dlclose(library->library);
-    free(library);
+    hao_free(library);
 }
 static void close_library(HaoLibrary *library) {
     HaoLibrary **link = &libraries;
@@ -104,7 +105,7 @@ static JSValue open_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     if (!length || length > 4096) { JS_FreeCString(ctx, name); return JS_ThrowTypeError(ctx, "dlopen: invalid library name"); }
     char *path = NULL;
     if (!strchr(name, '/') && !strchr(name, '.')) {
-        path = malloc(length + 10);
+        path = hao_alloc(length + 10);
         if (!path) { JS_FreeCString(ctx, name); return JS_ThrowOutOfMemory(ctx); }
 #if defined(__APPLE__)
         snprintf(path, length + 10, "lib%s.dylib", name);
@@ -113,10 +114,10 @@ static JSValue open_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
 #endif
     }
     void *handle = dlopen(path ? path : name, RTLD_NOW | RTLD_LOCAL);
-    free(path);
+    hao_free(path);
     JS_FreeCString(ctx, name);
     if (!handle) return JS_ThrowInternalError(ctx, "dlopen: failed to open library");
-    HaoLibrary *library = calloc(1, sizeof(*library));
+    HaoLibrary *library = hao_calloc(1, sizeof(*library));
     if (!library) { dlclose(handle); return JS_ThrowOutOfMemory(ctx); }
     library->id = next_id++;
     library->ctx = ctx;
@@ -139,7 +140,7 @@ static JSValue bind_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
         if (return_name) JS_FreeCString(ctx, return_name);
         return JS_EXCEPTION;
     }
-    HaoBinding *binding = calloc(1, sizeof(*binding));
+    HaoBinding *binding = hao_calloc(1, sizeof(*binding));
     if (!binding) { JS_FreeCString(ctx, name); JS_FreeCString(ctx, return_name); return JS_ThrowOutOfMemory(ctx); }
     JSValue count_value = JS_GetPropertyStr(ctx, argv[2], "length");
     uint32_t count = 0;
@@ -159,11 +160,11 @@ static JSValue bind_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     if (valid) valid = binding->function != NULL;
     if (valid) valid = ffi_prep_cif(&binding->cif, FFI_DEFAULT_ABI, count,
         ffi_type_for(binding->returns), binding->arg_ffi) == FFI_OK;
-    if (valid) binding->name = strdup(name);
+    if (valid) binding->name = hao_strdup(name);
     valid = valid && binding->name;
     JS_FreeCString(ctx, name);
     JS_FreeCString(ctx, return_name);
-    if (!valid) { free(binding); return JS_ThrowTypeError(ctx, "dlopen: invalid descriptor or symbol not found"); }
+    if (!valid) { hao_free(binding); return JS_ThrowTypeError(ctx, "dlopen: invalid descriptor or symbol not found"); }
     binding->next = library->bindings;
     library->bindings = binding;
     return JS_UNDEFINED;

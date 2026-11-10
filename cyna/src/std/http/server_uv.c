@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include "../../runtime_allocator.h"
 #include <uv.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
@@ -63,7 +64,7 @@ static void unlink_server(HaoServer *server) {
 static void release_server(HaoServer *server) {
     if (--server->references != 0) return;
     JS_FreeValue(server->ctx, server->callback);
-    free(server);
+    hao_free(server);
 }
 static bool notify_client(HaoClient *client, JSValue value) {
     HaoServer *server = client->server;
@@ -84,7 +85,7 @@ static void client_closed(uv_handle_t *handle) {
     HaoClient *client = handle->data;
     if (--client->handles != 0) return;
     HaoServer *server = client->server;
-    free(client);
+    hao_free(client);
     release_server(server);
 }
 static void close_client(HaoClient *client) {
@@ -125,7 +126,7 @@ void hao_http_server_cleanup(JSContext *ctx) {
 static void client_timeout(uv_timer_t *timer) { close_client(timer->data); }
 static void allocate_buffer(uv_handle_t *handle, size_t suggested, uv_buf_t *buf) {
     (void)handle; (void)suggested;
-    buf->base = malloc(65536);
+    buf->base = hao_alloc(65536);
     buf->len = buf->base ? 65536 : 0;
 }
 static JSValue bytes_value(JSContext *ctx, const char *bytes, size_t length) {
@@ -142,13 +143,13 @@ static JSValue bytes_value(JSContext *ctx, const char *bytes, size_t length) {
 static void read_client(uv_stream_t *stream, ssize_t count, const uv_buf_t *buf) {
     HaoClient *client = stream->data;
     if (count < 0) {
-        free(buf->base);
+        hao_free(buf->base);
         close_client(client);
         return;
     }
-    if (count == 0) { free(buf->base); return; }
+    if (count == 0) { hao_free(buf->base); return; }
     JSValue value = bytes_value(client->server->ctx, buf->base, (size_t)count);
-    free(buf->base);
+    hao_free(buf->base);
     if (JS_IsException(value)) {
         JSValue error = JS_GetException(client->server->ctx);
         JS_FreeValue(client->server->ctx, error);
@@ -160,11 +161,11 @@ static void read_client(uv_stream_t *stream, ssize_t count, const uv_buf_t *buf)
 static void accept_client(uv_stream_t *stream, int status) {
     if (status < 0) return;
     HaoServer *server = stream->data;
-    HaoClient *client = calloc(1, sizeof(*client));
+    HaoClient *client = hao_calloc(1, sizeof(*client));
     if (!client) return;
     client->server = server;
     client->id = next_id++;
-    if (uv_tcp_init(uv_handle_get_loop((uv_handle_t *)stream), &client->tcp) != 0) { free(client); return; }
+    if (uv_tcp_init(uv_handle_get_loop((uv_handle_t *)stream), &client->tcp) != 0) { hao_free(client); return; }
     client->tcp.data = client;
     client->handles = 1;
     server->references++;
@@ -206,7 +207,7 @@ static JSValue serve_native(JSContext *ctx, JSValueConst this_val, int argc, JSV
     }
     JS_FreeCString(ctx, hostname);
     JS_FreeValue(ctx, host_value);
-    HaoServer *server = calloc(1, sizeof(*server));
+    HaoServer *server = hao_calloc(1, sizeof(*server));
     if (!server) return JS_ThrowOutOfMemory(ctx);
     server->ctx = ctx;
     server->callback = JS_DupValue(ctx, argv[1]);
@@ -216,7 +217,7 @@ static JSValue serve_native(JSContext *ctx, JSValueConst this_val, int argc, JSV
     server->references = 1;
     uv_loop_t *loop = hao_runtime_loop(ctx);
     if (!loop || uv_tcp_init(loop, &server->listener) != 0) {
-        JS_FreeValue(ctx, server->callback); free(server);
+        JS_FreeValue(ctx, server->callback); hao_free(server);
         return JS_ThrowInternalError(ctx, "unable to initialize HTTP server");
     }
     server->listener.data = server;
@@ -271,8 +272,8 @@ static void wrote_client(uv_write_t *request, int status) {
     (void)status;
     HaoWrite *write = request->data;
     close_client(write->client);
-    free(write->bytes);
-    free(write);
+    hao_free(write->bytes);
+    hao_free(write);
 }
 static JSValue respond_native(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
@@ -288,10 +289,10 @@ static JSValue respond_native(JSContext *ctx, JSValueConst this_val, int argc, J
         JS_FreeValue(ctx, buffer);
         return JS_ThrowTypeError(ctx, "response must be Uint8Array");
     }
-    HaoWrite *write = malloc(sizeof(*write));
+    HaoWrite *write = hao_alloc(sizeof(*write));
     if (!write) { JS_FreeValue(ctx, buffer); return JS_ThrowOutOfMemory(ctx); }
-    write->bytes = malloc(length ? length : 1);
-    if (!write->bytes) { free(write); JS_FreeValue(ctx, buffer); return JS_ThrowOutOfMemory(ctx); }
+    write->bytes = hao_alloc(length ? length : 1);
+    if (!write->bytes) { hao_free(write); JS_FreeValue(ctx, buffer); return JS_ThrowOutOfMemory(ctx); }
     memcpy(write->bytes, bytes + offset, length);
     JS_FreeValue(ctx, buffer);
     write->client = client;
@@ -301,7 +302,7 @@ static JSValue respond_native(JSContext *ctx, JSValueConst this_val, int argc, J
     uv_read_stop((uv_stream_t *)&client->tcp);
     if (uv_write(&write->request, (uv_stream_t *)&client->tcp, &output, 1, wrote_client) != 0) {
         client->responding = false;
-        free(write->bytes); free(write);
+        hao_free(write->bytes); hao_free(write);
         close_client(client);
         return JS_ThrowInternalError(ctx, "HTTP response write failed");
     }

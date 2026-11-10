@@ -1,9 +1,5 @@
 #include <quickjs.h>
-#if defined(__APPLE__)
-#include <malloc/malloc.h>
-#elif defined(__GLIBC__)
-#include <malloc.h>
-#endif
+#include "../runtime_allocator.h"
 #include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
@@ -37,7 +33,7 @@ static HaoMetricRegistry *registries;
 static HaoMetricRegistry *registry_for(JSContext *ctx, int create) {
     for (HaoMetricRegistry *r = registries; r; r = r->next) if (r->ctx == ctx) return r;
     if (!create) return NULL;
-    HaoMetricRegistry *r = calloc(1, sizeof(*r));
+    HaoMetricRegistry *r = hao_calloc(1, sizeof(*r));
     if (!r) return NULL;
     r->ctx = ctx; r->next = registries; registries = r;
     return r;
@@ -57,9 +53,9 @@ int hao_metric_register(JSContext *ctx, const JsMetricDefinition *d, uint32_t *o
     }
     if (r->count == 256) return -1;
     HaoMetric *m = &r->entries[r->count];
-    m->scope = strdup(d->scope); m->name = strdup(d->name); m->unit = strdup(unit);
+    m->scope = hao_strdup(d->scope); m->name = hao_strdup(d->name); m->unit = hao_strdup(unit);
     if (!m->scope || !m->name || !m->unit) {
-        free(m->scope); free(m->name); free(m->unit); memset(m, 0, sizeof(*m)); return -1;
+        hao_free(m->scope); hao_free(m->name); hao_free(m->unit); memset(m, 0, sizeof(*m)); return -1;
     }
     m->kind = d->kind; *out = r->count++; return 0;
 }
@@ -92,7 +88,7 @@ int hao_metric_value(JSContext *ctx, uint32_t id, double *out) {
 }
 static void clear_registry(HaoMetricRegistry *r) {
     for (uint32_t i = 0; i < r->count; i++) {
-        free(r->entries[i].scope); free(r->entries[i].name); free(r->entries[i].unit);
+        hao_free(r->entries[i].scope); hao_free(r->entries[i].name); hao_free(r->entries[i].unit);
         memset(&r->entries[i], 0, sizeof(r->entries[i]));
     }
     r->count = 0;
@@ -102,7 +98,7 @@ void hao_metric_cleanup(JSContext *ctx) {
     while (*link) {
         HaoMetricRegistry *r = *link;
         if (r->ctx != ctx) { link = &r->next; continue; }
-        *link = r->next; clear_registry(r); free(r);
+        *link = r->next; clear_registry(r); hao_free(r);
     }
 }
 
@@ -173,19 +169,7 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     (void)this_val; (void)argc; (void)argv;
     JSMemoryUsage usage;
     JS_ComputeMemoryUsage(JS_GetRuntime(ctx), &usage);
-    size_t allocator_active = 0, allocator_peak = 0;
-#if defined(__APPLE__)
-    malloc_statistics_t zone;
-    malloc_zone_statistics(malloc_default_zone(), &zone);
-    allocator_active = zone.size_in_use;
-    allocator_peak = zone.max_size_in_use;
-#elif defined(__GLIBC__)
-    struct mallinfo2 info = mallinfo2();
-    allocator_active = info.uordblks;
-    static size_t sampled_peak = 0;
-    if (allocator_active > sampled_peak) sampled_peak = allocator_active;
-    allocator_peak = sampled_peak;
-#endif
+    HaoAllocatorStats allocator = hao_allocator_stats();
     HaoProcessMemory process = hao_process_memory_snapshot();
     if (process.resident_bytes > resident_peak_bytes) resident_peak_bytes = process.resident_bytes;
     if (process.physical_footprint_bytes > physical_footprint_peak_bytes)
@@ -216,8 +200,12 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     GAUGE("qjs_fast_array_element_count", usage.fast_array_elements);
     GAUGE("qjs_binary_object_count", usage.binary_object_count);
     GAUGE("qjs_binary_object_bytes", usage.binary_object_size);
-    GAUGE("allocator_active_bytes", allocator_active);
-    GAUGE("allocator_peak_bytes", allocator_peak);
+    GAUGE("allocator_active_bytes", allocator.active_size);
+    GAUGE("allocator_peak_bytes", allocator.peak_size);
+    GAUGE("allocator_allocated_bytes_total", allocator.allocated_size);
+    GAUGE("allocator_freed_bytes_total", allocator.freed_size);
+    GAUGE("allocator_allocation_count", allocator.allocation_count);
+    GAUGE("allocator_free_count", allocator.free_count);
     GAUGE("resident_bytes", process.resident_bytes);
     GAUGE("physical_footprint_bytes", process.physical_footprint_bytes);
     GAUGE("resident_peak_bytes", resident_peak_bytes);

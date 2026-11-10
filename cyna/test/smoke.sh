@@ -32,7 +32,8 @@ clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
 test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
 clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_wire_test.c" \
-    "$repo_root/cyna/src/jupyter/zmq.c" -L /opt/homebrew/lib -lzmq -lcrypto \
+    "$repo_root/cyna/src/jupyter/zmq.c" "$repo_root/cyna/src/runtime_allocator.c" \
+    -L /opt/homebrew/lib -lzmq -lcrypto \
     -o "$fixture_dir/jupyter-wire-test"
 test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'
 clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_kernel_test.c" \

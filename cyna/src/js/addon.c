@@ -1,4 +1,5 @@
 #include "../../../include/addon.h"
+#include "../runtime_allocator.h"
 #include <quickjs.h>
 #include <dlfcn.h>
 #include <stdlib.h>
@@ -38,7 +39,7 @@ static JSValueConst frame_value(AddonFrame *frame, JsValue handle) {
 }
 
 static JsValue frame_push(AddonFrame *frame, JSValue value) {
-    JSValue *values = realloc(frame->owned, (frame->count + 1) * sizeof(*values));
+    JSValue *values = hao_realloc(frame->owned, (frame->count + 1) * sizeof(*values));
     if (!values) {
         JS_FreeValue(frame->ctx, value);
         JS_ThrowOutOfMemory(frame->ctx);
@@ -63,11 +64,11 @@ static const char *api_to_string(JsContext *ctx, JsValue v) {
     AddonFrame *f = frame_of(ctx);
     const char *text = JS_ToCString(f->ctx, frame_value(f, v));
     if (!text) return NULL;
-    char *copy = strdup(text);
+    char *copy = hao_strdup(text);
     JS_FreeCString(f->ctx, text);
     if (!copy) return NULL;
-    char **strings = realloc(f->strings, (f->string_count + 1) * sizeof(*strings));
-    if (!strings) { free(copy); return NULL; }
+    char **strings = hao_realloc(f->strings, (f->string_count + 1) * sizeof(*strings));
+    if (!strings) { hao_free(copy); return NULL; }
     f->strings = strings;
     f->strings[f->string_count++] = copy;
     return copy;
@@ -115,15 +116,15 @@ static JSValue call_addon(JSContext *ctx, JSValueConst this_value, int argc,
     const JsFunction *function = (const JsFunction *)(uintptr_t)pointer;
     AddonFrame frame = {.ctx = ctx, .argc = argc, .argv = argv};
     JsContext addon_ctx = {.api = &context_api, .data = &frame};
-    JsValue *handles = calloc((size_t)argc ? (size_t)argc : 1, sizeof(*handles));
+    JsValue *handles = hao_calloc((size_t)argc ? (size_t)argc : 1, sizeof(*handles));
     if (!handles) return JS_ThrowOutOfMemory(ctx);
     for (int i = 0; i < argc; i++) handles[i] = (size_t)i + 1;
     JsValue returned = function->callback(&addon_ctx, argc, handles);
-    free(handles);
+    hao_free(handles);
     JSValue result = JS_DupValue(ctx, frame_value(&frame, returned));
     for (size_t i = 0; i < frame.count; i++) JS_FreeValue(ctx, frame.owned[i]);
-    for (size_t i = 0; i < frame.string_count; i++) free(frame.strings[i]);
-    free(frame.owned); free(frame.strings);
+    for (size_t i = 0; i < frame.string_count; i++) hao_free(frame.strings[i]);
+    hao_free(frame.owned); hao_free(frame.strings);
     return result;
 }
 
@@ -151,7 +152,7 @@ static int init_module(JSContext *ctx, JSModuleDef *module) {
 static int add_module(JsRegistry *registry, const JsModule *module) {
     AddonLibrary *library = registry->data;
     if (!module || !module->specifier || !module->functions || module->function_count == 0 || module->function_count > 256) return -1;
-    const JsModule **modules = realloc(library->modules, (library->count + 1) * sizeof(*modules));
+    const JsModule **modules = hao_realloc(library->modules, (library->count + 1) * sizeof(*modules));
     if (!modules) return -1;
     library->modules = modules;
     library->modules[library->count++] = module;
@@ -162,17 +163,17 @@ static const JsRegistryApi registry_api = {.abi_version = JS_ADDON_ABI_VERSION, 
 static AddonLibrary *load_library(JSContext *ctx, const char *path) {
     for (AddonLibrary *it = libraries; it; it = it->next)
         if (it->ctx == ctx && strcmp(it->path, path) == 0) return it;
-    AddonLibrary *library = calloc(1, sizeof(*library));
+    AddonLibrary *library = hao_calloc(1, sizeof(*library));
     if (!library) return NULL;
     library->ctx = ctx;
-    library->path = strdup(path);
+    library->path = hao_strdup(path);
     library->handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
     JsRegisterModulesFn register_fn = library->handle ? (JsRegisterModulesFn)dlsym(library->handle, "js_register_modules") : NULL;
     JsRegistry registry = {.api = &registry_api, .data = library};
     if (!library->path || !register_fn || register_fn(&registry) != 0) {
         JS_ThrowReferenceError(ctx, "Cannot load native addon: %s", path);
         if (library->handle) dlclose(library->handle);
-        free(library->modules); free(library->path); free(library);
+        hao_free(library->modules); hao_free(library->path); hao_free(library);
         return NULL;
     }
     library->next = libraries;
@@ -183,15 +184,15 @@ static AddonLibrary *load_library(JSContext *ctx, const char *path) {
 JSModuleDef *hao_load_addon(JSContext *ctx, const char *name) {
     const char *newline = strchr(name, '\n');
     if (strncmp(name, "addon:", 6) != 0 || !newline) return NULL;
-    char *specifier = strndup(name + 6, (size_t)(newline - name - 6));
+    char *specifier = hao_strndup(name + 6, (size_t)(newline - name - 6));
     if (!specifier) return NULL;
     AddonLibrary *library = load_library(ctx, newline + 1);
-    if (!library) { free(specifier); return NULL; }
+    if (!library) { hao_free(specifier); return NULL; }
     const JsModule *entry = NULL;
     for (size_t i = 0; i < library->count; i++)
         if (strcmp(library->modules[i]->specifier, specifier) == 0) { entry = library->modules[i]; break; }
     if (!entry && library->count == 1) entry = library->modules[0];
-    free(specifier);
+    hao_free(specifier);
     if (!entry) { JS_ThrowReferenceError(ctx, "Native addon module not registered: %s", name); return NULL; }
     JSModuleDef *module = JS_NewCModule(ctx, name, init_module);
     if (!module) return NULL;
@@ -208,6 +209,6 @@ void hao_addon_cleanup(JSContext *ctx) {
         if (library->ctx != ctx) { link = &library->next; continue; }
         *link = library->next;
         dlclose(library->handle);
-        free(library->modules); free(library->path); free(library);
+        hao_free(library->modules); hao_free(library->path); hao_free(library);
     }
 }

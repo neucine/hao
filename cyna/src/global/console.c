@@ -1,4 +1,5 @@
 #include "../runtime_host.h"
+#include "../runtime_allocator.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +11,7 @@ static int hao_capture_append(char **buffer, size_t *length, size_t *capacity,
     if (*length + count > *capacity) {
         size_t next_capacity = *capacity ? *capacity : 256;
         while (next_capacity < *length + count) next_capacity *= 2;
-        char *next = realloc(*buffer, next_capacity);
+        char *next = hao_realloc(*buffer, next_capacity);
         if (!next) return -1;
         *buffer = next;
         *capacity = next_capacity;
@@ -89,12 +90,12 @@ static JSValue hao_end_capture(JSContext *ctx, JSValueConst this_val, int argc, 
     JS_SetPropertyStr(ctx, result, "stdout", JS_NewStringLen(ctx, host->capture_stdout, host->capture_stdout_len));
     JS_SetPropertyStr(ctx, result, "stderr", JS_NewStringLen(ctx, host->capture_stderr, host->capture_stderr_len));
     size_t total = host->capture_stdout_len + host->capture_stderr_len;
-    char *combined = malloc(total ? total : 1);
+    char *combined = hao_alloc(total ? total : 1);
     if (!combined) { JS_FreeValue(ctx, result); return JS_ThrowOutOfMemory(ctx); }
     if (host->capture_stdout_len) memcpy(combined, host->capture_stdout, host->capture_stdout_len);
     if (host->capture_stderr_len) memcpy(combined + host->capture_stdout_len, host->capture_stderr, host->capture_stderr_len);
     JS_SetPropertyStr(ctx, result, "combined", JS_NewStringLen(ctx, combined, total));
-    free(combined);
+    hao_free(combined);
     return result;
 }
 

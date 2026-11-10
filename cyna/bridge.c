@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include "src/runtime_allocator.h"
 #include <uv.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -50,8 +51,8 @@ static void hao_print_value(JSContext *ctx, JSValueConst error) {
     if (text) {
         HaoRuntime *host = JS_GetContextOpaque(ctx);
         if (host) {
-            free(host->embed_error);
-            host->embed_error = strdup(text);
+            hao_free(host->embed_error);
+            host->embed_error = hao_strdup(text);
         }
         fprintf(stderr, "%s\n", text);
         JS_FreeCString(ctx, text);
@@ -94,21 +95,21 @@ int hao_embed_bytes_valid(const unsigned char *pointer, size_t length) {
 void hao_embed_clear_error(uintptr_t handle) {
     if (!handle) return;
     HaoRuntime *host = (HaoRuntime *)handle;
-    free(host->embed_error);
+    hao_free(host->embed_error);
     host->embed_error = NULL;
 }
 
 void hao_embed_invalid_buffer(uintptr_t handle) {
     if (!handle) return;
     hao_embed_clear_error(handle);
-    ((HaoRuntime *)handle)->embed_error = strdup("Invalid byte buffer");
+    ((HaoRuntime *)handle)->embed_error = hao_strdup("Invalid byte buffer");
 }
 
 void hao_embed_set_error(uintptr_t handle, const unsigned char *message, size_t length) {
     if (!handle || !message || length == SIZE_MAX) return;
     HaoRuntime *host = (HaoRuntime *)handle;
     if (host->embed_error) return;
-    char *copy = malloc(length + 1);
+    char *copy = hao_alloc(length + 1);
     if (!copy) return;
     memcpy(copy, message, length);
     copy[length] = 0;
@@ -145,11 +146,11 @@ uintptr_t hao_runtime_new(void) {
         snprintf(buffer, sizeof(buffer), "%zu", thread_pool_size);
         if (setenv("UV_THREADPOOL_SIZE", buffer, 1) != 0) return 0;
     }
-    HaoRuntime *host = calloc(1, sizeof(*host));
+    HaoRuntime *host = hao_calloc(1, sizeof(*host));
     if (!host) return 0;
     host->runtime = JS_NewRuntime();
     if (!host->runtime) {
-        free(host);
+        hao_free(host);
         return 0;
     }
     JS_SetMaxStackSize(host->runtime, stack_size);
@@ -158,14 +159,14 @@ uintptr_t hao_runtime_new(void) {
     host->context = JS_NewContext(host->runtime);
     if (!host->context) {
         JS_FreeRuntime(host->runtime);
-        free(host);
+        hao_free(host);
         return 0;
     }
     host->loop = hao_async_uv_new();
     if (!host->loop) {
         JS_FreeContext(host->context);
         JS_FreeRuntime(host->runtime);
-        free(host);
+        hao_free(host);
         return 0;
     }
     host->next_timer_id = 1;
@@ -197,15 +198,15 @@ void hao_runtime_free(uintptr_t handle) {
     hao_metric_cleanup(host->context);
     hao_cleanup_timers(host);
     hao_async_uv_free(host->loop);
-    free(host->capture_stdout);
-    free(host->capture_stderr);
-    free(host->embed_error);
+    hao_free(host->capture_stdout);
+    hao_free(host->capture_stderr);
+    hao_free(host->embed_error);
     if (host->has_rejection) JS_FreeValue(host->rejection_context, host->rejection);
     if (host->has_callback_error) JS_FreeValue(host->context, host->callback_error);
     JS_FreeContext(host->context);
     JS_FreeRuntime(host->runtime);
     hao_module_cleanup(host);
-    free(host);
+    hao_free(host);
 }
 
 uv_loop_t *hao_runtime_loop(JSContext *ctx) {
@@ -217,36 +218,36 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
                      const char *filename, size_t filename_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
     if (filename_len == SIZE_MAX || source_len == SIZE_MAX) return 1;
-    char *name = malloc(filename_len + 1);
+    char *name = hao_alloc(filename_len + 1);
     if (!name) return 1;
     memcpy(name, filename, filename_len);
     name[filename_len] = 0;
     JSValue global = JS_GetGlobalObject(host->context);
     JS_SetPropertyStr(host->context, global, "__hao_test_filePath", JS_NewStringLen(host->context, filename, filename_len));
     JS_FreeValue(host->context, global);
-    char *input = malloc(source_len + 1);
+    char *input = hao_alloc(source_len + 1);
     if (!input) {
-        free(name);
+        hao_free(name);
         return 1;
     }
     memcpy(input, source, source_len);
     input[source_len] = 0;
     char *transformed = hao_transpile_types_for_path(input, name);
-    free(input);
+    hao_free(input);
     if (!transformed) {
         char *error = hao_transpiler_last_error();
         if (error) {
-            free(host->embed_error);
-            host->embed_error = strdup(error);
+            hao_free(host->embed_error);
+            host->embed_error = hao_strdup(error);
             fprintf(stderr, "%s\n", error);
             hao_transpiler_free(error);
         }
-        free(name);
+        hao_free(name);
         return 1;
     }
     JSValue result = JS_Eval(host->context, transformed, strlen(transformed), name, JS_EVAL_TYPE_MODULE);
     hao_transpiler_free(transformed);
-    free(name);
+    hao_free(name);
     int status = 0;
     if (JS_IsException(result)) {
         hao_print_exception(host->context);
@@ -258,7 +259,7 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
 
 static char *hao_rewrite_cell_declarations(const char *source) {
     size_t length = strlen(source);
-    char *output = malloc(length * 2 + 1);
+    char *output = hao_alloc(length * 2 + 1);
     if (!output) return NULL;
     size_t at = 0;
     const char *line = source;
@@ -324,7 +325,7 @@ static char *hao_prepare_cell(JSContext *ctx, const char *source, const char *fi
         const char *quoted_text = JS_IsException(quoted) ? NULL : JS_ToCString(ctx, quoted);
         if (!quoted_text) { JS_FreeValue(ctx, quoted); goto import_done; }
         size_t helper_len = strlen(quoted_text) + 100;
-        char *helper = malloc(helper_len);
+        char *helper = hao_alloc(helper_len);
         if (helper) snprintf(helper, helper_len,
             "import * as __hao_ns from %s; globalThis.__hao_jupyter_import = __hao_ns;", quoted_text);
         JS_FreeCString(ctx, quoted_text);
@@ -333,7 +334,7 @@ static char *hao_prepare_cell(JSContext *ctx, const char *source, const char *fi
         char helper_name[4096];
         snprintf(helper_name, sizeof(helper_name), "%s.import.%u.ts", filename, i);
         JSValue imported = JS_Eval(ctx, helper, strlen(helper), helper_name, JS_EVAL_TYPE_MODULE);
-        free(helper);
+        hao_free(helper);
         if (JS_IsException(imported)) { JS_FreeValue(ctx, imported); goto import_done; }
         JS_FreeValue(ctx, imported);
         JSValue namespace_value = JS_GetPropertyStr(ctx, global, "__hao_jupyter_import");
@@ -427,13 +428,13 @@ static JSValue hao_cell_error_text(JSContext *ctx, JSValueConst exception) {
         const char *label = name ? name : "Error";
         size_t length = strlen(label) + (message ? strlen(message) + 2 : 0) +
                         (stack ? strlen(stack) + 1 : 0) + 1;
-        char *buffer = malloc(length);
+        char *buffer = hao_alloc(length);
         if (buffer) {
             snprintf(buffer, length, "%s%s%s%s%s", label, message ? ": " : "",
                      message ? message : "", stack ? "\n" : "", stack ? stack : "");
             JS_FreeValue(ctx, text);
             text = JS_NewString(ctx, buffer);
-            free(buffer);
+            hao_free(buffer);
         }
     }
     if (name) JS_FreeCString(ctx, name);
@@ -513,19 +514,19 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
                             const char *filename, size_t filename_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
     if (!host || source_len > 1024 * 1024 || filename_len > 4096 || host->capture_active) return NULL;
-    char *input = malloc(source_len + 1);
-    char *name = malloc(filename_len + 1);
-    if (!input || !name) { free(input); free(name); return NULL; }
+    char *input = hao_alloc(source_len + 1);
+    char *name = hao_alloc(filename_len + 1);
+    if (!input || !name) { hao_free(input); hao_free(name); return NULL; }
     memcpy(input, source, source_len); input[source_len] = 0;
     memcpy(name, filename, filename_len); name[filename_len] = 0;
     if (name[0] == '<') {
         char cwd[4096];
-        if (!getcwd(cwd, sizeof(cwd))) { free(input); free(name); return NULL; }
+        if (!getcwd(cwd, sizeof(cwd))) { hao_free(input); hao_free(name); return NULL; }
         size_t needed = strlen(cwd) + filename_len + 10;
-        char *absolute = malloc(needed);
-        if (!absolute) { free(input); free(name); return NULL; }
+        char *absolute = hao_alloc(needed);
+        if (!absolute) { hao_free(input); hao_free(name); return NULL; }
         snprintf(absolute, needed, "%s/.%s.ts", cwd, name);
-        free(name);
+        hao_free(name);
         name = absolute;
     }
     host->capture_stdout_len = host->capture_stderr_len = 0;
@@ -533,12 +534,12 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
     host->capture_active = true;
     JSContext *ctx = host->context;
     char *transformed = hao_prepare_cell(ctx, input, name);
-    free(input);
+    hao_free(input);
     JSValue result = JS_UNDEFINED;
     JSValue exception = JS_UNDEFINED;
     if (transformed) {
         result = JS_Eval(ctx, transformed, strlen(transformed), name, JS_EVAL_TYPE_GLOBAL);
-        free(transformed);
+        hao_free(transformed);
         if (JS_IsException(result)) exception = JS_GetException(ctx);
         else if (hao_cell_is_promise_like(ctx, result)) {
             JSValue settled = hao_cell_await(ctx, host, result);
@@ -549,7 +550,7 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
     } else {
         exception = JS_GetException(ctx);
     }
-    free(name);
+    hao_free(name);
     if (JS_IsUndefined(exception)) {
         JSContext *job_ctx = NULL;
         for (int i = 0; i < 10000; i++) {
@@ -584,13 +585,13 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
     JS_FreeValue(ctx, packet);
     if (JS_IsException(encoded)) { JS_FreeValue(ctx, encoded); return NULL; }
     const char *text = JS_ToCString(ctx, encoded);
-    char *copy = text ? strdup(text) : NULL;
+    char *copy = text ? hao_strdup(text) : NULL;
     if (text) JS_FreeCString(ctx, text);
     JS_FreeValue(ctx, encoded);
     return copy;
 }
 
-void hao_runtime_free_text(const char *text) { free((void *)text); }
+void hao_runtime_free_text(const char *text) { hao_free((void *)text); }
 
 int hao_runtime_start_tests(uintptr_t handle, const char *grep, size_t grep_len) {
     HaoRuntime *host = (HaoRuntime *)handle;

@@ -31,5 +31,8 @@ int main(void) {
     assert(copy && strcmp(copy, "hao") == 0);
     hao_free(copy);
     assert(hao_allocator_stats().active_size == 0);
+    char *bounded = hao_strndup("abcdef", 3);
+    assert(bounded && strcmp(bounded, "abc") == 0);
+    hao_free(bounded);
     return 0;
 }

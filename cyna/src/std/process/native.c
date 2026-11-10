@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include "../../runtime_allocator.h"
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -125,11 +126,11 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
     const char *options = JS_ToCStringLen(ctx, &json_len, json);
     JS_FreeValue(ctx, json);
     if (!options) return JS_EXCEPTION;
-    unsigned char *stdout_buffer = malloc(capacity);
-    unsigned char *stderr_buffer = malloc(capacity);
+    unsigned char *stdout_buffer = hao_alloc(capacity);
+    unsigned char *stderr_buffer = hao_alloc(capacity);
     if (!stdout_buffer || !stderr_buffer) {
-        free(stdout_buffer);
-        free(stderr_buffer);
+        hao_free(stdout_buffer);
+        hao_free(stderr_buffer);
         JS_FreeCString(ctx, options);
         return JS_ThrowOutOfMemory(ctx);
     }
@@ -138,8 +139,8 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
                                       stdout_buffer, stderr_buffer, capacity, &run);
     JS_FreeCString(ctx, options);
     if (status != 0) {
-        free(stdout_buffer);
-        free(stderr_buffer);
+        hao_free(stdout_buffer);
+        hao_free(stderr_buffer);
         if (status == 1) return JS_ThrowTypeError(ctx, "invalid process options");
         if (status == 3) return JS_ThrowRangeError(ctx, "process output exceeds maxOutputBytes");
         return JS_ThrowInternalError(ctx, "process.run failed");
@@ -149,8 +150,8 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
     JS_SetPropertyStr(ctx, result, "stderr", JS_NewStringLen(ctx, (const char *)stderr_buffer, run.stderr_len));
     JS_SetPropertyStr(ctx, result, "exitCode", run.has_exit_code ? JS_NewInt32(ctx, run.exit_code) : JS_NULL);
     JS_SetPropertyStr(ctx, result, "signal", run.has_signal ? JS_NewInt32(ctx, run.signal) : JS_NULL);
-    free(stdout_buffer);
-    free(stderr_buffer);
+    hao_free(stdout_buffer);
+    hao_free(stderr_buffer);
     return result;
 }
 

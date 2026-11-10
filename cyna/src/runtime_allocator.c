@@ -78,6 +78,18 @@ char *hao_strdup(const char *text) {
     return copy;
 }
 
+char *hao_strndup(const char *text, size_t length) {
+    size_t size = 0;
+    while (size < length && text[size]) size++;
+    if (size == SIZE_MAX) return NULL;
+    char *copy = hao_alloc(size + 1);
+    if (copy) {
+        memcpy(copy, text, size);
+        copy[size] = 0;
+    }
+    return copy;
+}
+
 HaoAllocatorStats hao_allocator_stats(void) {
     return (HaoAllocatorStats){
         atomic_load(&active_size), atomic_load(&peak_size),

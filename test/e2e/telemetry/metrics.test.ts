@@ -49,6 +49,10 @@ describe("telemetry metrics", () => {
     const objects = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "qjs_object_count");
     const allocatorActive = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_active_bytes");
     const allocatorPeak = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_peak_bytes");
+    const allocatorAllocated = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_allocated_bytes_total");
+    const allocatorFreed = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_freed_bytes_total");
+    const allocationCount = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_allocation_count");
+    const freeCount = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "allocator_free_count");
     const resident = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "resident_bytes");
     const footprint = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "physical_footprint_bytes");
     const residentPeak = snapshot.find((metric) => metric.scope === "runtime.memory" && metric.name === "resident_peak_bytes");
@@ -62,6 +66,12 @@ describe("telemetry metrics", () => {
     expect(allocatorActive?.unit).toBe("bytes");
     expect(allocatorPeak?.kind).toBe("gauge");
     expect(allocatorPeak?.unit).toBe("bytes");
+    expect((allocatorPeak?.value ?? 0) >= (allocatorActive?.value ?? 0)).toBe(true);
+    expect((allocatorAllocated?.value ?? 0) >= (allocatorFreed?.value ?? 0)).toBe(true);
+    expect(allocatorAllocated?.unit).toBe("bytes");
+    expect(allocatorFreed?.unit).toBe("bytes");
+    expect(allocationCount?.unit).toBe("count");
+    expect(freeCount?.unit).toBe("count");
     expect((resident?.value ?? 0) > 0).toBe(true);
     expect((footprint?.value ?? 0) > 0).toBe(true);
     expect((residentPeak?.value ?? 0) >= (resident?.value ?? 0)).toBe(true);
