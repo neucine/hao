@@ -12,6 +12,11 @@ produced by `sh cyna/build.sh` (`cyna/build/modules`). An application that does
 not use `std:` modules can omit that call.
 Hosts compiled separately can compare `hao_embed_abi_version()` with
 `HAO_EMBED_ABI_VERSION` before creating a runtime.
+Each successful `hao_embed_new` call owns an independent module registry and
+must be paired with one `hao_embed_free` call. Source and module names are copied
+before registration returns. A null byte pointer is accepted only with a zero
+length. Calls return zero on success; execution and module errors currently
+write details to stderr.
 
 The archive currently targets macOS arm64. Link it with the Cyna runtime and
 standard library archives, QuickJS, libuv, the Hao transpiler, libcurl, and

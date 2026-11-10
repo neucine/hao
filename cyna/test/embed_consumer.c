@@ -12,6 +12,13 @@ int main(int argc, char **argv) {
     if (hao_embed_register_module(runtime, NULL, 1, (const unsigned char *)"", 0) == 0) return 6;
     if (hao_embed_register_module(runtime, (const unsigned char *)"x", 1, NULL, 1) == 0) return 7;
     if (hao_embed_install_std(runtime, NULL, 1) == 0) return 8;
+    HaoRuntimeHandle other = hao_embed_new();
+    if (!other || other == runtime) return 9;
+    const char *other_source = "export const answer = 7;";
+    if (hao_embed_register_module(other, (const unsigned char *)"demo:answer", 11,
+            (const unsigned char *)other_source, strlen(other_source)) != 0) return 10;
+    hao_embed_free(other);
+    if (hao_embed_eval(runtime, NULL, 0, (const unsigned char *)"<empty>", 7) != 0) return 11;
     const char *module_name = "demo:answer";
     const char *module_source = "export const answer: number = 42;";
     const char *source = "import { answer } from 'demo:answer'; console.log(answer);";
