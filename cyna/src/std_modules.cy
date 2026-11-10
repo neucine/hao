@@ -34,5 +34,8 @@ pub fn install(runtime: &const Runtime): i32 {
     if install_one(runtime, module_directory.clone(), "std:plot", "plot.ts") != 0 {
         return 1;
     }
-    return install_one(runtime, module_directory, "std:util", "util.ts");
+    if install_one(runtime, module_directory.clone(), "std:util", "util.ts") != 0 {
+        return 1;
+    }
+    return install_one(runtime, module_directory, "std:http", "http.ts");
 }

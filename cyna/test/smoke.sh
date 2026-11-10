@@ -41,6 +41,27 @@ util_actual=$("$runtime" "$fixture_dir/util.ts")
 util_expected=$(printf '{ xs: [ 1, 2, 3 ], ok: true }\n[ 1, 2, ... 1 more items ] 2\n<svg />\n{ self: [Circular] }')
 test "$util_actual" = "$util_expected"
 
+server_info=$(python3 "$repo_root/test/e2e/http/server.py")
+set -- $server_info
+server_port=$1
+server_pid=$2
+trap 'kill "$server_pid" 2>/dev/null || true; rm -rf "$fixture_dir"' EXIT HUP INT TERM
+cat > "$fixture_dir/http.ts" <<EOF
+import { get, post } from 'std:http';
+const response = await get('http://127.0.0.1:$server_port/json', { query: { q: 'hello world' } });
+console.log(response.status, response.json().path, response.headers['Content-Type']);
+const sent = await post('http://127.0.0.1:$server_port/echo', { json: { answer: 42 } });
+console.log(sent.json().body);
+const binary = await get('http://127.0.0.1:$server_port/bytes');
+console.log(Array.from(binary.bytes()).join(','));
+const manual = await get('http://127.0.0.1:$server_port/download-redirect', { redirect: 'manual' });
+console.log(manual.status, manual.headers['Location']);
+try { await get('http://127.0.0.1:$server_port/large', { maxBytes: 10 }); } catch (error) { console.log(error.message); }
+EOF
+http_actual=$("$runtime" "$fixture_dir/http.ts")
+http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\nhttp response exceeds maxBytes')
+test "$http_actual" = "$http_expected"
+
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
 printf 'export const value: number = 42;\n' > "$fixture_dir/app/node_modules/demo/index.ts"

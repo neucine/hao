@@ -29,6 +29,11 @@ Standard module source files are installed beside the executable under
 bridge transpiles TypeScript before compilation. `std:plot` uses Hao's existing
 TypeScript source and the Cyna `std:fs` host functions.
 
+`std:http` currently provides `request`, `get`, and `post` through a bounded
+libcurl adapter. It supports HTTP(S), request headers and bodies, decoded
+responses, and up to three redirects. Its transport currently blocks the
+runtime while the request runs. `download` and `serve` remain to be ported.
+
 From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
 transpiler archives, builds the Cyna executable, and installs the module files.

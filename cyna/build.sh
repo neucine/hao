@@ -11,3 +11,4 @@ cp cyna/modules/fs.ts cyna/build/modules/fs.ts
 cp cyna/modules/process.ts cyna/build/modules/process.ts
 cp src/std/plot/index.ts cyna/build/modules/plot.ts
 cp cyna/modules/util.ts cyna/build/modules/util.ts
+cp cyna/modules/http.ts cyna/build/modules/http.ts
