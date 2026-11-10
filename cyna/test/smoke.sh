@@ -489,11 +489,13 @@ const cwd = await run({ cmd: 'pwd', cwd: '/private/tmp' });
 console.log('cwd', cwd.stdout.trim());
 const largeLimit = await run({ cmd: 'sh', args: ['-c', 'printf ok'], maxOutputBytes: 17 * 1024 * 1024 });
 console.log('largeLimit', largeLimit.stdout);
+const coerced = await run({ cmd: 'sh', args: ['-c', 'printf \"%s,%s,%s\" \"$1\" \"$2\" \"$3\"', 'sh', 42, true, null] });
+console.log('coerced', coerced.stdout);
 try { await run({ cmd: 'sh', args: ['-c', 'exit 9'] }); } catch (error) { console.log('checked', error.exitCode); }
 try { await run({ cmd: 'sh', args: ['-c', 'printf 12345'], maxOutputBytes: 3 }); } catch (error) { console.log('limited', error.message); }
 EOF
 process_actual=$(HAO_CYNA_TEST=works "$runtime" "$fixture_dir/process.ts")
-process_expected=$(printf 'env works\nrun hello warn 0\njson 42\nunchecked 7\nsignaled null 15\ncwd /private/tmp\nlargeLimit ok\nchecked 9\nlimited process output exceeds maxOutputBytes')
+process_expected=$(printf 'env works\nrun hello warn 0\njson 42\nunchecked 7\nsignaled null 15\ncwd /private/tmp\nlargeLimit ok\ncoerced 42,true,null\nchecked 9\nlimited process output exceeds maxOutputBytes')
 test "$process_actual" = "$process_expected"
 
 printf 'console.log("before"); const cancelled = setTimeout(() => console.log("cancelled"), 1); clearTimeout(cancelled); setTimeout(() => { console.log("after"); Promise.resolve().then(() => console.log("microtask")); }, 1);\n' > "$fixture_dir/timer.ts"

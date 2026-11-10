@@ -16,6 +16,70 @@ extern int hao_process_run_json(const unsigned char *options, size_t options_len
                                 unsigned char *stdout_output, unsigned char *stderr_output,
                                 size_t capacity, HaoRunResult *result);
 
+static int copy_string_option(JSContext *ctx, JSValue target, JSValueConst source,
+                              const char *name, int required) {
+    JSValue value = JS_GetPropertyStr(ctx, source, name);
+    if (JS_IsException(value)) return -1;
+    if (JS_IsNull(value) || JS_IsUndefined(value)) {
+        JS_FreeValue(ctx, value);
+        return required ? 1 : 0;
+    }
+    JSValue text = JS_ToString(ctx, value);
+    JS_FreeValue(ctx, value);
+    if (JS_IsException(text)) return -1;
+    return JS_SetPropertyStr(ctx, target, name, text) < 0 ? -1 : 0;
+}
+
+static JSValue normalized_options(JSContext *ctx, JSValueConst options) {
+    JSValue normalized = JS_NewObject(ctx);
+    if (JS_IsException(normalized)) return normalized;
+    int status = copy_string_option(ctx, normalized, options, "cmd", 1);
+    if (status == 0) status = copy_string_option(ctx, normalized, options, "cwd", 0);
+    if (status != 0) {
+        JS_FreeValue(ctx, normalized);
+        return status > 0 ? JS_ThrowTypeError(ctx, "process.run requires options.cmd") : JS_EXCEPTION;
+    }
+    JSValue args = JS_GetPropertyStr(ctx, options, "args");
+    if (JS_IsException(args)) { JS_FreeValue(ctx, normalized); return JS_EXCEPTION; }
+    if (!JS_IsNull(args) && !JS_IsUndefined(args)) {
+        if (!JS_IsArray(args)) {
+            JS_FreeValue(ctx, args);
+            JS_FreeValue(ctx, normalized);
+            return JS_ThrowTypeError(ctx, "process.run args must be a string array");
+        }
+        JSValue length_value = JS_GetPropertyStr(ctx, args, "length");
+        uint32_t length = 0;
+        if (JS_IsException(length_value) || JS_ToUint32(ctx, &length, length_value) < 0) {
+            JS_FreeValue(ctx, length_value);
+            JS_FreeValue(ctx, args);
+            JS_FreeValue(ctx, normalized);
+            return JS_EXCEPTION;
+        }
+        JS_FreeValue(ctx, length_value);
+        JSValue converted = JS_NewArray(ctx);
+        if (JS_IsException(converted)) { JS_FreeValue(ctx, args); JS_FreeValue(ctx, normalized); return converted; }
+        for (uint32_t i = 0; i < length; ++i) {
+            JSValue value = JS_GetPropertyUint32(ctx, args, i);
+            if (JS_IsException(value)) { JS_FreeValue(ctx, converted); JS_FreeValue(ctx, args); JS_FreeValue(ctx, normalized); return JS_EXCEPTION; }
+            JSValue text = JS_ToString(ctx, value);
+            JS_FreeValue(ctx, value);
+            if (JS_IsException(text) || JS_SetPropertyUint32(ctx, converted, i, text) < 0) {
+                JS_FreeValue(ctx, converted);
+                JS_FreeValue(ctx, args);
+                JS_FreeValue(ctx, normalized);
+                return JS_EXCEPTION;
+            }
+        }
+        if (JS_SetPropertyStr(ctx, normalized, "args", converted) < 0) {
+            JS_FreeValue(ctx, args);
+            JS_FreeValue(ctx, normalized);
+            return JS_EXCEPTION;
+        }
+    }
+    JS_FreeValue(ctx, args);
+    return normalized;
+}
+
 static JSValue hao_get_env_native(JSContext *ctx, JSValueConst this_val,
                                    int argc, JSValueConst *argv) {
     (void)this_val;
@@ -52,7 +116,10 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
         capacity = (size_t)requested;
     }
     JS_FreeValue(ctx, max_value);
-    JSValue json = JS_JSONStringify(ctx, argv[0], JS_UNDEFINED, JS_UNDEFINED);
+    JSValue prepared = normalized_options(ctx, argv[0]);
+    if (JS_IsException(prepared)) return prepared;
+    JSValue json = JS_JSONStringify(ctx, prepared, JS_UNDEFINED, JS_UNDEFINED);
+    JS_FreeValue(ctx, prepared);
     if (JS_IsException(json)) return json;
     size_t json_len = 0;
     const char *options = JS_ToCStringLen(ctx, &json_len, json);
