@@ -86,7 +86,7 @@ static int api_is_function(JsContext *ctx, JsValue v) { AddonFrame *f = frame_of
 static int api_array_length(JsContext *ctx, JsValue v, uint32_t *out) { AddonFrame *f = frame_of(ctx); JSValue len = JS_GetPropertyStr(f->ctx, frame_value(f, v), "length"); int status = JS_ToUint32(f->ctx, out, len); JS_FreeValue(f->ctx, len); return status; }
 static JsValue api_array_get(JsContext *ctx, JsValue v, uint32_t i) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_GetPropertyUint32(f->ctx, frame_value(f, v), i)); }
 static JsValue api_array(JsContext *ctx) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewArray(f->ctx)); }
-static int api_array_set(JsContext *ctx, JsValue v, uint32_t i, JsValue item) { AddonFrame *f = frame_of(ctx); return JS_SetPropertyUint32(f->ctx, frame_value(f, v), i, JS_DupValue(f->ctx, frame_value(f, item))); }
+static int api_array_set(JsContext *ctx, JsValue v, uint32_t i, JsValue item) { AddonFrame *f = frame_of(ctx); return JS_DefinePropertyValueUint32(f->ctx, frame_value(f, v), i, JS_DupValue(f->ctx, frame_value(f, item)), JS_PROP_HAS_VALUE | JS_PROP_HAS_ENUMERABLE | JS_PROP_ENUMERABLE); }
 static int api_metric_register(JsContext *ctx, const JsMetricDefinition *d, uint32_t *id) { return hao_metric_register(frame_of(ctx)->ctx, d, id); }
 static int api_metric_add(JsContext *ctx, uint32_t id, double value) { return hao_metric_add(frame_of(ctx)->ctx, id, value); }
 static int api_metric_set(JsContext *ctx, uint32_t id, double value) { return hao_metric_set(frame_of(ctx)->ctx, id, value); }
