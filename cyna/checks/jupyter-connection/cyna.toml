@@ -1,0 +1,8 @@
+name = "hao-jupyter-connection-check"
+version = "0.1.2"
+src = "../../src"
+type = "exe"
+entry = "../../src/jupyter/connection_check.cy"
+
+[c]
+sources = ["../../src/fs_limit.c"]

@@ -1,5 +1,6 @@
 import { read_file } from std.fs;
 import { Value, parse as parse_json } from std.json;
+import { within_limit } from .fs_limit;
 
 pub struct Connection {
     pub transport: string;
@@ -73,10 +74,12 @@ fn or_default(value: ?string, fallback: string): string {
 }
 
 pub fn parse(path: string): ?Connection {
-    const source = read_file(path) catch (code) { return none; };
-    if source.len() > 64 * 1024 {
+    const bytes = path.bytes();
+    if within_limit(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t, 64 * 1024) == 0 {
         return none;
     }
+    const source = read_file(path) catch (code) { return none; };
+    if source.len() > 64 * 1024 { return none; }
     const value = parse_json(source) catch (code) { return none; };
     const shell_port = port_field(&value, "shell_port");
     const control_port = port_field(&value, "control_port");

@@ -67,7 +67,7 @@ EOF
 cat > "$fixture_dir/jupyter-explicit.json" <<'EOF'
 {"transport":"ipc","ip":"0.0.0.0","shell_port":1,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5,"key":"secret","signature_scheme":"hmac-sha256"}
 EOF
-cyna build "$repo_root/cyna/src/jupyter/connection_check.cy" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
+cyna build "$repo_root/cyna/checks/jupyter-connection" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-connection.json")" = "$(printf 'tcp://127.0.0.1:57503\n\nhmac-sha256')"
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-explicit.json")" = "$(printf 'ipc://0.0.0.0:1\nsecret\nhmac-sha256')"
 if "$fixture_dir/jupyter-connection-check" "$fixture_dir/main.ts" > "$fixture_dir/jupyter-invalid.log" 2>&1; then
@@ -89,6 +89,14 @@ PY
 if "$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-oversized.json" > "$fixture_dir/jupyter-invalid.log" 2>&1; then
     exit 1
 fi
+python3 - "$fixture_dir/jupyter-limit.json" <<'PY'
+import sys
+prefix = '{"shell_port":1,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5,"padding":"'
+suffix = '"}'
+with open(sys.argv[1], 'w') as output:
+    output.write(prefix + 'x' * (64 * 1024 - len(prefix) - len(suffix)) + suffix)
+PY
+test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-limit.json")" = "$(printf 'tcp://127.0.0.1:1\n\nhmac-sha256')"
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
 if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then

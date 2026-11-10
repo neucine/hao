@@ -1,7 +1,6 @@
 import { exists, read_file, read_bytes, write_bytes } from std.fs;
 import { copy_bytes, copy_output, text_from_c } from .c_bytes;
-
-extern c("hao_fs_within_limit") fn within_limit(path: *const c_uchar, length: c_size_t, limit: c_size_t): c_int;
+import { within_limit } from .fs_limit;
 
 pub fn read_file_limited(path: string, max_bytes: usize): ?string {
     const bytes = path.bytes();
