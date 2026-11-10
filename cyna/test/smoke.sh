@@ -21,6 +21,24 @@ clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
     -lcurl -lffi -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
 test "$("$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules")" = '42'
+cat > "$fixture_dir/jupyter-connection.json" <<'EOF'
+{"shell_port":57503,"control_port":57504,"iopub_port":57505,"stdin_port":57506,"hb_port":57507}
+EOF
+cat > "$fixture_dir/jupyter-explicit.json" <<'EOF'
+{"transport":"ipc","ip":"0.0.0.0","shell_port":1,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5,"key":"secret","signature_scheme":"hmac-sha256"}
+EOF
+cyna build "$repo_root/cyna/src/jupyter_connection_check.cy" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
+test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-connection.json")" = "$(printf 'tcp://127.0.0.1:57503\n\nhmac-sha256')"
+test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-explicit.json")" = "$(printf 'ipc://0.0.0.0:1\nsecret\nhmac-sha256')"
+if "$fixture_dir/jupyter-connection-check" "$fixture_dir/main.ts" > "$fixture_dir/jupyter-invalid.log" 2>&1; then
+    exit 1
+fi
+cat > "$fixture_dir/jupyter-invalid-port.json" <<'EOF'
+{"shell_port":65536,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5}
+EOF
+if "$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-invalid-port.json" > "$fixture_dir/jupyter-invalid.log" 2>&1; then
+    exit 1
+fi
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
 if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
