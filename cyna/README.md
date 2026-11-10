@@ -64,8 +64,8 @@ is limited to 1 MiB.
 The JavaScript API keeps Hao's Promise, `json()`, `text()`, and exit checking
 behavior. Options are limited to 1 MiB, `maxOutputBytes` to 16 MiB, and the
 captured output is checked against that limit after the child exits. The
-current Cyna process result does not expose a terminating signal, so `signal`
-is `null` in this port.
+native process adapter reports a terminating signal as a number and leaves
+`exitCode` null in that case.
 
 Standard module source files are installed beside the executable under
 `modules/`. Cyna loads them from the executable directory, and the QuickJS
