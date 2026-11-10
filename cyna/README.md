@@ -45,6 +45,8 @@ Addon entries (`.dylib`, `.so`, `.dll`, `.node`) load through the stable ABI in
 library. Addon metric callbacks and `std:telemetry` share one registry per
 runtime.
 The Cyna host currently targets macOS arm64.
+HTTP download hashing and Jupyter HMAC signatures use OpenSSL 3 through a
+shared C adapter.
 Startup settings `RUNTIME_QJS_STACK_SIZE`, `RUNTIME_QJS_GC_THRESHOLD`, and
 `RUNTIME_LIBUV_THREADPOOL_SIZE` configure QuickJS and libuv before evaluation.
 The stack defaults to 8 MiB, matching the Zig runtime. Invalid positive size

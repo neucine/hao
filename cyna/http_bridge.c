@@ -1,7 +1,7 @@
 #include <quickjs.h>
 #include <uv.h>
 #include <curl/curl.h>
-#include <CommonCrypto/CommonDigest.h>
+#include <openssl/evp.h>
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,7 +26,7 @@ typedef struct {
     int failed;
     int skip_body;
     FILE *download_file;
-    CC_SHA256_CTX digest;
+    EVP_MD_CTX *digest;
 } HaoHttpResponse;
 
 typedef struct {
@@ -79,7 +79,7 @@ static size_t receive_body(char *data, size_t size, size_t count, void *opaque) 
     if (length > response->limit - response->length) { response->failed = 1; return 0; }
     if (response->download_file) {
         if (length && fwrite(data, 1, length, response->download_file) != length) { response->failed = 3; return 0; }
-        CC_SHA256_Update(&response->digest, data, (CC_LONG)length);
+        if (EVP_DigestUpdate(response->digest, data, length) != 1) { response->failed = 3; return 0; }
         response->length += length;
         return length;
     }
@@ -165,7 +165,10 @@ static void perform_http(uv_work_t *work) {
         if (fd < 0) { set_error(job, "unable to create download file"); goto done; }
         response->download_file = fdopen(fd, "wb");
         if (!response->download_file) { close(fd); set_error(job, "unable to open download file"); goto done; }
-        CC_SHA256_Init(&response->digest);
+        response->digest = EVP_MD_CTX_new();
+        if (!response->digest || EVP_DigestInit_ex(response->digest, EVP_sha256(), NULL) != 1) {
+            set_error(job, "unable to initialize download digest"); goto done;
+        }
     }
     curl = curl_easy_init();
     if (!curl) { set_error(job, "unable to initialize HTTP client"); goto done; }
@@ -208,19 +211,23 @@ static void perform_http(uv_work_t *work) {
             set_error(job, "unable to close download file"); goto done;
         }
         response->download_file = NULL;
+        unsigned char digest[32]; unsigned int digest_length = 0;
+        const char digits[] = "0123456789abcdef";
+        if (EVP_DigestFinal_ex(response->digest, digest, &digest_length) != 1 || digest_length != 32) {
+            set_error(job, "unable to finish download digest"); goto done;
+        }
         if (rename(temporary_path, job->download_path) != 0) {
             set_error(job, "unable to replace download destination"); goto done;
         }
-        unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-        const char digits[] = "0123456789abcdef";
-        CC_SHA256_Final(digest, &response->digest);
-        for (size_t i = 0; i < CC_SHA256_DIGEST_LENGTH; i++) {
+        for (size_t i = 0; i < 32; i++) {
             job->sha256[i * 2] = digits[digest[i] >> 4];
             job->sha256[i * 2 + 1] = digits[digest[i] & 15];
         }
         job->sha256[64] = 0;
     }
  done:
+    EVP_MD_CTX_free(response->digest);
+    response->digest = NULL;
     if (response->download_file) fclose(response->download_file);
     if (temporary_path) { unlink(temporary_path); free(temporary_path); }
     if (curl) curl_easy_cleanup(curl);

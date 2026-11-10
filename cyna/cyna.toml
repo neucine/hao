@@ -9,5 +9,5 @@ sources = ["bridge.c", "fs_bridge.c", "process_bridge.c", "http_bridge.c", "http
 include_paths = [".deps/quickjs", ".deps/libuv/include", "/opt/homebrew/include"]
 
 [link]
-libs = ["quickjs", "uv", "hao_transpiler", "curl", "ffi", "zmq"]
+libs = ["quickjs", "uv", "hao_transpiler", "curl", "ffi", "zmq", "crypto"]
 search_paths = ["../zig-out/lib", "../libs/transpiler/target/release", "/opt/homebrew/lib"]

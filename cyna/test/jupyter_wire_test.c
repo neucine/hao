@@ -1,5 +1,5 @@
 #include <zmq.h>
-#include <CommonCrypto/CommonHMAC.h>
+#include "../crypto.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,11 +15,11 @@ extern int hao_jupyter_wire_send(uintptr_t, int, const unsigned char *, size_t, 
 
 static void sign(const char *key, const char *header, const char *parent,
                  const char *metadata, const char *content, char out[65]) {
-    CCHmacContext context;
-    CCHmacInit(&context, kCCHmacAlgSHA256, key, strlen(key));
     const char *fields[] = {header, parent, metadata, content};
-    for (size_t i = 0; i < 4; i++) CCHmacUpdate(&context, fields[i], strlen(fields[i]));
-    unsigned char digest[32]; CCHmacFinal(&context, digest);
+    const void *parts[4]; size_t lengths[4];
+    for (size_t i = 0; i < 4; i++) { parts[i] = fields[i]; lengths[i] = strlen(fields[i]); }
+    unsigned char digest[32];
+    if (hao_hmac_sha256(key, strlen(key), parts, lengths, digest) != 0) abort();
     static const char hex[] = "0123456789abcdef";
     for (size_t i = 0; i < 32; i++) { out[i * 2] = hex[digest[i] >> 4]; out[i * 2 + 1] = hex[digest[i] & 15]; }
     out[64] = 0;

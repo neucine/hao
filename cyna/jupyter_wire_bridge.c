@@ -1,5 +1,5 @@
 #include <zmq.h>
-#include <CommonCrypto/CommonHMAC.h>
+#include "crypto.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,11 +119,10 @@ static int read_frame(void *socket, HaoFrame *out, int *more) {
 
 static size_t signature(const HaoWire *wire, const HaoFrame frames[4], char out[65]) {
     if (!wire->key_length) { out[0] = 0; return 0; }
-    CCHmacContext context;
-    CCHmacInit(&context, kCCHmacAlgSHA256, wire->key, wire->key_length);
-    for (size_t i = 0; i < 4; i++) CCHmacUpdate(&context, frames[i].data, frames[i].length);
+    const void *parts[4]; size_t lengths[4];
+    for (size_t i = 0; i < 4; i++) { parts[i] = frames[i].data; lengths[i] = frames[i].length; }
     uint8_t digest[32];
-    CCHmacFinal(&context, digest);
+    if (hao_hmac_sha256(wire->key, wire->key_length, parts, lengths, digest) != 0) return SIZE_MAX;
     static const char hex[] = "0123456789abcdef";
     for (size_t i = 0; i < 32; i++) { out[i * 2] = hex[digest[i] >> 4]; out[i * 2 + 1] = hex[digest[i] & 15]; }
     out[64] = 0;
@@ -225,6 +224,7 @@ int hao_jupyter_wire_send(uintptr_t handle, int channel, const unsigned char *ty
         {header, (size_t)size}, wire->header, {"{}", 2}, {(char *)content_bytes, content_len},
     };
     char digest[65]; size_t digest_len = signature(wire, frames, digest);
+    if (digest_len == SIZE_MAX) return -1;
     if (channel != HAO_IOPUB)
         for (size_t i = 0; i < wire->identity_count; i++)
             if (send_frame(socket, wire->identities[i].data, wire->identities[i].length, 1) < 0) return -1;

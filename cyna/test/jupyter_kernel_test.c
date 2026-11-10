@@ -1,5 +1,5 @@
 #include <zmq.h>
-#include <CommonCrypto/CommonHMAC.h>
+#include "../crypto.h"
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,11 +9,11 @@
 #include <unistd.h>
 
 static void sign_request(const char *header, const char *content, char out[65]) {
-    CCHmacContext context;
-    CCHmacInit(&context, kCCHmacAlgSHA256, "secret", 6);
     const char *frames[] = {header, "{}", "{}", content};
-    for (int i = 0; i < 4; i++) CCHmacUpdate(&context, frames[i], strlen(frames[i]));
-    unsigned char digest[32]; CCHmacFinal(&context, digest);
+    const void *parts[4]; size_t lengths[4];
+    for (int i = 0; i < 4; i++) { parts[i] = frames[i]; lengths[i] = strlen(frames[i]); }
+    unsigned char digest[32];
+    if (hao_hmac_sha256("secret", 6, parts, lengths, digest) != 0) abort();
     static const char hex[] = "0123456789abcdef";
     for (int i = 0; i < 32; i++) { out[i * 2] = hex[digest[i] >> 4]; out[i * 2 + 1] = hex[digest[i] & 15]; }
     out[64] = 0;
