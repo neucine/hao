@@ -25,6 +25,10 @@ Startup settings `RUNTIME_QJS_STACK_SIZE`, `RUNTIME_QJS_GC_THRESHOLD`, and
 `RUNTIME_LIBUV_THREADPOOL_SIZE` configure QuickJS and libuv before evaluation.
 The stack defaults to 8 MiB, matching the Zig runtime. Invalid positive size
 settings fail initialization.
+At startup, the Cyna host loads an optional `.env` file from the current
+directory. Set `DOTENV` to require a specific file, or set it to an empty value
+to disable loading. Existing environment values take precedence, and the file
+is limited to 1 MiB.
 
 `src/process_host.cy` uses Cyna's process library for `getEnv` and `run`.
 The JavaScript API keeps Hao's Promise, `json()`, `text()`, and exit checking

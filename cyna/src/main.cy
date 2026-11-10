@@ -3,6 +3,7 @@ import { read_file } from std.fs;
 import { Runtime } from .runtime;
 import { install } from .std_modules;
 import { collect } from .test_files;
+import { load_dotenv } from .config;
 
 fn run_file(host: &const Runtime, path: string): i32 {
     const source = read_file(path.clone()) catch (code) {
@@ -13,6 +14,10 @@ fn run_file(host: &const Runtime, path: string): i32 {
 }
 
 fn main(): i32 {
+    if load_dotenv() != 0 {
+        println("Unable to load dotenv file");
+        return 1;
+    }
     const arguments = args();
     if arguments.len() < 2 {
         println("Usage: hao <file.ts> | hao test [--grep pattern] <file-or-dir>...");

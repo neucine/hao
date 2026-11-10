@@ -18,6 +18,25 @@ test "$configured_actual" = "$expected"
 if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
     exit 1
 fi
+cat > "$fixture_dir/settings.env" <<'EOF'
+# startup settings and quoted values
+export HAO_DOTENV_TEST="loaded # intact"
+RUNTIME_QJS_STACK_SIZE=16777216 # comment
+EOF
+cat > "$fixture_dir/dotenv.ts" <<'EOF'
+import { getEnv } from 'std:process';
+console.log(getEnv('HAO_DOTENV_TEST'));
+EOF
+dotenv_actual=$(DOTENV="$fixture_dir/settings.env" "$runtime" "$fixture_dir/dotenv.ts")
+test "$dotenv_actual" = 'loaded # intact'
+dotenv_override=$(HAO_DOTENV_TEST=existing DOTENV="$fixture_dir/settings.env" "$runtime" "$fixture_dir/dotenv.ts")
+test "$dotenv_override" = 'existing'
+cp "$fixture_dir/settings.env" "$fixture_dir/.env"
+dotenv_default=$(cd "$fixture_dir" && env -u DOTENV "$runtime" dotenv.ts)
+test "$dotenv_default" = 'loaded # intact'
+if DOTENV="$fixture_dir/missing.env" "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/dotenv.stdout" 2> "$fixture_dir/dotenv.stderr"; then
+    exit 1
+fi
 
 mkdir -p "$fixture_dir/node_modules/foo"
 clang -dynamiclib -I "$repo_root/include" "$repo_root/examples/native-addon/native.c" -o "$fixture_dir/node_modules/foo/native.dylib"
