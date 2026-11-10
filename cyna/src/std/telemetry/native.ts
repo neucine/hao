@@ -7,6 +7,7 @@ export type MetricSnapshot = {
 
 declare global {
   var __hao_trace_capacity: number;
+  var __hao_telemetry_monotonicNs: () => number;
   var __hao_telemetry_register: (definition: MetricDefinition) => number;
   var __hao_telemetry_add: (id: number, delta: number) => void;
   var __hao_telemetry_set: (id: number, value: number) => void;
@@ -65,7 +66,7 @@ globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number, ..
 }) as typeof setTimeout;
 function hex(id: number | null, width: number): string { return (id ?? 0).toString(16).padStart(width, '0'); }
 function recordSpan(span: Span, kind: 'span_start' | 'span_end', status = 'unset'): void {
-  records.push({ sequence: nextSequence++, kind, timestamp_ns: Date.now() * 1000000,
+  records.push({ sequence: nextSequence++, kind, timestamp_ns: globalThis.__hao_telemetry_monotonicNs(),
     trace_id: hex(span.traceId, 32), span_id: hex(span.id, 16), parent_span_id: hex(span.parent, 16),
     name: span.name, status, attributes: {} });
   if (records.length > traceCapacity) records.shift();

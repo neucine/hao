@@ -1,4 +1,5 @@
 #include <quickjs.h>
+#include <uv.h>
 #include "../runtime_allocator.h"
 #include <stdint.h>
 #include <math.h>
@@ -213,7 +214,12 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
 #undef GAUGE
     return result;
 }
+static JSValue monotonic_time_ns(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val; (void)argc; (void)argv;
+    return JS_NewFloat64(ctx, (double)uv_hrtime());
+}
 void hao_install_telemetry_globals(JSContext *ctx, JSValue global) {
+    JS_SetPropertyStr(ctx, global, "__hao_telemetry_monotonicNs", JS_NewCFunction(ctx, monotonic_time_ns, "monotonicNs", 0));
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_memorySnapshot", JS_NewCFunction(ctx, memory_snapshot, "memorySnapshot", 0));
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_register", JS_NewCFunction(ctx, metric_register_js, "register", 1));
     JS_SetPropertyStr(ctx, global, "__hao_telemetry_add", JS_NewCFunctionMagic(ctx, metric_action_js, "add", 2, JS_CFUNC_generic_magic, 0));

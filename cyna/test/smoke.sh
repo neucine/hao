@@ -289,7 +289,7 @@ EOF
 capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" | tail -1)
 test "$capture_summary" = '2 passed, 0 failed, 0 skipped'
 telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" | tail -1)
-test "$telemetry_summary" = '4 passed, 0 failed, 0 skipped'
+test "$telemetry_summary" = '5 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/telemetry-console.ts" <<'EOF'
 import { counter, trace } from 'std:telemetry';
 counter({ scope: 'fixture', name: 'requests' }).add(3);
