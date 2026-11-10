@@ -23,6 +23,11 @@ filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
 filesystem_expected=$(printf 'false\ntrue hello 5')
 test "$filesystem_actual" = "$filesystem_expected"
 
+printf "import { figure, plot, render, savefig } from 'std:plot'; import fs from 'std:fs'; figure({ title: 'Demo' }); plot([1, 2, 3]); console.log(render().includes('<svg')); savefig('%s/chart.svg'); console.log(fs.readFileSync('%s/chart.svg').includes('Demo'));\n" "$fixture_dir" "$fixture_dir" > "$fixture_dir/plot.ts"
+plot_actual=$("$runtime" "$fixture_dir/plot.ts")
+plot_expected=$(printf 'true\ntrue')
+test "$plot_actual" = "$plot_expected"
+
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 printf '{"type":"module","exports":{".":{"import":"./index.ts"},"./extra":"./extra.mjs"}}\n' > "$fixture_dir/app/node_modules/demo/package.json"
 printf 'export const value: number = 42;\n' > "$fixture_dir/app/node_modules/demo/index.ts"

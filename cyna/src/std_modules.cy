@@ -1,25 +1,35 @@
+import { read_file } from std.fs;
+import { join, dirname } from std.path;
+import { exe_path } from std.process;
 import { Runtime } from .runtime;
 import { fs_exists } from .fs_host;
 import { resolve_package } from .package_resolver;
 import { get_env } from .process_host;
 
+fn install_one(runtime: &const Runtime, directory: string, name: string, filename: string): i32 {
+    const parts: [2]string = [directory.clone(), filename];
+    const path = join(parts[..]);
+    const source = read_file(path) catch (code) {
+        return 1;
+    };
+    return runtime.register_source_module(name, source);
+}
+
 pub fn install(runtime: &const Runtime): i32 {
-    const runtime_status = runtime.register_source_module(
-        "std:runtime",
-        "export const name = 'hao'; export const namespace = 'std:'; export default { name, namespace };"
-    );
-    if runtime_status != 0 {
-        return runtime_status;
+    const executable = exe_path() catch (code) {
+        return 1;
+    };
+    const binary_directory = dirname(executable);
+    const parts: [2]string = [binary_directory, "modules"];
+    const module_directory = join(parts[..]);
+    if install_one(runtime, module_directory, "std:runtime", "runtime.ts") != 0 {
+        return 1;
     }
-    const fs_status = runtime.register_source_module(
-        "std:fs",
-        "export const existsSync = globalThis.__hao_fs_existsSync; export const readFileSync = globalThis.__hao_fs_readFileSync; export const writeFileSync = globalThis.__hao_fs_writeFileSync; export const statSync = globalThis.__hao_fs_statSync; export default { existsSync, readFileSync, writeFileSync, statSync };"
-    );
-    if fs_status != 0 {
-        return fs_status;
+    if install_one(runtime, module_directory, "std:fs", "fs.ts") != 0 {
+        return 1;
     }
-    return runtime.register_source_module(
-        "std:process",
-        "export function getEnv(name) { if (typeof name !== 'string' || !name) throw new Error('process.getEnv requires a non-empty variable name'); return globalThis.__hao_process_getEnvNative(name); } export function run(options) { const normalized = typeof options === 'string' ? { cmd: 'sh', args: ['-c', options] } : options; const promise = Promise.resolve().then(() => { const raw = globalThis.__hao_process_runNative(normalized); const result = Object.assign(raw, { json() { return JSON.parse(raw.stdout); } }); const check = normalized && typeof normalized.check === 'boolean' ? normalized.check : true; if (check && result.exitCode !== 0) { const error = new Error('process exited with exit code ' + result.exitCode); Object.assign(error, result); throw error; } return result; }); promise.json = async () => (await promise).json(); promise.text = async () => (await promise).stdout; return promise; } export default { run, getEnv };"
-    );
+    if install_one(runtime, module_directory, "std:process", "process.ts") != 0 {
+        return 1;
+    }
+    return install_one(runtime, module_directory, "std:plot", "plot.ts");
 }

@@ -138,8 +138,22 @@ static JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaq
     HaoRuntime *host = opaque;
     HaoSourceModule *module = hao_find_module(host, name);
     if (module) {
-        JSValue compiled = JS_Eval(ctx, module->source, module->source_len, name,
+        size_t name_len = strlen(name);
+        char *typescript_path = malloc(name_len + 4);
+        if (!typescript_path) return NULL;
+        memcpy(typescript_path, name, name_len);
+        memcpy(typescript_path + name_len, ".ts", 4);
+        char *transformed = hao_transpile_types_for_path(module->source, typescript_path);
+        free(typescript_path);
+        if (!transformed) {
+            char *error = hao_transpiler_last_error();
+            JS_ThrowSyntaxError(ctx, "%s", error ? error : "Module transpilation failed");
+            if (error) hao_transpiler_free(error);
+            return NULL;
+        }
+        JSValue compiled = JS_Eval(ctx, transformed, strlen(transformed), name,
                                    JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+        hao_transpiler_free(transformed);
         if (JS_IsException(compiled)) return NULL;
         JSModuleDef *result = JS_VALUE_GET_PTR(compiled);
         JS_FreeValue(ctx, compiled);
