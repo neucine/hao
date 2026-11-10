@@ -129,6 +129,13 @@ console.log(getEnv('HAO_DOTENV_TEST'));
 EOF
 dotenv_actual=$(DOTENV="$fixture_dir/settings.env" "$runtime" "$fixture_dir/dotenv.ts")
 test "$dotenv_actual" = 'loaded # intact'
+python3 - "$fixture_dir/whitespace.env" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_bytes(b'HAO_DOTENV_TEST=loaded\x0b#comment\n')
+PY
+printf "import { getEnv } from 'std:process'; console.log(JSON.stringify(getEnv('HAO_DOTENV_TEST')));\n" > "$fixture_dir/dotenv-whitespace.ts"
+test "$(DOTENV="$fixture_dir/whitespace.env" "$runtime" "$fixture_dir/dotenv-whitespace.ts")" = '"loaded\u000b"'
 dotenv_override=$(HAO_DOTENV_TEST=existing DOTENV="$fixture_dir/settings.env" "$runtime" "$fixture_dir/dotenv.ts")
 test "$dotenv_override" = 'existing'
 cp "$fixture_dir/settings.env" "$fixture_dir/.env"

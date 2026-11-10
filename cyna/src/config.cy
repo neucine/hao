@@ -61,6 +61,10 @@ fn space(byte: u8): bool {
     return byte == 32 or byte == 9 or byte == 13;
 }
 
+fn comment_space(byte: u8): bool {
+    return space(byte) or byte == 10 or byte == 11 or byte == 12;
+}
+
 fn trim(value: string): string {
     const bytes = value.bytes();
     var start: usize = 0;
@@ -91,7 +95,7 @@ fn content_before_comment(value: string): string {
             }
         } else if byte == 34 or byte == 39 {
             quote = byte;
-        } else if byte == 35 and (index == 0 or space(bytes[index - 1])) {
+        } else if byte == 35 and (index == 0 or comment_space(bytes[index - 1])) {
             return trim(value.slice(0, index));
         }
         index = index + 1;
