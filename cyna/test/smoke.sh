@@ -574,7 +574,7 @@ if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixtu
     exit 1
 fi
 ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
-test "$ffi_summary" = '6 passed, 0 failed, 0 skipped'
+test "$ffi_summary" = '7 passed, 0 failed, 0 skipped'
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)
 test "$error_summary" = '2 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/broken.test.ts" <<'EOF'
@@ -640,6 +640,7 @@ cat > "$fixture_dir/ffi-search.c" <<'EOF'
 #include <stdint.h>
 #include <string.h>
 int hao_search_value(void) { return 29; }
+char hao_char_255(void) { return (char)255; }
 uint64_t hao_high_bit(uint64_t value) { return value >> 63; }
 static char hao_long_text[1024 * 1024 + 18];
 const char *hao_long_string(void) {
@@ -663,6 +664,15 @@ typedef struct { uint8_t tag; HaoPoint point; int16_t tail; } HaoNested;
 void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
+cat > "$fixture_dir/ffi-char.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+import { getEnv } from 'std:process';
+const path = getEnv('HAO_FFI_TEST_PATH');
+const library = cdecl(`${path}/libhao_search_fixture.dylib`, 'char hao_char_255(void);');
+console.log(library.hao_char_255());
+library.close();
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-char.ts")" = '255'
 cat > "$fixture_dir/ffi-u64.ts" <<'EOF'
 import { dlopen } from 'std:ffi';
 import { getEnv } from 'std:process';
