@@ -4,6 +4,27 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_root"
 zig build cyna-deps -Doptimize=ReleaseFast
+python3 - "$repo_root" <<'PY'
+import pathlib, re, sys
+
+root = pathlib.Path(sys.argv[1])
+manifest = (root / 'build.zig.zon').read_text()
+links = root / 'cyna/.deps'
+links.mkdir(parents=True, exist_ok=True)
+for name, header in (('quickjs', 'quickjs.h'), ('libuv', 'include/uv.h')):
+    match = re.search(r'\.' + name + r'\s*=\s*\.\{[^}]*?\.hash\s*=\s*"([^"]+)"', manifest, re.S)
+    if not match:
+        raise SystemExit(f'missing {name} hash in build.zig.zon')
+    package = root / 'zig-pkg' / match.group(1)
+    if not (package / header).is_file():
+        raise SystemExit(f'missing {name} header after zig build: {package / header}')
+    link = links / name
+    if link.is_symlink():
+        link.unlink()
+    elif link.exists():
+        raise SystemExit(f'expected a generated symlink at {link}')
+    link.symlink_to(package, target_is_directory=True)
+PY
 cyna build cyna
 cyna build cyna/embed
 mkdir -p cyna/build/modules

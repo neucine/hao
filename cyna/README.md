@@ -108,6 +108,8 @@ From the Hao repository root, run `sh cyna/build.sh`, then
 `./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
 transpiler archives and libuv through `zig build cyna-deps`, builds the Cyna
 executable and embedding archive, and installs the module files.
+It derives the C header include paths from the pinned QuickJS and libuv hashes
+in `build.zig.zon` and creates ignored links under `cyna/.deps/`.
 It uses Zig's release mode because its debug QuickJS archive emits sanitizer
 symbols that the Cyna linker does not supply.
 
