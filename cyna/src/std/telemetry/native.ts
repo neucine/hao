@@ -66,6 +66,15 @@ let nextScopeId = 1;
 let currentSpan: number | null = null;
 let currentTraceId: string | null = null;
 let currentSpanId: string | null = null;
+globalThis.__hao_telemetry_captureContext = () =>
+  ({ span: currentSpan, trace: currentTraceId, spanId: currentSpanId });
+globalThis.__hao_telemetry_enterContext = (context: Context) => {
+  const previous = globalThis.__hao_telemetry_captureContext();
+  currentSpan = context.span;
+  currentTraceId = context.trace;
+  currentSpanId = context.spanId;
+  return previous;
+};
 const scheduleTimeout = globalThis.setTimeout;
 globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number) => {
   if (typeof callback !== 'function') return scheduleTimeout(callback, delay);

@@ -1,4 +1,4 @@
-#include <quickjs.h>
+#include "../../runtime_host.h"
 #include "../../runtime_allocator.h"
 #include <uv.h>
 #include <curl/curl.h>
@@ -37,6 +37,7 @@ typedef struct {
     JSContext *ctx;
     JSValue resolve;
     JSValue reject;
+    JSValue trace_context;
     char *url;
     char *method;
     char *download_path;
@@ -72,7 +73,32 @@ static void destroy_job(HaoHttpJob *job) {
     curl_slist_free_all(job->request_headers);
     JS_FreeValue(job->ctx, job->resolve);
     JS_FreeValue(job->ctx, job->reject);
+    JS_FreeValue(job->ctx, job->trace_context);
     hao_free(job);
+}
+static JSValue telemetry_enter_context(JSContext *ctx, JSValueConst context) {
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue enter = JS_GetPropertyStr(ctx, global, "__hao_telemetry_enterContext");
+    JSValue previous = JS_UNDEFINED;
+    if (JS_IsFunction(ctx, enter)) previous = JS_Call(ctx, enter, global, 1, &context);
+    JS_FreeValue(ctx, enter);
+    JS_FreeValue(ctx, global);
+    return previous;
+}
+static void retain_callback_error(HaoRuntime *host, JSContext *ctx) {
+    JSValue error = JS_GetException(ctx);
+    if (!host->has_callback_error) {
+        host->callback_error = error;
+        host->has_callback_error = true;
+    } else {
+        JS_FreeValue(ctx, error);
+    }
+}
+static void drain_jobs(HaoRuntime *host) {
+    JSContext *job_context = NULL;
+    int result;
+    while ((result = JS_ExecutePendingJob(host->runtime, &job_context)) > 0) {}
+    if (result < 0) retain_callback_error(host, job_context);
 }
 static size_t receive_body(char *data, size_t size, size_t count, void *opaque) {
     HaoHttpResponse *response = opaque;
@@ -278,6 +304,7 @@ static JSValue make_response(HaoHttpJob *job) {
 static void finish_http(uv_work_t *work, int status) {
     HaoHttpJob *job = work->data;
     JSContext *ctx = job->ctx;
+    HaoRuntime *host = JS_GetContextOpaque(ctx);
     if (status < 0 && !job->error[0]) set_error(job, uv_strerror(status));
     JSValue value;
     JSValue callback;
@@ -289,7 +316,23 @@ static void finish_http(uv_work_t *work, int status) {
         value = make_response(job);
         callback = job->resolve;
     }
+    JSValue previous = JS_UNDEFINED;
+    if (!JS_IsUndefined(job->trace_context)) {
+        drain_jobs(host);
+        previous = telemetry_enter_context(ctx, job->trace_context);
+        if (JS_IsException(previous)) retain_callback_error(host, ctx);
+    }
     JSValue result = JS_Call(ctx, callback, JS_UNDEFINED, 1, &value);
+    if (JS_IsException(result)) retain_callback_error(host, ctx);
+    if (!JS_IsUndefined(previous) && !JS_IsException(previous)) {
+        drain_jobs(host);
+    }
+    if (!JS_IsUndefined(previous) && !JS_IsException(previous)) {
+        JSValue restored = telemetry_enter_context(ctx, previous);
+        if (JS_IsException(restored)) retain_callback_error(host, ctx);
+        JS_FreeValue(ctx, restored);
+    }
+    JS_FreeValue(ctx, previous);
     JS_FreeValue(ctx, result);
     JS_FreeValue(ctx, value);
     destroy_job(job);
@@ -408,6 +451,7 @@ static JSValue request_native(JSContext *ctx, JSValueConst this_val, int argc, J
     job->ctx = ctx;
     job->resolve = JS_UNDEFINED;
     job->reject = JS_UNDEFINED;
+    job->trace_context = JS_UNDEFINED;
     if (!parse_options(job, argv[0])) {
         destroy_job(job);
         return JS_ThrowTypeError(ctx, "http.request options are invalid");
@@ -417,6 +461,12 @@ static JSValue request_native(JSContext *ctx, JSValueConst this_val, int argc, J
     if (JS_IsException(promise)) { destroy_job(job); return promise; }
     job->resolve = functions[0];
     job->reject = functions[1];
+    job->trace_context = JS_GetPropertyStr(ctx, argv[0], "__haoTraceContext");
+    if (JS_IsException(job->trace_context)) {
+        JS_FreeValue(ctx, promise);
+        destroy_job(job);
+        return JS_EXCEPTION;
+    }
     job->work.data = job;
     uv_loop_t *loop = hao_runtime_loop(ctx);
     int status = loop ? uv_queue_work(loop, &job->work, perform_http, finish_http) : UV_EINVAL;

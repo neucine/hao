@@ -24,21 +24,21 @@ intentional implementation locations:
 The legacy TypeScript standard modules are byte identical in the port except
 `std/http/index.ts`: the Cyna tree separates its HTTP server into
 `std/http/server.ts`, while the legacy tree keeps client and server in one file.
+The Cyna HTTP client also captures a trace context before deferring its native
+request. `std/telemetry/native.ts` contains the host context helpers needed by
+that adapter.
 
 ## Open behavior checks
 
-- Restore trace context while HTTP client work completes. This is a confirmed
-  difference: with the same local HTTP server, `await trace('parent', async () =>
-  { await get(url); trace('child', () => {}); })` produces a child whose
-  `parent_span_id` equals the parent's `span_id` on Zig `legacy`, but a separate
-  trace on Cyna. Both were run on macOS arm64 with
-  `RUNTIME_TELEMETRY_CONSOLE=1`; the Zig and Cyna results were respectively
-  `{"sameTrace":true,"parented":true}` and
-  `{"sameTrace":false,"parented":false}`. A worker completion hook that entered
-  and restored the JavaScript trace context around `JS_Call(resolve)` still
-  produced the latter result: QuickJS resumes the `await` continuation after
-  that hook returns. The fix must preserve context through Promise jobs and
-  concurrent requests.
+- HTTP client trace context was a confirmed difference: with the same local
+  HTTP server, `await trace('parent', async () => { await get(url);
+  trace('child', () => {}); })` produced `{"sameTrace":true,"parented":true}`
+  on Zig and `{"sameTrace":false,"parented":false}` on Cyna. The port now
+  captures context before the deferred native request and drains its Promise
+  jobs while the worker completion restores that context. The simple fixture
+  and a smoke case with two concurrent requests and a rejected request now
+  produce parented child spans. Further scheduling combinations remain part
+  of the full parity audit.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with

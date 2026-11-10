@@ -104,9 +104,9 @@ mock cleanup hook survives a failed file import.
 `std:telemetry` retains Hao's metric and trace APIs. Metric registration lives
 in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use
 `JS_ComputeMemoryUsage`; `allocator_active_bytes` and `allocator_peak_bytes`
-use the macOS malloc zone totals. Trace
-context integration with HTTP workers remains to be ported. `setTimeout`
-callbacks retain the trace parent active when scheduled. Set
+use the macOS malloc zone totals. HTTP client completions restore the trace
+parent through their Promise jobs.
+`setTimeout` callbacks retain the trace parent active when scheduled. Set
 `RUNTIME_TELEMETRY_CONSOLE=1` to start an in-process console on loopback;
 `RUNTIME_TELEMETRY_CONSOLE_PORT` selects the port and defaults to an available
 port. The console serves Hao's dashboard, health, metrics, and trace endpoints.

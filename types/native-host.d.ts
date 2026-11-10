@@ -21,6 +21,9 @@ declare var __hao_http_decodeTextNative: (value: Uint8Array) => string;
 declare var __hao_process_getEnvNative: (...args: any[]) => any;
 declare var __hao_process_runNative: (...args: any[]) => any;
 declare var __hao_telemetry_memorySnapshot: () => Record<string, number>;
+interface HaoTraceContext { span: number | null; trace: string | null; spanId: string | null }
+declare var __hao_telemetry_captureContext: () => HaoTraceContext;
+declare var __hao_telemetry_enterContext: (context: HaoTraceContext) => HaoTraceContext;
 
 declare var __hao_test_beginCapture: (...args: any[]) => any;
 declare var __hao_test_discardFile: (...args: any[]) => any;

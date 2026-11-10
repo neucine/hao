@@ -472,6 +472,31 @@ for (const attributes of [{ value: 'x'.repeat(257) },
 EOF
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-event.ts")" = "$(printf 'span_start,event,span_end GET 42 true\nGET\nrejected\nrejected')"
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-timer.ts")" = 'root child true'
+cat > "$fixture_dir/telemetry-http.ts" <<'EOF'
+import { serve, get } from 'std:http';
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+const server = serve({ port: 0, handler: async (request: any) => {
+  await new Promise(resolve => setTimeout(resolve, request.url === '/left' ? 4 : 1));
+  return { body: 'ok' };
+} });
+await Promise.all(['left', 'right'].map(name => trace(name, async () => {
+  await get(`http://127.0.0.1:${server.port}/${name}`);
+  trace(`${name}-child`, () => {});
+})));
+await trace('failure', async () => {
+  try { await get('http://127.0.0.1:1/unreachable'); }
+  catch { trace('failure-child', () => {}); }
+});
+server.close();
+const records = snapshotTraceRecordsNative().records;
+for (const name of ['left', 'right', 'failure']) {
+  const parent = records.find(record => record.kind === 'span_start' && record.name === name);
+  const child = records.find(record => record.kind === 'span_start' && record.name === `${name}-child`);
+  console.log(parent?.trace_id === child?.trace_id, parent?.span_id === child?.parent_span_id);
+}
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-http.ts")" = "$(printf 'true true\ntrue true\ntrue true')"
 cat > "$fixture_dir/telemetry-ring.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';
