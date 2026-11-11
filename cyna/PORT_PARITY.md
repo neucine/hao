@@ -192,7 +192,15 @@ improvement, with a smoke check.
 - The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
   `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
   serviced turn even when its final handle closes. `Loop.run_until_idle` also
-  drains QuickJS jobs between turns. The smoke suite covers timer cancellation,
+  drains QuickJS jobs between turns.
+  The remaining Zig `Loop` methods have explicit implementation locations:
+  loop allocation, deinitialization, and nonblocking runs are in
+  `async/uv.c`; current-loop ownership is the `HaoRuntime` handle in
+  `bridge.c` and `runtime_host.h`; timer start, cancellation, one-shot fire,
+  and close callbacks are in `global/timer.c`; HTTP worker requests use
+  libuv from `std/http/native.c`. Zig's `async/uv.zig` FFI declarations are
+  replaced by the libuv header included at these C boundaries.
+  The smoke suite covers timer cancellation,
   callback errors, and a Promise job between two timer callbacks. This checks
   the timer path. A shared nested timer probe additionally matched cancellation,
   Promise job draining, and scheduling a new timer inside a callback. Other
