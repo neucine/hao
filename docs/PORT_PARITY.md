@@ -491,6 +491,8 @@ improvement, with a smoke check.
   A shared libc probe matched `cstring` argument byte lengths for accented and
   emoji text, `strcmp` ordering, and nullable `cstring` returns from `getenv`.
   The smoke suite retains these direct FFI conversions.
+  `errors.cy` now installs the RuntimeError definition through the QuickJS
+  evaluation primitive in `errors.c`, which also retains native stack capture.
   With native stacks enabled, a direct error matrix found that Cyna used a
   generic `Error` for invalid `std:ffi/native` descriptor arguments and return
   types, while Zig reports distinct `TypeError` messages. Cyna now validates

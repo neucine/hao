@@ -34,21 +34,21 @@ static JSValue capture_native_stack(JSContext *ctx, JSValueConst this_value,
     return JS_NewStringLen(ctx, output, used);
 }
 
-int hao_install_runtime_error(JSContext *ctx) {
-    const char *source =
-        "if (typeof globalThis.RuntimeError !== 'function') {"
-        "globalThis.RuntimeError = class RuntimeError extends Error {"
-        "constructor(code, message) { super(message); this.name = 'RuntimeError'; this.code = code; }"
-        "}; }";
-    JSValue result = JS_Eval(ctx, source, strlen(source), "<runtime-errors>", JS_EVAL_TYPE_GLOBAL);
+int hao_error_eval(void *context, const unsigned char *source, size_t length) {
+    JSContext *ctx = context;
+    JSValue result = JS_Eval(ctx, (const char *)source, length, "<runtime-errors>", JS_EVAL_TYPE_GLOBAL);
     if (JS_IsException(result)) {
         JS_FreeValue(ctx, result);
         return -1;
     }
     JS_FreeValue(ctx, result);
+    return 0;
+}
+
+void hao_error_install_stack_capture(void *context) {
+    JSContext *ctx = context;
     JSValue global = JS_GetGlobalObject(ctx);
     JS_SetPropertyStr(ctx, global, "__hao_capture_native_stack",
         JS_NewCFunction(ctx, capture_native_stack, "captureNativeStack", 1));
     JS_FreeValue(ctx, global);
-    return 0;
 }

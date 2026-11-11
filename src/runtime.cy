@@ -7,7 +7,9 @@ import { install as install_timer } from .global.timer;
 import { eval as eval_module, eval_test as eval_test_module, register_source } from .modules;
 import { telemetry_console_settings, native_stack_trace_enabled, runtime_size_settings } from .config;
 import { host as telemetry_host } from .telemetry.interface;
+// C adapters call these exports after the runtime is constructed.
 import { snapshot_c } from .process_memory;
+import { install_runtime_error } from .errors;
 import { Backend } from std.telemetry;
 
 
