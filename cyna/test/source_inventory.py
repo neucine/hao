@@ -55,11 +55,23 @@ for path in sorted(zig_files):
 for path in sorted(exceptions.keys() - zig_files):
     errors.append(f"stale port mapping: src/{path}")
 for path in sorted(declaration_files):
-    if not (port / "src" / path).is_file():
+    destination = port / "src" / path
+    if not destination.is_file():
         errors.append(f"missing declaration: src/{path}")
 for path in sorted(shared_files):
-    if not (port / "src" / path).is_file():
+    destination = port / "src" / path
+    if not destination.is_file():
         errors.append(f"missing TypeScript source or asset: src/{path}")
+for path in sorted(declaration_files | shared_files):
+    if path in {"std/http/index.ts", "tsconfig.json"}:
+        continue
+    destination = port / "src" / path
+    if destination.is_file():
+        reference_bytes = subprocess.check_output(
+            ["git", "show", f"{reference}:src/{path}"], cwd=root,
+        )
+        if destination.read_bytes() != reference_bytes:
+            errors.append(f"unexpected content drift: src/{path}")
 if errors:
     raise SystemExit("\n".join(errors))
 print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(declaration_files)} TypeScript declarations, {len(shared_files)} TypeScript sources and assets")

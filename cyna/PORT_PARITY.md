@@ -44,6 +44,8 @@ request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
 The 18 legacy `std/**/*.d.ts` declarations and all 12 legacy TypeScript source
 and asset files now have matching port locations. The inventory checks them;
+it requires byte identity for all except the HTTP index split and TypeScript
+configuration described above.
 TypeScript 5.9.3 checks the port's modules and declarations with the port's
 `src/tsconfig.json`. The port config adds its separate HTTP server module and
 telemetry paths and uses the shared QuickJS host declarations.
