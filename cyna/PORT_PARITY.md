@@ -74,6 +74,8 @@ them. Cyna now retains those registrations and reports the failed module and
 exception message on stderr. The smoke suite checks a partially loaded suite
 whose hook fails during the subsequent run. Complex hook combinations still
 need direct reporter comparisons.
+The failed module glyph now uses Zig's red ANSI style when the reporter is in
+ANSI mode; the smoke suite checks plain and ANSI modes separately.
 A malformed TypeScript test file now exits after Zig's `TranspileFailed` line,
 without a test summary; the smoke suite retains this fatal load path.
 An oversized test file similarly exits with `StreamTooLong` and no summary,

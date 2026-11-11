@@ -708,7 +708,7 @@ const target = { value: 3 };
 test('still runs', () => { replaceProperty(target, 'value', 9); expect(target.value).toBe(9); });
 test('cleanup hook still runs', () => expect(target.value).toBe(3));
 EOF
-if load_result=$("$runtime" test "$fixture_dir/broken.test.ts" "$fixture_dir/after-broken.test.ts" 2>&1); then
+if load_result=$(RUNTIME_TEST_REPORTER=plain "$runtime" test "$fixture_dir/broken.test.ts" "$fixture_dir/after-broken.test.ts" 2>&1); then
     echo 'expected a failed test file to return failure' >&2
     exit 1
 fi
@@ -716,6 +716,12 @@ case "$load_result" in
     *'✕ module '*'broken.test.ts'*'load failed'*'1 loaded, 1 failed, 2 total'*'2 passed, 1 failed, 0 skipped'*) ;;
     *) echo "$load_result" >&2; exit 1 ;;
 esac
+python3 - "$runtime" "$fixture_dir/broken.test.ts" <<'PY'
+import os, subprocess, sys
+result = subprocess.run([sys.argv[1], 'test', sys.argv[2]],
+    env=dict(os.environ, RUNTIME_TEST_REPORTER='ansi'), capture_output=True, text=True)
+assert result.returncode == 1 and '\x1b[31m✕\x1b[0m module ' in result.stderr, result
+PY
 cat > "$fixture_dir/syntax-error.test.ts" <<'EOF'
 import { test } from 'std:test';
 test('must not register', () => {});

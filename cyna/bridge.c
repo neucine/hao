@@ -44,6 +44,7 @@ extern void hao_addon_cleanup(JSContext *ctx);
 extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                                unsigned char *output, size_t capacity);
 extern int hao_install_runtime_error(JSContext *ctx);
+extern int hao_test_reporter_ansi(void);
 void hao_runtime_free(uintptr_t handle);
 
 void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t port) {
@@ -761,7 +762,9 @@ int hao_runtime_test_failures(uintptr_t handle) {
 static void hao_print_test_failure(JSContext *ctx, JSValueConst error, const char *path) {
     JSValue detail = JS_GetPropertyStr(ctx, error, "message");
     const char *message = JS_IsUndefined(detail) ? JS_ToCString(ctx, error) : JS_ToCString(ctx, detail);
-    fprintf(stderr, "✕ module %s\n  %s\n", path, message ? message : "[uninitialized]");
+    fprintf(stderr, "%s module %s\n  %s\n",
+            hao_test_reporter_ansi() ? "\x1b[31m✕\x1b[0m" : "✕",
+            path, message ? message : "[uninitialized]");
     if (message) JS_FreeCString(ctx, message);
     JS_FreeValue(ctx, detail);
 }
