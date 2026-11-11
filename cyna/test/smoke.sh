@@ -62,6 +62,8 @@ clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_kernel_test.c" \
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime")" = 'kernel ok'
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime" --shared)" = 'kernel ok'
 HAO_JUPYTER_KERNEL_DIR="$fixture_dir/kernels/hao" "$runtime" jupyter install > "$fixture_dir/kernelspec-output"
+HAO_JUPYTER_KERNEL_DIR="$fixture_dir/kernels/hao" "$runtime" jupyter install ignored > "$fixture_dir/kernelspec-extra-output"
+test "$(cat "$fixture_dir/kernelspec-output")" = "$(cat "$fixture_dir/kernelspec-extra-output")"
 python3 - "$fixture_dir/kernels/hao/kernel.json" "$runtime" <<'PY'
 import json, sys
 with open(sys.argv[1]) as source:

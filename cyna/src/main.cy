@@ -62,7 +62,7 @@ fn main(): i32 {
         return 0;
     }
     if arguments[1] == "jupyter" {
-        if arguments.len() == 3 and arguments[2] == "install" {
+        if arguments.len() >= 3 and arguments[2] == "install" {
             return install_jupyter();
         }
         if arguments.len() == 4 and arguments[2] == "--connection-file" {

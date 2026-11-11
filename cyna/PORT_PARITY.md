@@ -62,8 +62,8 @@ Jupyter subcommands. It found that bare `hao test` and a missing `--grep` value
 used Cyna stdout messages instead of Zig's usage on stderr with status 2; those
 now match. An empty test directory now runs successfully with zero tests, as
 Zig does. Missing and oversized script files now report Zig's `FileNotFound`
-and `StreamTooLong` messages on stderr. Zig accepts an extra argument after
-`jupyter install`; Cyna retains strict argument validation for that command.
+and `StreamTooLong` messages on stderr. Both runtimes accept trailing arguments
+after `jupyter install`.
 The test reporter now writes its file counts, case results, suite indentation,
 skip reasons, and summary to stderr in Zig's layout. A direct plain reporter
 probe with passing and skipped cases, plus a failing case probe, matched Zig's
