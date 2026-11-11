@@ -202,16 +202,6 @@ int hao_jupyter_wire_poll(uintptr_t handle, int timeout_ms) {
     return 0;
 }
 
-int hao_jupyter_wire_field(uintptr_t handle, int field, unsigned char *out, size_t capacity) {
-    HaoWire *wire = (HaoWire *)handle;
-    if (!wire || !out) return -1;
-    const HaoFrame *value = field == HAO_HEADER ? &wire->header : field == HAO_CONTENT ? &wire->content : NULL;
-    if (!value || !value->data || value->length >= capacity) return -1;
-    memcpy(out, value->data, value->length);
-    out[value->length] = 0;
-    return (int)value->length;
-}
-
 size_t hao_jupyter_wire_field_length(uintptr_t handle, int field) {
     HaoWire *wire = (HaoWire *)handle;
     if (!wire) return 0;

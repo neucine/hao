@@ -10,7 +10,8 @@ extern uintptr_t hao_jupyter_wire_open(const unsigned char *, size_t, const unsi
     uint16_t, uint16_t, uint16_t, uint16_t, uint16_t, const unsigned char *, size_t);
 extern void hao_jupyter_wire_close(uintptr_t);
 extern int hao_jupyter_wire_poll(uintptr_t, int);
-extern int hao_jupyter_wire_field(uintptr_t, int, unsigned char *, size_t);
+extern size_t hao_jupyter_wire_field_length(uintptr_t, int);
+extern const unsigned char *hao_jupyter_wire_field_view(uintptr_t, int);
 extern int hao_jupyter_wire_send(uintptr_t, int, const unsigned char *, size_t, const unsigned char *, size_t);
 
 static void sign(const char *key, const char *header, const char *parent,
@@ -45,8 +46,8 @@ int main(void) {
         if (zmq_send(client, frames[i], strlen(frames[i]), i == 5 ? 0 : ZMQ_SNDMORE) < 0) return 3;
     if (hao_jupyter_wire_poll(wire, 1000) != 3) return 4;
     unsigned char buffer[256];
-    if (hao_jupyter_wire_field(wire, 1, buffer, sizeof(buffer)) != (int)strlen(header) ||
-        strcmp((char *)buffer, header) != 0) return 5;
+    if (hao_jupyter_wire_field_length(wire, 1) != strlen(header) ||
+        memcmp(hao_jupyter_wire_field_view(wire, 1), header, strlen(header)) != 0) return 5;
     if (hao_jupyter_wire_send(wire, 3, (const unsigned char *)"kernel_info_reply", 17,
         (const unsigned char *)"{\"status\":\"ok\"}", 15) != 0) return 6;
     for (size_t i = 0; i < 6; i++) {
