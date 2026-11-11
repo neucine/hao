@@ -19,7 +19,7 @@ typedef struct HaoBinding {
     char *name;
     void *function;
     size_t arg_count;
-    HaoType args[8];
+    HaoType *args;
     HaoType returns;
     ffi_type *arg_ffi[8];
     ffi_cif cif;
@@ -54,6 +54,7 @@ static void free_bindings(HaoLibrary *library) {
     while (binding) {
         HaoBinding *next = binding->next;
         hao_free(binding->name);
+        hao_free(binding->args);
         hao_free(binding);
         binding = next;
     }
@@ -158,26 +159,31 @@ static JSValue bind_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     uint32_t count = 0;
     JS_ToUint32(ctx, &count, count_value);
     JS_FreeValue(ctx, count_value);
-    bool valid = count <= 8 && parse_type(return_name, &binding->returns) && !find_binding(library, name);
+    bool valid = parse_type(return_name, &binding->returns) && !find_binding(library, name);
     binding->arg_count = count;
+    binding->args = hao_calloc(count ? count : 1, sizeof(HaoType));
+    valid = valid && binding->args != NULL;
+    bool has_void_arg = false;
     for (uint32_t i = 0; valid && i < count; i++) {
         JSValue value = JS_GetPropertyUint32(ctx, argv[2], i);
         const char *type_name = JS_ToCString(ctx, value);
-        valid = type_name && parse_type(type_name, &binding->args[i]) && binding->args[i] != HAO_VOID;
-        if (valid) binding->arg_ffi[i] = ffi_type_for(binding->args[i]);
+        valid = type_name && parse_type(type_name, &binding->args[i]);
+        if (valid && binding->args[i] == HAO_VOID) has_void_arg = true;
+        if (valid && i < 8 && !has_void_arg) binding->arg_ffi[i] = ffi_type_for(binding->args[i]);
         if (type_name) JS_FreeCString(ctx, type_name);
         JS_FreeValue(ctx, value);
     }
     if (valid) binding->function = dlsym(library->library, name);
     bool missing_symbol = valid && binding->function == NULL;
     if (missing_symbol) valid = false;
-    if (valid) valid = ffi_prep_cif(&binding->cif, FFI_DEFAULT_ABI, count,
+    if (valid && count <= 8 && !has_void_arg) valid = ffi_prep_cif(&binding->cif, FFI_DEFAULT_ABI, count,
         ffi_type_for(binding->returns), binding->arg_ffi) == FFI_OK;
     if (valid) binding->name = hao_strdup(name);
     valid = valid && binding->name;
     JS_FreeCString(ctx, name);
     JS_FreeCString(ctx, return_name);
     if (!valid) {
+        hao_free(binding->args);
         hao_free(binding);
         if (missing_symbol) return JS_ThrowInternalError(ctx, "dlopen: symbol not found");
         return JS_ThrowTypeError(ctx, "dlopen: invalid descriptor");
@@ -259,6 +265,11 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     JS_ToUint32(ctx, &count, count_value);
     JS_FreeValue(ctx, count_value);
     if (count != binding->arg_count) return JS_ThrowTypeError(ctx, "FFI: wrong number of arguments");
+    if (count > 8) return JS_ThrowInternalError(ctx, "FFI: more than eight arguments are not supported");
+    for (uint32_t i = 0; i < count; i++) {
+        if (binding->args[i] == HAO_VOID)
+            return JS_ThrowTypeError(ctx, "FFI: void is not a valid argument type");
+    }
     int32_t out_index = -1;
     if (argc >= 4 && !JS_IsUndefined(argv[3])) {
         if (JS_ToInt32(ctx, &out_index, argv[3]) < 0 || out_index < 0 || (uint32_t)out_index >= count ||

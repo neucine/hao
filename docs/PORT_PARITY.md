@@ -636,6 +636,14 @@ improvement, with a smoke check.
   Proxy around an array, which JavaScript `Array.isArray` accepts; the FFI
   adapter exposes that predicate for descriptor validation. The retained
   fixture compares all three cases against Zig.
+  The legacy runtime accepts descriptors with `void` arguments and more than
+  eight arguments, then rejects a `void` argument when called. The Cyna
+  binding record now stores argument types dynamically so descriptor opening
+  follows Zig for 1, 8, 9, and 100 arguments and reports the same `void` call
+  error. A call with more than eight arguments receives an explicit error in
+  Cyna; Zig's fixed trampoline does not support that call either. The retained
+  descriptor comparison now covers 22 shapes and seven getter, array, or call
+  outcomes.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for

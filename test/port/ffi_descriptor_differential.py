@@ -18,6 +18,10 @@ CASES = [
     {'sqrt': {'args': [0], 'returns': 'f64'}},
     {'sqrt': {'args': ['f64'], 'returns': 'bad'}},
     {'missing': {'args': [], 'returns': 'void'}},
+    {'sqrt': {'args': ['void'], 'returns': 'f64'}},
+    {'sqrt': {'args': ['i32'] * 8, 'returns': 'f64'}},
+    {'sqrt': {'args': ['i32'] * 9, 'returns': 'f64'}},
+    {'sqrt': {'args': ['i32'] * 100, 'returns': 'f64'}},
 ]
 
 
@@ -31,7 +35,7 @@ def main() -> None:
     cyna = str(Path(sys.argv[2]).resolve())
     with tempfile.TemporaryDirectory(prefix='hao-ffi-descriptor-') as directory:
         script = Path(directory) / 'probe.ts'
-        script.write_text("import { openNative, closeNative } from 'std:ffi/native';\n"
+        script.write_text("import { openNative, closeNative, callNative } from 'std:ffi/native';\n"
                           'const cases = ' + json.dumps(CASES) + ';\n'
                           'for (let i = 0; i < cases.length; i++) {\n'
                           "  try { const handle = openNative('m', cases[i]); console.log(i, 'ok'); closeNative(handle); }\n"
@@ -57,11 +61,15 @@ def main() -> None:
                           "  try { const h = openNative('m', { sqrt: { args: argumentCases[i], returns: 'f64' } }); "
                           "console.log('argument', i, 'ok'); closeNative(h); }\n"
                           "  catch (error) { console.log('argument', i, error.name, error.message); }\n"
-                          '}\n')
+                          '}\n'
+                          "const voidHandle = openNative('m', { sqrt: { args: ['void'], returns: 'f64' } });\n"
+                          "try { callNative(voidHandle, 'sqrt', [0]); }\n"
+                          "catch (error) { console.log('void call', error.name, error.message); }\n"
+                          'closeNative(voidHandle);\n')
         expected = run(legacy, script)
         actual = run(cyna, script)
         assert actual == expected, (expected, actual)
-    print(f'FFI descriptors: {len(CASES)} shapes and 6 getter or array outcomes matched')
+    print(f'FFI descriptors: {len(CASES)} shapes and 7 getter, array, or call outcomes matched')
 
 
 if __name__ == '__main__':
