@@ -12,14 +12,6 @@ extern unsigned char *hao_fs_read_alloc_limited(const unsigned char *path,
 extern void hao_fs_free_buffer(unsigned char *buffer);
 extern int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);
 
-unsigned char hao_byte_at(const unsigned char *pointer, size_t index) {
-    return pointer[index];
-}
-
-void hao_copy_bytes(unsigned char *output, const unsigned char *input, size_t length) {
-    memcpy(output, input, length);
-}
-
 static JSValue hao_fs_arg_error(JSContext *ctx, const char *message) {
     JSValue cause = JS_GetException(ctx);
     JS_FreeValue(ctx, cause);

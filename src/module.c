@@ -1,3 +1,4 @@
+#include "module.h"
 #include "runtime_host.h"
 #include "runtime_allocator.h"
 #include "../include/hao.h"

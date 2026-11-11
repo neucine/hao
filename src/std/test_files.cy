@@ -1,18 +1,18 @@
 import { read_dir, exists, DirEntryKind } from std.fs;
 import { join } from std.path;
 
+fn is_directory(path: string): bool {
+    const entries = read_dir(path) catch (code) { return false; };
+    return true;
+}
+
 pub fn collect(path: string, files: &List<string>): i32 {
-    if path.ends_with(".test.ts") {
-        files.push(path);
-        return 0;
-    }
     const entries = read_dir(path.clone()) catch (code) {
-        const present = exists(path.clone()) catch (error) { return 1; };
+        const present = exists(path.clone()) catch (error) => false;
         if present {
             files.push(path);
-            return 0;
         }
-        return 1;
+        return 0;
     };
     for entry in entries {
         const parts: [2]string = [path.clone(), entry.name.clone()];
@@ -23,6 +23,12 @@ pub fn collect(path: string, files: &List<string>): i32 {
             }
         } else if entry.kind == DirEntryKind.file and child.ends_with(".test.ts") {
             files.push(child);
+        } else if entry.kind == DirEntryKind.other {
+            if is_directory(child.clone()) {
+                if collect(child, files) != 0 { return 1; }
+            } else if child.ends_with(".test.ts") {
+                files.push(child);
+            }
         }
     }
     return 0;

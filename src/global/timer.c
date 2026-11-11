@@ -1,3 +1,4 @@
+#include "timer.h"
 #include "../runtime_host.h"
 #include "../runtime_allocator.h"
 #include <limits.h>

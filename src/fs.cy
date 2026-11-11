@@ -1,8 +1,8 @@
+import { path_exists } from .fs_limit;
 import { write_bytes } from std.fs;
 import { copy_bytes, text_from_c } from .c_bytes;
 import { read_alloc_limited, buffer_length, free_buffer } from .fs_limit;
 
-extern c("hao_fs_path_exists") fn path_exists(path: *const c_uchar): c_int;
 
 pub fn read_file_limited(path: string, max_bytes: usize): ?string {
     const bytes = path.bytes();

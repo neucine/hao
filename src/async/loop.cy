@@ -1,6 +1,6 @@
+import { runtime_drain } from .bridge;
 import { run_turn } from .async.uv;
 
-extern c("hao_runtime_drain") fn runtime_drain(handle: c_size_t): c_int;
 
 pub struct Loop {
     pub handle: c_size_t;

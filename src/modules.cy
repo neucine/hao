@@ -1,6 +1,5 @@
-extern c("hao_runtime_eval") fn runtime_eval(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): c_int;
-extern c("hao_runtime_eval_test") fn runtime_eval_test(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): c_int;
-extern c("hao_runtime_register") fn runtime_register(handle: c_size_t, name: *const c_uchar, name_len: c_size_t, source: *const c_uchar, source_len: c_size_t): c_int;
+import { runtime_eval, runtime_eval_test } from .bridge;
+import { runtime_register } from .module_ffi;
 
 pub fn eval(handle: c_size_t, source: string, filename: string): i32 {
     const source_bytes = source.bytes();

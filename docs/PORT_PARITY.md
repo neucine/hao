@@ -685,3 +685,7 @@ matrix now matches Zig; the file root case is retained in the port fixture.
 This avoids the installed Cyna 0.5.1-beta.1 typed `std.fs.exists` error path
 already documented as LG-79 in the Cyna language gaps ledger. The source
 compiler has a fix, but Hao remains pinned to the installed beta.
+
+## Native boundary layout
+
+Imported C functions now have companion headers and Cyna extern modules; the ownership map is in [NATIVE_BOUNDARIES.md](NATIVE_BOUNDARIES.md). The Rust transpiler declares its C exports in `libs/transpiler/include/hao_transpiler.h`. Cyna exported ABI wrappers remain in their feature modules.

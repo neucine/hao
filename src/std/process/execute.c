@@ -1,4 +1,5 @@
 #define _DARWIN_C_SOURCE 1
+#include "execute.h"
 #include "../../runtime_allocator.h"
 #include <errno.h>
 #include <poll.h>
@@ -9,15 +10,6 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-typedef struct {
-    size_t stdout_len;
-    size_t stderr_len;
-    int exit_code;
-    int has_exit_code;
-    int signal;
-    int has_signal;
-} HaoRunResult;
 
 extern char **environ;
 

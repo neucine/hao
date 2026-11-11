@@ -1,3 +1,4 @@
+#include "interface.h"
 #include "../runtime_host.h"
 #include "../runtime_allocator.h"
 #include "../../include/addon.h"

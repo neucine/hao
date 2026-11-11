@@ -1,10 +1,10 @@
+import { path_exists_len } from .fs_limit;
 import { read_file_limited } from .fs;
 import { dirname, join } from std.path;
 import { env_get } from std.process;
 import { Value, parse } from std.json;
 import { copy_output, text_from_c } from .c_bytes;
 
-extern c("hao_fs_path_exists_len") fn path_exists_len(path: *const c_uchar, length: c_size_t): c_int;
 
 fn path_exists(path: string): bool {
     const bytes = path.bytes();

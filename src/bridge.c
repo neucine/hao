@@ -1,3 +1,4 @@
+#include "bridge.h"
 #include <quickjs.h>
 #include "runtime_allocator.h"
 #include <uv.h>
@@ -49,11 +50,7 @@ int hao_runtime_trace_limit_exceeded(void) {
 
 #include "runtime_host.h"
 
-extern char *hao_transpile_types_for_path(const char *source, const char *source_path);
-extern char *hao_transform_module(const char *source, const char *source_path,
-                                  uint8_t isolated, const char *namespace_root);
-extern char *hao_transpiler_last_error(void);
-extern void hao_transpiler_free(char *text);
+#include "../libs/transpiler/include/hao_transpiler.h"
 extern void hao_install_fs_globals(JSContext *ctx, JSValue global);
 extern void hao_install_process_globals(JSContext *ctx, JSValue global);
 extern void hao_install_http_globals(JSContext *ctx, JSValue global);

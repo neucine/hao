@@ -1,3 +1,4 @@
+import { runtime_new, runtime_free, runtime_start_tests, runtime_test_failures, runtime_set_test_file_counts, runtime_set_executable, runtime_eval_cell, runtime_free_text, runtime_drain_test, runtime_set_telemetry_console, runtime_set_native_stack_trace } from .bridge;
 import { text_from_c } from .c_bytes;
 import { Loop } from .async.loop;
 import { install as install_console } from .global.console;
@@ -7,17 +8,6 @@ import { telemetry_console_settings, native_stack_trace_enabled } from .config;
 import { host as telemetry_host } from .telemetry.interface;
 import { Backend } from std.telemetry;
 
-extern c("hao_runtime_new") fn runtime_new(): c_size_t;
-extern c("hao_runtime_free") fn runtime_free(handle: c_size_t): void;
-extern c("hao_runtime_start_tests") fn runtime_start_tests(handle: c_size_t, grep: *const c_uchar, grep_len: c_size_t): c_int;
-extern c("hao_runtime_test_failures") fn runtime_test_failures(handle: c_size_t): c_int;
-extern c("hao_runtime_set_test_file_counts") fn runtime_set_test_file_counts(handle: c_size_t, loaded: c_size_t, failed: c_size_t, total: c_size_t): c_int;
-extern c("hao_runtime_set_executable") fn runtime_set_executable(handle: c_size_t, path: *const c_uchar, path_len: c_size_t): c_int;
-extern c("hao_runtime_eval_cell") fn runtime_eval_cell(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): ?*const c_uchar;
-extern c("hao_runtime_free_text") fn runtime_free_text(text: *const c_uchar): void;
-extern c("hao_runtime_drain_test") fn runtime_drain_test(handle: c_size_t, path: *const c_uchar, length: c_size_t): c_int;
-extern c("hao_runtime_set_telemetry_console") fn runtime_set_telemetry_console(handle: c_size_t, enabled: c_int, port: c_ushort): void;
-extern c("hao_runtime_set_native_stack_trace") fn runtime_set_native_stack_trace(handle: c_size_t, enabled: c_int): void;
 
 pub struct Runtime {
     pub handle: c_size_t;

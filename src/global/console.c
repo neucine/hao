@@ -1,3 +1,4 @@
+#include "console.h"
 #include "../runtime_host.h"
 #include "../runtime_allocator.h"
 #include <stdio.h>

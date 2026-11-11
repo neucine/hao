@@ -1,12 +1,9 @@
+import { bytes_valid, clear_error, invalid_buffer, set_error } from .bridge;
 import { Runtime } from .runtime;
 import { install_from } from .std;
 import { copy_bytes } from .c_bytes;
 import { Metric, MetricKind, MetricUnit, SpanKind, SpanStatus, root_context, int_attribute, Attribute } from std.telemetry;
 
-extern c("hao_embed_bytes_valid") fn bytes_valid(pointer: *const c_uchar, length: c_size_t): c_int;
-extern c("hao_embed_clear_error") fn clear_error(handle: c_size_t): void;
-extern c("hao_embed_invalid_buffer") fn invalid_buffer(handle: c_size_t): void;
-extern c("hao_embed_set_error") fn set_error(handle: c_size_t, message: *const c_uchar, length: c_size_t): void;
 
 fn failure(handle: c_size_t, message: string): void {
     const bytes = message.bytes();
