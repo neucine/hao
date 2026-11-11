@@ -84,12 +84,10 @@ void hao_ffi_cleanup(JSContext *ctx) {
     }
 }
 static bool parse_type(const char *name, HaoType *out) {
-    static const char *names[] = { "void", "bool", "i8", "i16", "i32", "i64",
-        "u8", "u16", "u32", "u64", "f32", "f64", "ptr", "cstring", "buffer" };
-    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
-        if (strcmp(name, names[i]) == 0) { *out = (HaoType)i; return true; }
-    }
-    return false;
+    int code = hao_ffi_type_code((const unsigned char *)name);
+    if (code < 0) return false;
+    *out = (HaoType)code;
+    return true;
 }
 static ffi_type *ffi_type_for(HaoType type) {
     switch (type) {
