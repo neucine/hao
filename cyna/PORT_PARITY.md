@@ -172,6 +172,10 @@ improvement, with a smoke check.
   on job enqueue and restores it while that job executes. Timer callbacks no
   longer drain jobs themselves. Both ordinary and traced same-turn probes
   match Zig's order, while the interleaved trace probe retains child parentage.
+  A timer argument matrix found that Zig silently ignores a `clearTimeout`
+  ID whose numeric conversion fails, including a `Symbol` and a throwing
+  `valueOf`. Cyna now consumes that conversion exception and returns
+  `undefined`, while `setTimeout` still propagates invalid delay errors.
   Notebook Promise waiting now follows Zig's 64 idle turn cutoff and reports
   a libuv run failure. The kernel consumer checks that an unresolved Promise
   yields `Promise did not settle`, then accepts a later request. Its shared

@@ -120,7 +120,11 @@ static JSValue hao_clear_timeout(JSContext *ctx, JSValueConst this_val,
     (void)this_val;
     if (argc < 1) return JS_UNDEFINED;
     int32_t id = 0;
-    if (JS_ToInt32(ctx, &id, argv[0]) < 0) return JS_EXCEPTION;
+    if (JS_ToInt32(ctx, &id, argv[0]) < 0) {
+        JSValue error = JS_GetException(ctx);
+        JS_FreeValue(ctx, error);
+        return JS_UNDEFINED;
+    }
     if (id <= 0) return JS_UNDEFINED;
     HaoRuntime *host = JS_GetContextOpaque(ctx);
     for (HaoTimer *timer = host->timers; timer; timer = timer->next) {

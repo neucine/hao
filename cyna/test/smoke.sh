@@ -1441,6 +1441,14 @@ trace('root', () => {
 EOF
 test "$("$runtime" "$fixture_dir/timer-traced-same-turn.ts")" = 'first,second,job'
 
+cat > "$fixture_dir/timer-clear-invalid.ts" <<'EOF'
+for (const value of [Symbol('x'), { valueOf() { throw Error('boom'); } }, -1]) {
+  try { clearTimeout(value as any); console.log('ok'); }
+  catch (error) { console.log('error', String(error)); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/timer-clear-invalid.ts")" = "$(printf 'ok\nok\nok')"
+
 cat > "$fixture_dir/timer-error.ts" <<'EOF'
 setTimeout(() => { throw Error('timer exploded'); }, 0);
 setTimeout(() => { console.log('later timer'); }, 20);
