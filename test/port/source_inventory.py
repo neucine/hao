@@ -35,9 +35,28 @@ for line in (port / "docs/PORT_PARITY.md").read_text().splitlines():
             raise SystemExit(f"duplicate port mapping: {path}")
         exceptions[path] = destinations
 
+c_only: dict[str, str] = {}
+for line in (port / "docs/NATIVE_BOUNDARIES.md").read_text().splitlines():
+    columns = line.split("|")
+    if len(columns) < 4 or ".zig`" not in columns[1]:
+        continue
+    legacy = re.findall(r"`([^`]+\.zig)`", columns[1])
+    destinations = re.findall(r"`([^`]+\.c)`", columns[2])
+    if len(legacy) != 1 or len(destinations) != 1:
+        raise SystemExit(f"invalid C only mapping: {line}")
+    if legacy[0] in c_only:
+        raise SystemExit(f"duplicate C only mapping: {legacy[0]}")
+    c_only[legacy[0]] = destinations[0]
+
 errors = []
 for path in sorted(zig_files):
     source_path = Path(path)
+    c_path = port / "src" / source_path.with_suffix(".c")
+    cy_path = port / "src" / source_path.with_suffix(".cy")
+    if c_path.is_file() and not cy_path.is_file() and path not in exceptions:
+        expected = f"src/{source_path.with_suffix('.c')}"
+        if c_only.get(path) != expected:
+            errors.append(f"unexplained C only mapping: src/{path} -> {expected}")
     matching = [
         port / "src" / source_path.with_suffix(extension)
         for extension in (".cy", ".c", ".ts")
@@ -54,6 +73,13 @@ for path in sorted(zig_files):
 
 for path in sorted(exceptions.keys() - zig_files):
     errors.append(f"stale port mapping: src/{path}")
+for path, destination in sorted(c_only.items()):
+    if path not in zig_files:
+        errors.append(f"stale C only mapping: src/{path}")
+    elif path in exceptions or (port / "src" / Path(path).with_suffix(".cy")).is_file():
+        errors.append(f"C only mapping has a Cyna or layout port: src/{path}")
+    elif not (port / destination).is_file():
+        errors.append(f"missing C boundary: {destination}")
 for path in sorted(declaration_files):
     destination = port / "src" / path
     if not destination.is_file():
@@ -74,4 +100,4 @@ for path in sorted(declaration_files | shared_files):
             errors.append(f"unexpected content drift: src/{path}")
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(declaration_files)} TypeScript declarations, {len(shared_files)} TypeScript sources and assets")
+print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(c_only)} explicit C boundaries, {len(declaration_files)} TypeScript declarations, {len(shared_files)} TypeScript sources and assets")
