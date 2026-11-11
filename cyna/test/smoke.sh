@@ -755,8 +755,16 @@ for (const field of ['void *next', 'Foo *next', 'int32_t value; void *next']) {
   catch (error) { console.log(error.name, error.code, error.message); }
   closeNative(library.handle);
 }
+for (const [declaration, options] of [
+  ['double sqrt(double x);', { functions: { missing: {} } }],
+  ['int32_t get(double value);', { functions: { get: { returns: { out: 'missing' } } } }],
+  ['int32_t get(double value);', { functions: { get: { returns: { out: 'value' } } } }],
+]) {
+  try { prepareNative('m', declaration, options); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
 EOF
-test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
   '{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
   '{"symbols":["sqrt"],"policies":{"handles":{},"functions":{}}}' \
   '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
@@ -778,7 +786,31 @@ test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s
   '{"descriptor":{"sqrt":{"args":["ptr"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
   'RuntimeError invalid_arg C: unsupported POD struct layout for runtime marshaling' \
   '{"descriptor":{"sqrt":{"args":["ptr"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
-  'RuntimeError invalid_arg C: unsupported POD struct layout for runtime marshaling')"
+  'RuntimeError invalid_arg C: unsupported POD struct layout for runtime marshaling' \
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: UnknownFunctionOption' \
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: UnknownOutParam' \
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: OutParamNotPointer')"
+cat > "$fixture_dir/ffi-c-policy-errors.ts" <<'EOF'
+import { prepareNative } from 'std:ffi/c/native';
+for (const [declaration, options] of [
+  ['double sqrt(double x);', { functions: { sqrt: { buffers: { missing: { length: 'x', element: 'u8' } } } } }],
+  ['void fill(uint8_t *data, size_t len);', { functions: { fill: { buffers: { data: { length: 'missing', element: 'u8' } } } } }],
+  ['void fill(uint8_t *data, double len);', { functions: { fill: { buffers: { data: { length: 'len', element: 'u8' } } } } }],
+  ['double sqrt(double x);', { search: { strategy: 'bad' } }],
+  ['double sqrt(double x);', { search: { paths: [3] } }],
+]) {
+  try { console.log(JSON.stringify(prepareNative('m', declaration, options))); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/ffi-c-policy-errors.ts")" = "$(cat <<'EOF'
+RuntimeError invalid_arg prepareNative: declaration lowering failed: UnknownBufferPointerParam
+RuntimeError invalid_arg prepareNative: declaration lowering failed: UnknownBufferLengthParam
+RuntimeError invalid_arg prepareNative: declaration lowering failed: BufferLengthNotSizeLike
+RuntimeError invalid_arg prepareNative: invalid options: InvalidArgument
+{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}
+EOF
+)"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
 const library = openNative('m', 'double sqrt(double x);');

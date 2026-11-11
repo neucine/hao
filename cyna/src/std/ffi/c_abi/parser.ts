@@ -30,13 +30,13 @@ export function parse(declarations: string, opts: any): Prepared {
   if (opts?.search != null) {
     const search = opts.search;
     if (typeof search !== 'object' || Array.isArray(search)) throw invalidArg('invalid C library search policy');
-    if (search.strategy != null && !['runtime-default', 'relative-first', 'system-first'].includes(search.strategy)) {
+    if (search.strategy != null && !['runtime-default', 'relative-first', 'system-first'].includes(String(search.strategy))) {
       throw invalidArg('invalid C library search strategy');
     }
-    if (search.paths != null && (!Array.isArray(search.paths) ||
-        search.paths.some((path: unknown) => typeof path !== 'string' || !path))) {
+    if (search.paths != null && !Array.isArray(search.paths)) {
       throw invalidArg('invalid C library search paths');
     }
+    if (Array.isArray(search.paths)) search.paths = search.paths.map((path: unknown) => String(path));
   }
   const functions: FunctionSpec[] = [];
   const typeReferences: string[] = [];
@@ -110,7 +110,8 @@ export function parse(declarations: string, opts: any): Prepared {
     const fn = functions.find(item => item.name === name)!;
     if (policy?.returns?.out) {
       const out = functions.find(item => item.name === name)!.params.find(param => param.name === policy.returns.out);
-      if (!out || out.type !== 'ptr') throw invalidArg(`invalid C output parameter: ${policy.returns.out}`);
+      if (!out) throw invalidArg('unknown C output parameter');
+      if (out.type !== 'ptr') throw invalidArg('C output parameter is not a pointer');
     }
     if (policy?.returns?.kind === 'handle' &&
         (!opaqueTypes.has(policy.returns.type) || fn.returns !== 'ptr')) {
@@ -120,10 +121,10 @@ export function parse(declarations: string, opts: any): Prepared {
       const pointer = fn.params.find(param => param.name === pointerName);
       const length = fn.params.find(param => param.name === buffer?.length);
       const rawLength = declarationTypes.get(name)!.params.find(param => param.name === buffer?.length)?.type;
-      if (!pointer || pointer.type !== 'ptr' && pointer.type !== 'cstring' || !length ||
-          rawLength?.replace(/^const\s+/, '') !== 'size_t') {
-        throw invalidArg(`invalid C buffer policy: ${name}.${pointerName}`);
-      }
+      if (!pointer) throw invalidArg('unknown C buffer pointer parameter');
+      if (!length) throw invalidArg('unknown C buffer length parameter');
+      if (pointer.type !== 'ptr' && pointer.type !== 'cstring') throw invalidArg('C buffer pointer parameter is not pointer-like');
+      if (rawLength?.replace(/^const\s+/, '') !== 'size_t') throw invalidArg('C buffer length parameter is not size-like');
       if (!['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', 'f32', 'f64'].includes(buffer.element) ||
           buffer.direction != null && !['in', 'out', 'inout'].includes(buffer.direction)) {
         throw invalidArg(`invalid C buffer policy: ${name}.${pointerName}`);

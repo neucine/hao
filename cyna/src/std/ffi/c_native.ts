@@ -26,6 +26,25 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
       if (error.message.startsWith('duplicate C type:')) {
         throw invalidArg(`${operation}: declaration lowering failed: DuplicateTypeName`, 'DuplicateTypeName');
       }
+      if (error.message.startsWith('unknown C function policy:')) {
+        throw invalidArg(`${operation}: declaration lowering failed: UnknownFunctionOption`, 'UnknownFunctionOption');
+      }
+      if (error.message === 'unknown C output parameter') {
+        throw invalidArg(`${operation}: declaration lowering failed: UnknownOutParam`, 'UnknownOutParam');
+      }
+      if (error.message === 'C output parameter is not a pointer') {
+        throw invalidArg(`${operation}: declaration lowering failed: OutParamNotPointer`, 'OutParamNotPointer');
+      }
+      const bufferError = new Map([
+        ['unknown C buffer pointer parameter', 'UnknownBufferPointerParam'],
+        ['unknown C buffer length parameter', 'UnknownBufferLengthParam'],
+        ['C buffer pointer parameter is not pointer-like', 'BufferPointerNotPointerLike'],
+        ['C buffer length parameter is not size-like', 'BufferLengthNotSizeLike'],
+      ]).get(error.message);
+      if (bufferError) throw invalidArg(`${operation}: declaration lowering failed: ${bufferError}`, bufferError);
+      if (error.message.startsWith('invalid C library search')) {
+        throw invalidArg(`${operation}: invalid options: InvalidArgument`, 'InvalidArgument');
+      }
       const unknownType = /^unsupported C type: (?:const\s+)?([A-Za-z_]\w*)\s*$/.exec(error.message);
       if (unknownType && !['short', 'int', 'long', 'unsigned', 'signed', 'volatile', 'restrict', 'const'].includes(unknownType[1])) {
         throw invalidArg(`${operation}: declaration lowering failed: UnknownNamedType`, 'UnknownNamedType');
