@@ -1,4 +1,5 @@
-#include "support.h"
+#include "allocator.h"
+#include "host.h"
 #include "telemetry.h"
 #include "../../libs/transpiler/include/hao_transpiler.h"
 #include "../../include/hao.h"

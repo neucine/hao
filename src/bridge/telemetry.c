@@ -1,4 +1,4 @@
-#include "support.h"
+#include "allocator.h"
 #include "telemetry.h"
 #include <math.h>
 #include <pthread.h>
@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <uv.h>
+
+/* Cyna export used to include host memory in the native telemetry snapshot. */
+extern void hao_process_memory_snapshot(uint64_t *resident_bytes,
+                                        uint64_t *physical_footprint_bytes);
 
 /* Metrics and host memory gauges. */
 static _Atomic uint64_t resident_peak_bytes;

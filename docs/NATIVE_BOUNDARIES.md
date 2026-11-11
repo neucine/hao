@@ -2,12 +2,13 @@
 
 Hao's Cyna application lives in `src/` at the legacy feature paths. All 36 Cyna C ABI exports are declared in `src/hao_abi.cy`. Each export delegates to a public function in its feature module; those modules own the implementation. The executable imports the ABI module, and the static library uses it as its entry module. Public embedding declarations remain in `include/hao.h` and `include/addon.h`.
 
-All project C sources live directly under `src/bridge/`. There are four C translation units, one for each native surface:
+All project C sources live directly under `src/bridge/`. There are five C translation units: four native surfaces plus one shared allocator substrate.
 
 | C unit | Owning surface |
 | --- | --- |
 | `qjs.c` | QuickJS values and callbacks, module loading, console, timers, addon ABI, FFI, filesystem, HTTP, process, notebook cells, and test hooks. |
-| `support.c` | Hao allocation accounting, process execution, and process memory counters. |
+| `allocator.c` | Hao allocation accounting shared by every project C unit. |
+| `host.c` | Process execution and process memory counters. |
 | `jupyter.c` | ZeroMQ transport, multipart framing, and Jupyter HMAC verification. |
 | `telemetry.c` | Telemetry metrics, host memory gauges, native spans, records, and JavaScript telemetry callbacks. |
 
@@ -16,7 +17,7 @@ The Cyna import facades name the foreign contracts:
 | Cyna facade | C implementation | Ownership |
 | --- | --- | --- |
 | `qjs.cy` | `qjs.c` | QuickJS-facing adapters and JavaScript callbacks. |
-| `host.cy` | `support.c` | Platform services absent from the pinned Cyna std: tracked allocation, bounded binary process capture, signal status, and process memory counters. |
+| `host.cy` | `host.c`, `allocator.c` | Platform services absent from the pinned Cyna std: tracked allocation, bounded binary process capture, signal status, and process memory counters. |
 | `jupyter.cy` | `jupyter.c` | ZeroMQ sockets and frames with HMAC. |
 | `telemetry.cy` | `telemetry.c` | Native telemetry storage and callbacks. |
 | `transpiler.cy` | No project C wrapper | Cyna declares the existing Rust archive ABI directly. QuickJS integration calls it from `qjs.c`. |
@@ -24,18 +25,20 @@ The Cyna import facades name the foreign contracts:
 
 `uv.cy` has no matching project C file because libuv is already the C implementation. `async/uv.cy` owns loop allocation, initialization, closing, liveness checks, and run modes. `qjs.c` contains the libuv adapters whose callbacks must interact with QuickJS, including timers, HTTP workers, and server sockets. `hao_abi.cy` exports the small loop lifecycle used by C hosts. A separate `uv.c` would only forward libuv calls without adding conversion, ownership, or callback behavior.
 
-The C boundary exists for four concrete reasons:
+The C boundary exists for these concrete reasons:
 
 - QuickJS exposes a C API and invokes C callbacks.
 - The Rust transpiler already exports a C ABI.
 - libuv callbacks and the pinned Cyna std leave gaps for bounded binary process output, process memory counters, libcurl, ZeroMQ, libffi, and file size queries.
 - QuickJS-facing native libraries need one consistent allocation and lifetime boundary.
 
-This list is a review threshold, not a claim that every capability must remain in C. A new C unit needs a distinct foreign ABI or lifecycle that cannot be owned cleanly by one of these four surfaces. A missing Cyna API is recorded and assessed in the Cyna language-gaps ledger before the project expands the C boundary.
+Allocation and process execution were originally combined in `support.c`. They are separate C units now because they have different consumers and ownership: the allocator is a shared substrate with process-wide counters, while process execution and process-memory queries implement `host.cy` and do not belong in other native surfaces. The narrow Jupyter connection build can link only `allocator.c`; it no longer carries process execution code.
 
-There are no semantic subdirectories in `src/bridge/`. Only two private headers remain because two interfaces are genuinely shared between C translation units: `support.h` for allocation, process execution, and process-memory contracts, and `telemetry.h` for the QuickJS-to-telemetry contract. The QuickJS runtime structure and Cyna export declarations stay private to `qjs.c`; the libuv consumer declarations stay at the consuming boundary. Header files contain declarations and shared type definitions only; implementation code, including private helpers such as HMAC verification, stays in its owning `.c` file. The public embedding and addon contracts are in `include/hao.h` and `include/addon.h`.
+This list is a review threshold, not a claim that every capability must remain in C. A new C unit needs a distinct foreign ABI or lifecycle that cannot be owned cleanly by an existing surface. A missing Cyna API is recorded and assessed in the Cyna language-gaps ledger before the project expands the C boundary.
 
-The allocator boundary has a concrete ownership reason. Zig's `runtime_allocator.zig` wraps its backing allocator and counts Hao-owned Zig allocations. In the Cyna port, native adapters use `hao_alloc` and its accounting header; `runtime_allocator.cy` exposes that allocator to Cyna callers. QuickJS uses its own allocator and is reported separately. Moving only the counters into Cyna would split allocations from their corresponding frees and change the reported scope. This is a Hao runtime allocator contract, not evidence that Cyna std needs a new allocator API. Zig resets its global counters when initializing a runtime. `support.c` keeps process-wide counters across embedded runtime creation because those runtimes can overlap and free allocations after another runtime is created.
+There are no semantic subdirectories in `src/bridge/`. Three private headers remain because each interface is genuinely shared between C translation units: `allocator.h` for allocation accounting, `host.h` for the process result ABI, and `telemetry.h` for the QuickJS-to-telemetry contract. The QuickJS runtime structure and Cyna export declarations stay private to `qjs.c`; the libuv consumer declarations stay at the consuming boundary. Header files contain declarations and shared type definitions only; implementation code, including private helpers such as HMAC verification, stays in its owning `.c` file. The public embedding and addon contracts are in `include/hao.h` and `include/addon.h`.
+
+The allocator boundary has a concrete ownership reason. Zig's `runtime_allocator.zig` wraps its backing allocator and counts Hao-owned Zig allocations. In the Cyna port, native adapters use `hao_alloc` and `allocator.h`; `runtime_allocator.cy` exposes that allocator to Cyna callers through `host.cy`. QuickJS uses its own allocator and is reported separately. Moving only the counters into Cyna would split allocations from their corresponding frees and change the reported scope. This is a Hao runtime allocator contract, not evidence that Cyna std needs a new allocator API. Zig resets its global counters when initializing a runtime. `allocator.c` keeps process-wide counters across embedded runtime creation because those runtimes can overlap and free allocations after another runtime is created.
 
 `qjs.c` owns the QuickJS error callback, stack capture, runtime lifetime, evaluation, rejection handling, generic and test job drains, notebook cell translation and settling, console and timer installation, module loading, addon loading, filesystem/process/HTTP/FFI adapters, and telemetry callbacks installed into QuickJS.
 
@@ -45,4 +48,4 @@ Cyna owns HTTP URL and server limit policy (`std/http/native.cy`, `std/http/serv
 
 For Jupyter, `bridge/jupyter.cy` declares the ZeroMQ adapter ABI. `jupyter/zmq.cy` converts `Connection` and string values to and from that ABI, and `jupyter/wire.cy` exposes the wire handle and its operations to the kernel. `jupyter.c` owns sockets, multipart frames, and the static HMAC helper because the pinned Cyna std has no corresponding native APIs.
 
-The source inventory checks that `cyna.toml` and `cyna.lib.toml` list exactly the four shared C sources, that every other Cyna manifest selects a subset of those sources, that no C source exists outside `src/bridge/`, that Cyna ABI exports remain centralized in `src/hao_abi.cy`, and that raw extern declarations remain in bridge facade files. That inventory proves layout and boundary constraints; it does not by itself prove behavioral parity.
+The source inventory checks that `cyna.toml` and `cyna.lib.toml` list exactly the five shared C sources, that every other Cyna manifest selects a subset of those sources, that no C source exists outside `src/bridge/`, that Cyna ABI exports remain centralized in `src/hao_abi.cy`, and that raw extern declarations remain in bridge facade files. That inventory proves layout and boundary constraints; it does not by itself prove behavioral parity.

@@ -5,4 +5,4 @@ type = "exe"
 entry = "src/jupyter/connection_check.cy"
 
 [c]
-sources = ["src/bridge/support.c"]
+sources = ["src/bridge/allocator.c"]

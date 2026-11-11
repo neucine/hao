@@ -5,7 +5,7 @@ type = "exe"
 entry = "src/main.cy"
 
 [c]
-sources = ["src/bridge/qjs.c", "src/bridge/support.c", "src/bridge/jupyter.c", "src/bridge/telemetry.c"]
+sources = ["src/bridge/qjs.c", "src/bridge/allocator.c", "src/bridge/host.c", "src/bridge/jupyter.c", "src/bridge/telemetry.c"]
 include_paths = [".deps/install/include", "/opt/homebrew/include"]
 
 [link]

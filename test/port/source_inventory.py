@@ -82,7 +82,8 @@ bridge_headers = {
     for candidate in (port / "src/bridge").rglob("*.h")
 }
 expected_headers = {
-    "src/bridge/support.h",
+    "src/bridge/allocator.h",
+    "src/bridge/host.h",
     "src/bridge/telemetry.h",
 }
 if bridge_headers != expected_headers:

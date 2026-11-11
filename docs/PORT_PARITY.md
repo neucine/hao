@@ -894,3 +894,4 @@ documented as LG-79 in the Cyna language gaps ledger.
 ## Native boundary layout
 
 Imported C functions now have companion headers and Cyna extern modules; the ownership map is in [NATIVE_BOUNDARIES.md](NATIVE_BOUNDARIES.md). The Rust transpiler declares its C exports in `libs/transpiler/include/hao_transpiler.h`. All Cyna C ABI exports are wrappers in `src/hao_abi.cy`; their feature modules contain ordinary public Cyna functions. All project C sources and internal headers are under `src/bridge/`.
+The shared allocator now lives in `src/bridge/allocator.c`; process execution and process memory moved from the former combined `support.c` into `src/bridge/host.c`. `qjs.c`, `host.c`, `jupyter.c`, and `telemetry.c` share only `allocator.h` where they allocate native values, while `qjs.c` and `host.c` share `host.h` for the process result ABI. The narrow Jupyter connection manifest links only `allocator.c`.
