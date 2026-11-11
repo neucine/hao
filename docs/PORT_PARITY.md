@@ -110,8 +110,7 @@ checks the empty directory summary on stderr. A direct file load failure probe
 found that Cyna discarded tests registered before the exception, while Zig ran
 them. Cyna now retains those registrations and reports the failed module and
 exception message on stderr. The smoke suite checks a partially loaded suite
-whose hook fails during the subsequent run. Complex hook combinations still
-need direct reporter comparisons. A shared nested hook fixture compared async
+whose hook fails during the subsequent run. A shared nested hook fixture compared async
 `beforeAll`, nested per-case hooks, skipped cases, and top-level hooks. Both
 runtimes ran the same cases and suite hooks; Zig omits the anonymous root
 suite from its per-case hook chain, while Cyna includes it. A reduced two-case
@@ -120,6 +119,13 @@ fixture confirmed that Zig also skips the root cleanup hook registered by
 Cyna retains root hook execution so automatic mock restoration and user root
 hooks work. This is a deliberate behavior repair; the existing port smoke
 fixture checks cleanup.
+Five further shared fixtures matched plain reporter output after normalizing
+durations: failed `beforeAll`, failed `afterAll`, a nested `beforeEach` failure,
+multiple `afterEach` failures, and async hooks. A `describe.only` and
+`describe.skip` fixture also matched stdout, exit status, and normalized
+reporter output with no grep and three grep values. Other hook and filtering
+combinations remain open. Rerun the nine compared outcomes with
+`python3 test/port/runner_differential.py <legacy-binary> <cyna-binary>`.
 The failed module glyph now uses Zig's red ANSI style when the reporter is in
 ANSI mode; the smoke suite checks plain and ANSI modes separately.
 Output capture now grows with the captured stream. A shared 18 MB probe
