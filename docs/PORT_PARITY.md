@@ -209,6 +209,7 @@ improvement, with a smoke check.
   opens the file before measuring its size, while Cyna's use of `stat` returned
   the size. Cyna now opens and seeks the file like Zig, and the smoke suite
   checks the permission error under a non-root user.
+  The retained `test/port/fs_differential.py` now runs 84 path operations and 23 write data values against both binaries in isolated directories. It covers primitive and object conversion, throwing getters, Symbols, Unicode, NUL content, and round trip file sizes; all outcomes match. Separate directories prevent writes from the first binary affecting the second.
   An argument conversion matrix found that QuickJS conversion failures leaked
   through Cyna's `std:fs` adapter, while Zig reports each operation's expected
   path or data `TypeError`. Cyna now consumes the conversion exception and
