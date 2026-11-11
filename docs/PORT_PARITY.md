@@ -674,7 +674,9 @@ improvement, with a smoke check.
   error. Zig's fixed trampoline rejects calls with more than eight arguments
   using its `mixed int/float arguments are not yet supported` error, even for
   uniform types. Cyna now reports the same public error for 9 and 10 argument
-  calls. The retained descriptor comparison covers 22 shapes and eleven
+  calls. Cyna also converts the arguments before reporting that limit, so a
+  `void` type, `Symbol`, or throwing `valueOf` at the first position wins, as
+  in Zig. The retained descriptor comparison covers 22 shapes and fifteen
   getter, array, or call outcomes.
   A retained 14-case `std:ffi/native` call matrix now compares invalid handles,
   symbol conversion, missing symbols, argument array shape, argument counts,
