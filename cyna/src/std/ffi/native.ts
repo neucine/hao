@@ -3,7 +3,9 @@ const types = new Set(['void', 'bool', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16', '
 
 export function openNative(name: string, descriptor: Descriptor): number {
   if (arguments.length < 2) throw new TypeError('dlopen requires 2 arguments: library name and descriptor');
-  if (typeof name !== 'string' || !name) throw Error('dlopen: invalid library name');
+  if (typeof name === 'symbol') throw new TypeError('dlopen: invalid library name');
+  try { name = String(name); }
+  catch (_) { throw new TypeError('dlopen: invalid library name'); }
   if (!descriptor || typeof descriptor !== 'object' || Array.isArray(descriptor)) {
     throw Error('dlopen: descriptor must be an object');
   }

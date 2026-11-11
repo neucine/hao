@@ -112,7 +112,7 @@ static JSValue open_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     const char *name = JS_ToCString(ctx, argv[0]);
     if (!name) return JS_EXCEPTION;
     size_t length = strlen(name);
-    if (!length || length > 4096) { JS_FreeCString(ctx, name); return JS_ThrowTypeError(ctx, "dlopen: invalid library name"); }
+    if (length > 4096) { JS_FreeCString(ctx, name); return JS_ThrowTypeError(ctx, "dlopen: invalid library name"); }
     char *path = NULL;
     if (!strchr(name, '/') && !strchr(name, '.')) {
         path = hao_alloc(length + 10);

@@ -369,6 +369,11 @@ improvement, with a smoke check.
   arguments during open, although its call trampoline has an eight-argument
   bound; Cyna rejects those unsupported bindings during open. These are
   deliberate error and bounds improvements, not claims of identical behavior.
+  The direct `std:ffi/native` name matrix now matches Zig's conversion of
+  `undefined`, `null`, empty text, numbers, booleans, and objects before opening
+  a library. Symbol and throwing string conversion report Zig's library-name
+  `TypeError`; a convertible object can open libm. The smoke suite retains
+  these cases.
   A separate C library probe compared `u64` arguments and returns at 2^53,
   2^63, and `UINT64_MAX` under both runtimes. The observed JavaScript numbers,
   including rounding above 2^53, matched. The Cyna smoke fixture now retains
