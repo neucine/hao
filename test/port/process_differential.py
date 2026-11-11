@@ -63,6 +63,24 @@ for (const limit of [1, 4, 8, 9, 10, 15, 16, 17, 32]) {
   } catch (error) { console.log(limit, error.name, error.message); }
 }
 '''
+OVERFLOW = r'''import { run } from 'std:process';
+for (const [cmd, args] of [['/usr/bin/yes', ['x']],
+  ['/bin/sh', ['-c', 'exec /usr/bin/yes x']]]) {
+  try {
+    const result = await run({ cmd, args, maxOutputBytes: 1024, check: false });
+    console.log('result', result.exitCode, result.signal);
+  } catch (error) { console.log('error', error.name, error.message); }
+}
+'''
+SIGNALS = r'''import { run } from 'std:process';
+for (const signal of ['TERM', 'KILL', 'INT']) {
+  try {
+    const result = await run({ cmd: '/bin/sh', args: ['-c', `kill -${signal} $$`], check: false });
+    console.log(signal, result.exitCode, result.signal,
+      JSON.stringify(result.stdout), JSON.stringify(result.stderr));
+  } catch (error) { console.log(signal, error.name, error.message); }
+}
+'''
 
 
 def run(binary: str, root: Path, source: str) -> tuple[int, bytes, bytes]:
@@ -78,11 +96,12 @@ def main() -> None:
     cyna = str(Path(sys.argv[2]).resolve())
     with tempfile.TemporaryDirectory(prefix='hao-process-diff-') as directory:
         root = Path(directory)
-        for index, source in enumerate((COMMANDS, ARGS, ARRAYS, LIMITS)):
+        for index, source in enumerate((COMMANDS, ARGS, ARRAYS, LIMITS, OVERFLOW, SIGNALS)):
             expected = run(legacy, root / f'legacy-{index}', source)
             actual = run(cyna, root / f'cyna-{index}', source)
             assert actual == expected, (index, expected, actual)
-    print('process differential: 21 commands, 34 argument forms, 9 output limits matched')
+    print('process differential: 21 commands, 34 argument forms, 9 output limits, '
+          '2 overflows, and 3 signals matched')
 
 
 if __name__ == '__main__':

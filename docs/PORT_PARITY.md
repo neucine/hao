@@ -233,6 +233,10 @@ improvement, with a smoke check.
   preserves the embedded NUL in a printed input label where Zig truncates it;
   both lookups return the same environment value.
   The retained `test/port/process_differential.py` compares 21 command conversions, 34 argument forms (including sparse arrays and throwing proxies), and nine paired stdout/stderr output limits against the Zig executable. All exit statuses, stdout, and stderr matched. Each binary runs in its own fixture directory.
+  The retained process differential also matches two continuously writing
+  children that exceed a 1024 byte output limit, and TERM, KILL, and INT
+  child terminations. Both runtimes report the output failure promptly and
+  return a signal with no exit code for the three terminations.
   `getEnvNative` now reports Zig's variable name `TypeError` for a `Symbol` or
   throwing `toString`, rather than exposing the JavaScript conversion error.
 
