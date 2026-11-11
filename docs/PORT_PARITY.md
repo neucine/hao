@@ -407,6 +407,14 @@ improvement, with a smoke check.
   inspection, history, silent execution, and user expressions beyond the Zig
   handler's request set. Those additions need their own behavior review and
   do not establish parity for the shared request types.
+  A connection field probe compared 18 shell port spellings and 12 valid JSON
+  field layouts through both CLIs. The two malformed JSON number spellings
+  `0001` and `1.2.3` are accepted by Zig's byte scanner and reach socket
+  setup; Cyna's JSON parser reports `MissingField`. A valid JSON object with
+  all port fields nested under another key likewise reaches socket setup in
+  Zig, while Cyna requires the fields at the root. Cyna keeps strict JSON and
+  root field validation as protocol improvements. The other compared outcomes
+  matched, including numeric exponent spellings and optional field types.
   For `silent`, `store_history`, and a shutdown `restart` request, Cyna follows
   the Jupyter protocol while Zig ignores those fields. These are deliberate
   behavior extensions, retained by the Cyna kernel consumer. A shared probe
