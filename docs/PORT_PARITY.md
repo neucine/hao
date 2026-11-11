@@ -627,6 +627,10 @@ improvement, with a smoke check.
   missing symbols through both executables. Zig silently produces an undefined
   exception for a null descriptor entry; Cyna retains an explicit `TypeError`
   for that malformed entry.
+  The same retained comparison now checks throwing `args` and `returns`
+  getters and counts reads of valid getters. Cyna maps the two thrown getters
+  to Zig's descriptor `TypeError` messages and reads each field once, matching
+  Zig's observed access pattern.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for

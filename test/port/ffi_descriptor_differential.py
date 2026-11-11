@@ -36,11 +36,21 @@ def main() -> None:
                           'for (let i = 0; i < cases.length; i++) {\n'
                           "  try { const handle = openNative('m', cases[i]); console.log(i, 'ok'); closeNative(handle); }\n"
                           '  catch (error) { console.log(i, error.name, error.message); }\n'
-                          '}\n')
+                          '}\n'
+                          "for (const [label, spec] of [['args', { get args() { throw Error('args boom'); }, returns: 'f64' }], "
+                          "['returns', { args: ['f64'], get returns() { throw Error('returns boom'); } }]]) {\n"
+                          "  try { openNative('m', { sqrt: spec }); }\n"
+                          "  catch (error) { console.log(label, error.name, error.message); }\n"
+                          '}\n'
+                          "let argsReads = 0, returnReads = 0;\n"
+                          "const spec = { get args() { argsReads++; return ['f64']; }, "
+                          "get returns() { returnReads++; return 'f64'; } };\n"
+                          "const handle = openNative('m', { sqrt: spec }); closeNative(handle);\n"
+                          'console.log("getter reads", argsReads, returnReads);\n')
         expected = run(legacy, script)
         actual = run(cyna, script)
         assert actual == expected, (expected, actual)
-    print(f'FFI descriptors: {len(CASES)} Zig/Cyna forms matched')
+    print(f'FFI descriptors: {len(CASES)} shapes and 3 getter outcomes matched')
 
 
 if __name__ == '__main__':

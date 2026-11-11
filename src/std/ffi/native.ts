@@ -13,10 +13,16 @@ export function openNative(name: string, descriptor: Descriptor): number {
   try {
     for (const [symbol, spec] of Object.entries(descriptor)) {
       if (!spec || typeof spec !== 'object') throw new TypeError('dlopen: invalid descriptor');
-      if (!Array.isArray(spec.args)) throw new TypeError('dlopen: descriptor args must be an array');
-      if (!types.has(spec.returns)) throw new TypeError('dlopen: invalid return type');
-      if (spec.args.some(type => !types.has(type))) throw new TypeError('dlopen: invalid argument type');
-      globalThis.__hao_ffi_bind(handle, symbol, spec.args, spec.returns);
+      let args: string[];
+      try { args = spec.args; }
+      catch (_) { throw new TypeError('dlopen: descriptor args must be an array'); }
+      if (!Array.isArray(args)) throw new TypeError('dlopen: descriptor args must be an array');
+      let returns: string;
+      try { returns = spec.returns; }
+      catch (_) { throw new TypeError('dlopen: invalid return type'); }
+      if (!types.has(returns)) throw new TypeError('dlopen: invalid return type');
+      if (args.some(type => !types.has(type))) throw new TypeError('dlopen: invalid argument type');
+      globalThis.__hao_ffi_bind(handle, symbol, args, returns);
     }
     return handle;
   } catch (error) {
