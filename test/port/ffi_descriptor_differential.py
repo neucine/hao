@@ -65,11 +65,20 @@ def main() -> None:
                           "const voidHandle = openNative('m', { sqrt: { args: ['void'], returns: 'f64' } });\n"
                           "try { callNative(voidHandle, 'sqrt', [0]); }\n"
                           "catch (error) { console.log('void call', error.name, error.message); }\n"
-                          'closeNative(voidHandle);\n')
+                          'closeNative(voidHandle);\n'
+                          "for (const [label, types] of [['int', Array(9).fill('i32')], "
+                          "['float', Array(9).fill('f64')], "
+                          "['mixed', ['f64', ...Array(8).fill('i32')]], "
+                          "['ten', Array(10).fill('i32')]]) {\n"
+                          "  const h = openNative('m', { sqrt: { args: types, returns: 'f64' } });\n"
+                          "  try { callNative(h, 'sqrt', types.map(() => 1)); }\n"
+                          "  catch (error) { console.log(label, error.name, error.message); }\n"
+                          "  closeNative(h);\n"
+                          "}\n")
         expected = run(legacy, script)
         actual = run(cyna, script)
         assert actual == expected, (expected, actual)
-    print(f'FFI descriptors: {len(CASES)} shapes and 7 getter, array, or call outcomes matched')
+    print(f'FFI descriptors: {len(CASES)} shapes and 11 getter, array, or call outcomes matched')
 
 
 if __name__ == '__main__':

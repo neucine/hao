@@ -541,10 +541,10 @@ improvement, with a smoke check.
   `nativeStack` that Zig leaves undefined. The smoke suite retains these paths.
   A malformed function descriptor that is not an object yields Zig's
   `[uninitialized]` exception value, while Cyna reports a descriptive
-  `TypeError`. Zig also accepts bindings above eight arguments and `void`
-  arguments during open, although its call trampoline has an eight-argument
-  bound; Cyna rejects those unsupported bindings during open. These are
-  deliberate error and bounds improvements, not claims of identical behavior.
+  `TypeError`. The earlier Cyna adapter rejected bindings above eight
+  arguments and `void` arguments during open. That restriction was removed;
+  the descriptor comparison below now verifies Zig's acceptance of both
+  forms. Zig's call trampoline still has an eight-argument bound.
   The direct `std:ffi/native` name matrix now matches Zig's conversion of
   `undefined`, `null`, empty text, numbers, booleans, and objects before opening
   a library. Symbol and throwing string conversion report Zig's library-name
@@ -671,10 +671,11 @@ improvement, with a smoke check.
   eight arguments, then rejects a `void` argument when called. The Cyna
   binding record now stores argument types dynamically so descriptor opening
   follows Zig for 1, 8, 9, and 100 arguments and reports the same `void` call
-  error. A call with more than eight arguments receives an explicit error in
-  Cyna; Zig's fixed trampoline does not support that call either. The retained
-  descriptor comparison now covers 22 shapes and seven getter, array, or call
-  outcomes.
+  error. Zig's fixed trampoline rejects calls with more than eight arguments
+  using its `mixed int/float arguments are not yet supported` error, even for
+  uniform types. Cyna now reports the same public error for 9 and 10 argument
+  calls. The retained descriptor comparison covers 22 shapes and eleven
+  getter, array, or call outcomes.
   A retained 14-case `std:ffi/native` call matrix now compares invalid handles,
   symbol conversion, missing symbols, argument array shape, argument counts,
   and a throwing numeric conversion. The native adapter now validates in Zig's

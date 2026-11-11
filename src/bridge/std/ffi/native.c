@@ -270,7 +270,7 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
     JS_ToUint32(ctx, &count, count_value);
     JS_FreeValue(ctx, count_value);
     if (count != binding->arg_count) return JS_ThrowTypeError(ctx, "FFI: wrong number of arguments");
-    if (count > 8) return JS_ThrowInternalError(ctx, "FFI: more than eight arguments are not supported");
+    if (count > 8) return JS_ThrowInternalError(ctx, "FFI: mixed int/float arguments are not yet supported");
     for (uint32_t i = 0; i < count; i++) {
         if (binding->args[i] == HAO_VOID)
             return JS_ThrowTypeError(ctx, "FFI: void is not a valid argument type");
