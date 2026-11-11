@@ -58,6 +58,10 @@ fn main(): i32 {
             write_stderr("error: StreamTooLong\n");
         } else if dotenv_status == 4 {
             write_stderr("error: NameTooLong\n");
+        } else if dotenv_status == 6 {
+            write_stderr("error: InvalidEnvValue\n");
+        } else if dotenv_status == 7 {
+            write_stderr("error: InvalidEnvName\n");
         } else {
             write_stderr("error: FileReadFailed\n");
         }

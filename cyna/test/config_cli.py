@@ -49,3 +49,14 @@ with tempfile.TemporaryDirectory(prefix="hao-dotenv-cli-") as directory:
         assert (result.returncode, result.stdout, result.stderr) == (
             1, b"", b"error: " + error + b"\n"
         ), (path, result)
+    invalid = base / "invalid.env"
+    for content, error in (
+        (b"X\x00Y=hello\n", b"InvalidEnvName"),
+        (b"X=he\x00llo\n", b"InvalidEnvValue"),
+    ):
+        invalid.write_bytes(content)
+        environment["DOTENV"] = str(invalid)
+        result = subprocess.run((runtime, "--version"), env=environment, capture_output=True)
+        assert (result.returncode, result.stdout, result.stderr) == (
+            1, b"", b"error: " + error + b"\n"
+        ), (content, result)

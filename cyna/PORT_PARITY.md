@@ -76,6 +76,11 @@ reject result.
   is a directory, or exceeds 1 MiB. Direct probes of those paths, a valid
   file, and disabled loading matched both binaries for `--version` and a
   missing script.
+  A 23 form dotenv matrix matched Zig for quoted and unquoted values, comments,
+  whitespace, CRLF, exports, duplicate keys, and malformed lines after Cyna
+  began rejecting embedded NUL bytes in names and values with Zig's
+  `InvalidEnvName` and `InvalidEnvValue` diagnostics. The CLI fixture retains
+  those two invalid input cases.
   A live console comparison found that `/api/metrics` includes all ten Zig
   host memory metric names. Cyna also exposes QuickJS metrics supplied by
   `std.telemetry`; the smoke suite now guards the shared host metric set.

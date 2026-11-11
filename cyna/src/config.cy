@@ -144,12 +144,18 @@ fn load_line(raw: string): i32 {
     if key.len() == 0 {
         return 0;
     }
+    for byte in key.bytes() {
+        if byte == 0 { return 3; }
+    }
     const raw_value = content_before_comment(line.slice(equals + 1, line.len()));
     const content = raw_value.bytes();
     var value = raw_value.clone();
     if content.len() >= 2 and ((content[0] == 34 and content[content.len() - 1] == 34) or
                                (content[0] == 39 and content[content.len() - 1] == 39)) {
         value = raw_value.slice(1, raw_value.len() - 1);
+    }
+    for byte in value.bytes() {
+        if byte == 0 { return 2; }
     }
     if env_get(key.clone()) is existing {
         return 0;
@@ -185,8 +191,9 @@ pub fn load_dotenv(): i32 {
     var index: usize = 0;
     while index <= bytes.len() {
         if index == bytes.len() or bytes[index] == 10 {
-            if load_line(content.slice(start, index)) != 0 {
-                return 1;
+            const line_status = load_line(content.slice(start, index));
+            if line_status != 0 {
+                return 4 + line_status;
             }
             start = index + 1;
         }
