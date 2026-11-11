@@ -94,7 +94,15 @@ fn main(): i32 {
             return install_jupyter();
         }
         if arguments.len() == 4 and arguments[2] == "--connection-file" {
-            return run_jupyter(arguments[3].clone());
+            const status = run_jupyter(arguments[3].clone());
+            if status == -1 { write_stderr("error: FileNotFound\n"); }
+            if status == -2 { write_stderr("error: StreamTooLong\n"); }
+            if status == -3 { write_stderr("error: NameTooLong\n"); }
+            if status == -4 { write_stderr("error: FileReadFailed\n"); }
+            if status == -5 { write_stderr("error: MissingField\n"); }
+            if status == -6 { write_stderr("error: ZmqError\n"); }
+            if status < 0 { return 1; }
+            return status;
         }
         usage();
         return 2;

@@ -1,7 +1,8 @@
 import { Value, parse as parse_json, encode } from std.json;
 import { Runtime } from .runtime;
+import { script_read_error } from .fs_limit;
 import { install } from .std;
-import { parse as parse_connection } from .jupyter.connection;
+import { Connection, parse as parse_connection } from .jupyter.connection;
 import { Wire } from .jupyter.wire;
 
 struct HistoryEntry {
@@ -242,9 +243,20 @@ fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, co
 
 pub fn run(path: string): i32 {
     const connection = parse_connection(path);
-    if connection is none { return 1; }
-    if connection.signature_scheme != "hmac-sha256" { return 1; }
-    const wire = Wire.open(&connection);
+    if connection is parsed { return run_connection(&parsed); }
+    const bytes = path.bytes();
+    const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
+        (64 * 1024) as c_size_t);
+    if reason == 0 { return -1; } // FileNotFound
+    if reason == 1 { return -2; } // StreamTooLong
+    if reason == 2 { return -3; } // NameTooLong
+    if reason == 3 { return -4; } // FileReadFailed
+    return -5; // MissingField in readable content
+}
+
+fn run_connection(connection: &const Connection): i32 {
+    if connection.signature_scheme != "hmac-sha256" { return -6; }
+    const wire = Wire.open(connection);
     if wire is transport {
         defer transport.deinit();
         const runtime = Runtime.init();
@@ -304,6 +316,7 @@ pub fn run(path: string): i32 {
                 }
             }
         }
+        return 1;
     }
-    return 1;
+    return -6;
 }

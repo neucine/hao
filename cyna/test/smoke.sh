@@ -111,6 +111,7 @@ with open(sys.argv[1], 'w') as output:
     output.write(prefix + 'x' * (64 * 1024 - len(prefix) - len(suffix)) + suffix)
 PY
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-limit.json")" = "$(printf 'tcp://127.0.0.1:1\n\nhmac-sha256')"
+python3 "$repo_root/cyna/test/jupyter_cli.py" "$runtime"
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
 test "$(RUNTIME_TELEMETRY_CONSOLE=OFF "$runtime" "$fixture_dir/main.ts")" = "$expected"

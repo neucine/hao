@@ -1,6 +1,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
 #include "runtime_allocator.h"
@@ -17,10 +18,12 @@ int hao_fs_script_read_error(const unsigned char *path, size_t length, size_t li
     FILE *file = fopen(buffer, "rb");
     if (!file) return 0;
     int result = 3;
+    struct stat info;
+    if (fstat(fileno(file), &info) != 0 || S_ISDIR(info.st_mode)) goto done;
     if (fseek(file, 0, SEEK_END) != 0) goto done;
     long size = ftell(file);
     if (size < 0) goto done;
-    if ((uintmax_t)size > limit) result = 1;
+    result = (uintmax_t)size > limit ? 1 : 4;
 done:
     fclose(file);
     return result;

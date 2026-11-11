@@ -206,5 +206,6 @@ fn dotenv_file_error(path: string): i32 {
     const bytes = path.bytes();
     const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
         (1024 * 1024) as c_size_t);
+    if reason == 4 { return 5; }
     return 2 + reason as i32;
 }

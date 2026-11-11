@@ -342,6 +342,11 @@ improvement, with a smoke check.
   identical output for these cases.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
   the Zig kernel beyond the current kernel integration test.
+  The connection CLI now reports Zig's `FileNotFound`, `FileReadFailed`,
+  `StreamTooLong`, and `MissingField` categories on stderr. A direct matrix
+  matched both binaries for missing, empty, malformed, and oversized files,
+  a directory, and a failed socket setup. The focused CLI fixture retains the
+  deterministic file cases.
   The Cyna wire layer validates the HMAC and discards malformed multipart
   messages; its C wire test now checks recovery after a bad signature, an extra
   frame, and an oversized frame. The Cyna kernel also handles completion,
