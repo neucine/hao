@@ -182,6 +182,26 @@ EOF
 addon_actual=$("$runtime" "$fixture_dir/addon.ts")
 test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false\n2 -1\n15\nTypeError add expects two numbers\nTypeError add expects two numbers\nTypeError add expects two numbers\nTypeError add expects two numbers\n-1\n0\n0\n0\n2')"
 
+mkdir -p "$fixture_dir/node_modules/probe"
+clang -dynamiclib -I "$repo_root/include" "$repo_root/test/port/addon_values.c" -o "$fixture_dir/node_modules/probe/native.dylib"
+cat > "$fixture_dir/node_modules/probe/package.json" <<'EOF'
+{"type":"module","exports":{"./native":"./native.dylib"}}
+EOF
+cat > "$fixture_dir/addon-values.ts" <<'EOF'
+import native from 'probe:native';
+for (const value of [undefined, null, '42', [], { valueOf() { return 3; } }]) {
+  console.log(JSON.stringify(native.inspect(value)));
+}
+EOF
+test "$("$runtime" "$fixture_dir/addon-values.ts")" = "$(cat <<'EOF'
+{"bool":false,"integer":0,"number":null,"undefined":true,"null":false,"object":false,"array":false,"function":false,"string":"undefined"}
+{"bool":false,"integer":0,"number":0,"undefined":false,"null":true,"object":false,"array":false,"function":false,"string":"null"}
+{"bool":true,"integer":42,"number":42,"undefined":false,"null":false,"object":false,"array":false,"function":false,"string":"42"}
+{"bool":true,"integer":0,"number":0,"undefined":false,"null":false,"object":true,"array":true,"function":false,"string":""}
+{"bool":true,"integer":3,"number":3,"undefined":false,"null":false,"object":true,"array":false,"function":false,"string":"[object Object]"}
+EOF
+)"
+
 mkdir -p "$fixture_dir/node_modules/metric"
 clang -dynamiclib -I "$repo_root/include" "$repo_root/test/port/metric_addon.c" -o "$fixture_dir/node_modules/metric/native.dylib"
 cat > "$fixture_dir/node_modules/metric/package.json" <<'EOF'

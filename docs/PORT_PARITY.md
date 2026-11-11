@@ -347,6 +347,11 @@ improvement, with a smoke check.
   `Symbol`, and throwing numeric arguments, plus array length results for
   null, scalar, `Symbol`, empty, and populated inputs. Zig and Cyna produced
   identical output for these cases.
+  A separate compiled addon now exercises the context API's value predicates,
+  Boolean, integer, float, and string conversion, plus object property writes.
+  A shared 14 input probe produced identical JSON on both runtimes; the smoke
+  suite retains representative undefined, null, numeric string, array, and
+  custom numeric object inputs.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
   the Zig kernel beyond the current kernel integration test.
   The connection CLI now reports Zig's `FileNotFound`, `FileReadFailed`,
