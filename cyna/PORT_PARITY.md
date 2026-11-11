@@ -1,6 +1,7 @@
 # Zig source parity audit
 
-Reference: `legacy` at `e1f4b59`. Port: `cyna-port`. A matching path means an
+Reference: `legacy` at `e1f4b59`. Port: `main` (`cyna-port` also points to the
+cutover commit). A matching path means an
 implementation location, not proof of equivalent behavior. The end to end suite
 currently exercises 20 files and 82 cases; it does not cover every Zig source
 boundary.
@@ -15,6 +16,12 @@ The `cyna-port` CI runs TypeScript, C header, and script checks. Native build
 and smoke verification currently run locally with pinned Cyna 0.5.1-beta.1;
 that compiler distribution is not published at the public download endpoint.
 The public 0.5.0 release also lacks `std.config`, which this port uses.
+The 0.5.1-beta.1 distribution was staged locally from Cyna PR #9 using the
+compiler-rt archives in the published 0.5.0 distribution. Its staged compiler
+successfully built Hao and its embedding library, and `cyna/test/smoke.sh`
+passed with that compiler. The archive SHA-256 is
+`34cd1346773a1aa6d291ad1f3858494e66276ea074191ec802d48e7d35e24134`.
+This is local distribution verification; the beta remains unpublished.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `cyna/src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
