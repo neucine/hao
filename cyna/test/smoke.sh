@@ -461,6 +461,31 @@ grep -q 'test failed: null' "$fixture_dir/multi-err"
 grep -q 'afterEach failed: cleanup one' "$fixture_dir/multi-err"
 grep -q 'afterEach failed: cleanup two' "$fixture_dir/multi-err"
 grep -q 'afterAll failed: suite cleanup' "$fixture_dir/multi-err"
+cat > "$fixture_dir/nested-hook-order.test.ts" <<'EOF'
+import { describe, test, beforeAll, beforeEach, afterEach, afterAll } from 'std:test';
+const events: string[] = [];
+describe('outer', () => {
+  beforeAll(() => events.push('outer before'));
+  beforeEach(() => events.push('outer each'));
+  afterEach(() => events.push('outer after each'));
+  afterAll(() => { events.push('outer after'); console.log(JSON.stringify(events)); });
+  describe('inner', () => {
+    beforeAll(() => events.push('inner before'));
+    beforeEach(() => { events.push('inner each'); throw Error('setup failed'); });
+    afterEach(() => events.push('inner after each'));
+    afterAll(() => events.push('inner after'));
+    test('blocked first', () => events.push('first body'));
+    test('blocked second', () => events.push('second body'));
+  });
+  test('sibling', () => events.push('sibling body'));
+});
+EOF
+if RUNTIME_TEST_REPORTER=plain "$runtime" test "$fixture_dir/nested-hook-order.test.ts" > "$fixture_dir/nested-out" 2> "$fixture_dir/nested-err"; then
+    exit 1
+fi
+test "$(cat "$fixture_dir/nested-out")" = '["outer before","inner before","outer each","inner each","outer after each","outer each","inner each","outer after each","inner after","outer each","sibling body","outer after each","outer after"]'
+grep -q '1 passed, 2 failed, 0 skipped' "$fixture_dir/nested-err"
+test "$(grep -c 'beforeEach failed: setup failed' "$fixture_dir/nested-err")" -eq 2
 cat > "$fixture_dir/capture-child.ts" <<'EOF'
 console.log('child output');
 console.error('child warning');

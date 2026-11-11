@@ -102,6 +102,11 @@ failing `afterAll` now matches Zig's hook execution and failure lines. Cyna
 runs every cleanup hook in reverse order, retains the first failure as the case
 failure, and reports later cleanup failures separately. The smoke suite keeps
 this combination as a regression case.
+A nested hook comparison also matched Zig's event order when both inner cases
+fail in `beforeEach` and an outer sibling passes. Both runtimes ran outer
+`afterEach` after each failed setup, then inner `afterAll` before the sibling,
+and finally outer `afterAll`. The smoke suite retains this ordering and the
+one passed, two failed reporter totals.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript
