@@ -736,6 +736,15 @@ for (const [declaration, nativeName] of [
 EOF
 test "$(RUNTIME_NATIVE_STACK_TRACE=1 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = "$(printf 'string true\nstring true\nstring true\nstring true\nstring true')"
 test "$(RUNTIME_NATIVE_STACK_TRACE=0 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = "$(printf 'undefined undefined\nundefined undefined\nundefined undefined\nundefined undefined\nundefined undefined')"
+cat > "$fixture_dir/ffi-c-missing-symbol.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+try { cdecl('m', 'void hao_missing_symbol(void);'); }
+catch (error) {
+  console.log(error.name, error.code, error.message, error.nativeStack?.split('\n')[0]);
+}
+EOF
+test "$(RUNTIME_NATIVE_STACK_TRACE=1 "$runtime" "$fixture_dir/ffi-c-missing-symbol.ts")" = \
+  'RuntimeError io_error openNative: symbol not found: SymbolNotFound SymbolNotFound'
 cat > "$fixture_dir/ffi-char.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';

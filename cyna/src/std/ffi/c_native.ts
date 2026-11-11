@@ -49,6 +49,15 @@ export function openNative(name: string, declarations: string, opts?: any): { ha
     }
   } catch (error) {
     globalThis.__hao_ffi_close(handle);
+    if (error instanceof Error && error.message === 'dlopen: symbol not found') {
+      const missing: any = new RuntimeError('io_error', 'openNative: symbol not found: SymbolNotFound');
+      const capture = (globalThis as any).__hao_capture_native_stack;
+      if (typeof capture === 'function') {
+        const stack = capture('SymbolNotFound');
+        if (typeof stack === 'string') missing.nativeStack = stack;
+      }
+      throw missing;
+    }
     throw error;
   }
   libraries.set(handle, prepared);

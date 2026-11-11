@@ -156,6 +156,9 @@ improvement, with a smoke check.
   the smoke suite checks the rejected and accepted variants. Function pointer
   parameters now use Zig's `UnsupportedFeature` classification instead of a
   generic invalid declaration error; the native stack smoke fixture checks it.
+  A missing declared C symbol now produces the same `RuntimeError` code
+  `io_error`, `SymbolNotFound` message suffix, and native stack label under
+  both runtimes. Previously Cyna passed through the adapter's `InternalError`.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.
