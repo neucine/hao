@@ -21,6 +21,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def respond(self):
         body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
+        path = self.path.split('?', 1)[0]
+        if path.startswith('/root/location/') and path.rsplit('/', 1)[1].isdigit() and '?' not in self.path:
+            locations = ['final', '../final', '/final', '?q=1',
+                         f'//127.0.0.1:{self.server.server_port}/final',
+                         f'http://127.0.0.1:{self.server.server_port}/final']
+            self.send_response(303)
+            self.send_header('Location', locations[int(path.rsplit('/', 1)[1])])
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
         if self.path.startswith('/chain/'):
             count = int(self.path.rsplit('/', 1)[1])
             self.send_response(302)
@@ -84,15 +94,18 @@ def main() -> int:
                 "{ method, body: 'payload' }); console.log('direct', method, response.text()); }\n"
                 f"for (const count of [2, 3]) {{ try {{ const response = await request('http://127.0.0.1:{server.server_port}/chain/' + count, "
                 "{ method: 'PUT' }); console.log('chain', count, response.status, response.text()); }\n"
-                "catch (error) { console.log('chain', count, error.name, error.message); } }\n")
+                "catch (error) { console.log('chain', count, error.name, error.message); } }\n"
+                f"for (let index = 0; index < 6; index++) {{ const response = await request('http://127.0.0.1:{server.server_port}/root/location/' + index, "
+                "{ method: 'PUT', body: 'payload' });\n"
+                "console.log('location', index, response.status, response.url, response.text()); }\n")
             legacy, cyna = (run(Path(arg).resolve(), source) for arg in sys.argv[1:])
         if legacy != cyna:
             print('HTTP redirect method behavior differs from Zig', file=sys.stderr)
             print('legacy:', repr(legacy), file=sys.stderr)
             print('cyna:', repr(cyna), file=sys.stderr)
             return 1
-        assert legacy[0] == 0 and len(legacy[1].splitlines()) == 20, legacy
-        print('HTTP redirect methods matched legacy: 20 outcomes')
+        assert legacy[0] == 0 and len(legacy[1].splitlines()) == 26, legacy
+        print('HTTP redirect methods matched legacy: 26 outcomes')
         return 0
     finally:
         server.shutdown()
