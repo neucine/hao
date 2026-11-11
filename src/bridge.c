@@ -26,12 +26,21 @@ static bool positive_size_env(const char *name, size_t *out, bool *present) {
     return true;
 }
 
+static bool optional_positive_size_env(const char *name, size_t *out, bool *present) {
+    const char *value = getenv(name);
+    if (value && !*value) {
+        *present = false;
+        return true;
+    }
+    return positive_size_env(name, out, present);
+}
+
 int hao_runtime_size_settings_valid(void) {
     size_t value = 0;
     bool present = false;
     if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &value, &present) ||
-        !positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &value, &present) ||
-        !positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &value, &present) ||
+        !optional_positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &value, &present) ||
+        !optional_positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &value, &present) ||
         !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &value, &present)) return 0;
     return 1;
 }
@@ -232,8 +241,8 @@ uintptr_t hao_runtime_new(void) {
     size_t trace_records = 4096;
     bool stack_present = false, gc_present = false, pool_present = false, trace_present = false;
     if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &stack_size, &stack_present) ||
-        !positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &gc_threshold, &gc_present) ||
-        !positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &thread_pool_size, &pool_present) ||
+        !optional_positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &gc_threshold, &gc_present) ||
+        !optional_positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &thread_pool_size, &pool_present) ||
         !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &trace_records, &trace_present)) {
         fprintf(stderr, "Invalid Hao runtime size setting\n");
         return 0;

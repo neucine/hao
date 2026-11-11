@@ -22,6 +22,12 @@ for key, value in bad:
             1, b"", b"error: BadConfigValue\n"
         ), (key, args, result)
 
+for key in ("RUNTIME_QJS_GC_THRESHOLD", "RUNTIME_LIBUV_THREADPOOL_SIZE"):
+    environment = os.environ.copy()
+    environment[key] = ""
+    result = subprocess.run((runtime, "--version"), env=environment, capture_output=True)
+    assert result.returncode == 0 and result.stdout.startswith(b"hao ") and result.stderr == b"", (key, result)
+
 environment = os.environ.copy()
 environment["RUNTIME_TELEMETRY_TRACE_RECORDS"] = "1048577"
 result = subprocess.run((runtime, "--version"), env=environment, capture_output=True)

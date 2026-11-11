@@ -72,6 +72,7 @@ console ports across valid and invalid values. It found that Zig accepts signed
 zero for the console port; Cyna now accepts it too, and the smoke suite retains
 `-00` as a regression case. The compared values now have the same accept or
 reject result.
+  A 520-case numeric environment sweep found that empty values for the optional GC threshold and libuv pool size were rejected by the C bridge, while Zig treated them as absent. The bridge now preserves the optional absence, and the CLI regression retains both values. Four direct Zig/Cyna outcomes matched for version and missing script dispatch.
   Startup validation now runs before CLI dispatch, as Zig's configuration
   loading does. A direct matrix matched exit status, stdout, and stderr for
   invalid size, telemetry, and native stack settings with `--version`, a
