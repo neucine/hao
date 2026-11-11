@@ -50,6 +50,16 @@ static int receive_content(void *socket, char *out, size_t capacity) {
     return count >= 6 ? 0 : -1;
 }
 
+static int has_execution_count(const char *content, long expected) {
+    const char *field = strstr(content, "\"execution_count\"");
+    if (!field) return 0;
+    const char *colon = strchr(field, ':');
+    if (!colon) return 0;
+    char *end;
+    long actual = strtol(colon + 1, &end, 10);
+    return end != colon + 1 && actual == expected;
+}
+
 int main(int argc, char **argv) {
     if (argc != 2 && (argc != 3 || strcmp(argv[2], "--shared"))) return 2;
     int shared = argc == 3;
@@ -98,7 +108,8 @@ int main(int argc, char **argv) {
         if (!status && !info_idle_seen) status = 75;
         if (!status && (send_request(shell, "execute_request", "{\"code\":\"1 + 1\"}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||
-            !strstr(content, "status") || !strstr(content, "ok"))) status = 70;
+            !strstr(content, "status") || !strstr(content, "ok") ||
+            !has_execution_count(content, 1))) status = 70;
         int result_seen = 0, idle_seen = 0;
         for (int i = 0; !status && i < 8 && !idle_seen; i++) {
             if (receive_content(iopub, content, sizeof(content)) < 0) { status = 71; break; }
@@ -108,7 +119,8 @@ int main(int argc, char **argv) {
         if (!status && (!result_seen || !idle_seen)) status = 72;
         if (!status && (send_request(shell, "execute_request", "{\"code\":\"''\"}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||
-            !strstr(content, "\"status\"") || !strstr(content, "\"ok\""))) status = 85;
+            !strstr(content, "\"status\"") || !strstr(content, "\"ok\"") ||
+            !has_execution_count(content, 2))) status = 85;
         idle_seen = 0;
         for (int i = 0; !status && i < 8 && !idle_seen; i++) {
             if (receive_content(iopub, content, sizeof(content)) < 0) { status = 86; break; }
@@ -145,7 +157,8 @@ int main(int argc, char **argv) {
             "{\"code\":\"throw new Error('shared failure')\"}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "error") ||
-            !strstr(content, "shared failure"))) status = 82;
+            !strstr(content, "shared failure") ||
+            !has_execution_count(content, 5))) status = 82;
         int error_seen = 0;
         idle_seen = 0;
         for (int i = 0; !status && i < 8 && !idle_seen; i++) {

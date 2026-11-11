@@ -172,6 +172,9 @@ improvement, with a smoke check.
   `comm_info_request` under both runtimes. Both reply with the expected
   completion status and comm map after earlier execute errors, and then
   continue to accept control shutdown.
+  The shared consumer now checks execution counts of 1, 2, and 5 across a
+  successful cell, an empty result, and a later failing cell. Both runtimes
+  preserve the count sequence; the assertion accepts JSON whitespace differences.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
   A direct `std:ffi/native` fixture passed under both runtimes: opening libc,
