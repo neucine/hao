@@ -16,6 +16,7 @@ import { install_runtime_error as impl_install_runtime_error } from .errors;
 import { addon_name_length as impl_addon_name_length } from .js.addon;
 import { addon_write_name as impl_addon_write_name } from .js.addon;
 import { rewrite_cell_c as impl_jupyter_rewrite_cell } from .jupyter.cell;
+import { lexical_absolute_c as impl_module_lexical_absolute } from .`module`;
 import { resolve_package as impl_resolve_package } from .package;
 import { snapshot_c as impl_process_memory_snapshot } from .process_memory;
 import { type_code_c as impl_ffi_type_code } from .std.ffi.native;
@@ -99,6 +100,10 @@ export c("hao_addon_write_name") fn abi_addon_write_name(specifier: *const c_uch
 export c("hao_jupyter_rewrite_cell") fn abi_jupyter_rewrite_cell(source: *const c_uchar,
     length: c_size_t, output: *c_uchar, capacity: c_size_t): c_size_t {
     return impl_jupyter_rewrite_cell(source, length, output, capacity);
+}
+
+export c("hao_module_lexical_absolute") fn abi_module_lexical_absolute(path: *const c_uchar): ?*c_uchar {
+    return impl_module_lexical_absolute(path);
 }
 
 export c("hao_resolve_package") fn abi_resolve_package(base_pointer: *const c_uchar, specifier_pointer: *const c_uchar, output: *c_uchar, capacity: c_size_t): c_int {

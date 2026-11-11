@@ -1,6 +1,6 @@
 # Native language boundaries
 
-Hao's Cyna application lives in `src/` at the legacy feature paths. All 34 Cyna C ABI exports are declared in `src/hao_abi.cy`. Each export delegates to a public function in its feature module; those modules own the implementation. The executable imports the ABI module, and the static library uses it as its entry module. Public embedding declarations remain in `include/hao.h` and `include/addon.h`.
+Hao's Cyna application lives in `src/` at the legacy feature paths. All 35 Cyna C ABI exports are declared in `src/hao_abi.cy`. Each export delegates to a public function in its feature module; those modules own the implementation. The executable imports the ABI module, and the static library uses it as its entry module. Public embedding declarations remain in `include/hao.h` and `include/addon.h`.
 
 All project C sources and internal headers live under `src/bridge/`. Its Cyna import modules name the actual foreign surfaces: `qjs.cy` for QuickJS host calls, `transpiler.cy` for the Rust archive C ABI, `host.cy` for platform services, `uv.cy` for libuv, `jupyter.cy` for ZeroMQ, and `telemetry.cy` for native telemetry callbacks. Feature modules import these declarations and keep their behavior in Cyna. The legacy same stem modules `async/uv.cy`, `jupyter/zmq.cy`, `module.cy`, and `runtime_allocator.cy` remain normal Cyna callers of the bridge. The C declarations of Cyna exports used internally are in bridge headers, including `src/bridge/cyna_exports.h`. Headers exist for interfaces shared across C translation units, across C and Cyna, or with native consumer tests; private implementation details stay in their C sources.
 The C boundary is limited to three kinds of work:
@@ -24,5 +24,9 @@ and counter accounting.
 `errors.c` is a QuickJS callback adapter: it installs a `JS_NewCFunction` callback, reads the runtime's stack-trace setting from the QuickJS context, captures native frames with `backtrace`, and returns a QuickJS string. `errors.cy` owns the JavaScript `RuntimeError` definition and installation sequence. The native frame capture is platform work at the QuickJS boundary; no Cyna std expansion follows from this adapter alone.
 
 Cyna owns HTTP URL and server limit policy (`std/http/native.cy`, `std/http/server_uv.cy`), FFI descriptor and decimal pointer policy (`std/ffi/native.cy`), metric policy (`telemetry/metrics.cy`), filesystem limits and recursive directory creation (`fs.cy`), package resolution (`package.cy`), notebook declaration rewriting (`jupyter/cell.cy`), runtime configuration (`config.cy`), and process result conversion (`std/process/native.cy`). `async/uv.cy` calls libuv loop entry points through `bridge/uv.cy`. The source inventory verifies that all legacy Zig paths have a Cyna or documented layout port and that C sources stay under `src/bridge/`; that inventory alone does not prove behavioral parity.
+`module.cy` also owns lexical absolute path normalization for QuickJS imports.
+It uses Cyna `std.process.cwd()` and byte level path components. The C bridge
+receives an owned C string through the sole export module, then copies it into
+QuickJS allocation for the module loader callback.
 
 For Jupyter, `bridge/jupyter.cy` declares the raw ZeroMQ adapter ABI. `jupyter/zmq.cy` converts `Connection` and string values to and from that ABI, and `jupyter/wire.cy` exposes the wire handle and its operations to the kernel. The C adapter owns ZeroMQ sockets, multipart frames, and HMAC because the pinned Cyna std has no corresponding native APIs.

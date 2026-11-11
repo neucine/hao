@@ -7,6 +7,7 @@
 /* Exported only by hao_abi.cy, which delegates to the Cyna feature modules. */
 int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                         unsigned char *output, size_t capacity);
+unsigned char *hao_module_lexical_absolute(const unsigned char *path);
 size_t hao_addon_name_length(const unsigned char *specifier, const unsigned char *path);
 int hao_addon_write_name(const unsigned char *specifier, const unsigned char *path,
                          unsigned char *output, size_t capacity);

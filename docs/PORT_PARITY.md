@@ -14,7 +14,7 @@ directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
 Run the retained public comparisons together with
 `python3 test/port/run_differentials.py <legacy-binary> <cyna-binary>`.
-All 22 differential programs passed against the current local binaries. They
+All 23 differential programs passed against the current local binaries. They
 cover the cases recorded below; they do not establish behavior for every
 possible input or every source boundary.
 Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
@@ -72,6 +72,10 @@ missing entry files, and relative source files. The smoke suite retains this
 diagnostic matrix. The module loader now sets the same error when an imported
 source is oversized or resolves to a directory; it previously returned with
 an unset QuickJS exception and printed `[uninitialized]`.
+Lexical absolute module path normalization now lives in `module.cy`; the C
+callback retains QuickJS allocation and module registration. The retained
+`test/port/module_path_differential.py` compares 11 relative imports with dot
+segments, repeated slashes, and parent traversal against Zig. All match.
 
 The Cyna configuration path uses `std.config` for Boolean and positive integer
 parsing. A direct Zig/Cyna acceptance comparison covered stack size, GC

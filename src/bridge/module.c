@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 
 static HaoSourceModule *hao_find_module(HaoRuntime *host, const char *name) {
@@ -23,51 +22,6 @@ static HaoNativeModule *hao_find_native_module(HaoRuntime *host, const char *nam
         if (strcmp(module->name, name) == 0) return module;
     }
     return NULL;
-}
-
-static char *hao_lexical_absolute(const char *path) {
-    char *cwd = NULL;
-    if (path[0] != '/') {
-        cwd = getcwd(NULL, 0);
-        if (!cwd) return NULL;
-    }
-    size_t path_len = strlen(path);
-    size_t cwd_len = cwd ? strlen(cwd) : 0;
-    if (path_len > SIZE_MAX - cwd_len - 2) { free(cwd); return NULL; }
-    char *input = hao_alloc(cwd_len + path_len + 2);
-    if (!input) { free(cwd); return NULL; }
-    if (cwd) {
-        memcpy(input, cwd, cwd_len);
-        input[cwd_len] = '/';
-        memcpy(input + cwd_len + 1, path, path_len + 1);
-    } else {
-        memcpy(input, path, path_len + 1);
-    }
-    free(cwd);
-    char *output = hao_alloc(cwd_len + path_len + 2);
-    if (!output) { hao_free(input); return NULL; }
-    size_t written = 1;
-    output[0] = '/';
-    for (size_t index = 0; input[index];) {
-        while (input[index] == '/') index++;
-        size_t start = index;
-        while (input[index] && input[index] != '/') index++;
-        size_t length = index - start;
-        if (!length || (length == 1 && input[start] == '.')) continue;
-        if (length == 2 && input[start] == '.' && input[start + 1] == '.') {
-            if (written > 1) {
-                while (written > 1 && output[written - 1] != '/') written--;
-                if (written > 1) written--;
-            }
-            continue;
-        }
-        if (written > 1) output[written++] = '/';
-        memcpy(output + written, input + start, length);
-        written += length;
-    }
-    output[written] = 0;
-    hao_free(input);
-    return output;
 }
 
 int hao_runtime_register(uintptr_t handle, const char *name, size_t name_len,
@@ -320,7 +274,7 @@ char *hao_normalize_module(JSContext *ctx, const char *base,
             return NULL;
         }
         candidate[candidate_len] = 0;
-        char *resolved = hao_lexical_absolute((const char *)candidate);
+        char *resolved = (char *)hao_module_lexical_absolute(candidate);
         if (!resolved) {
             JS_ThrowReferenceError(ctx, "Package entry not found: %s", specifier);
             return NULL;
@@ -345,7 +299,7 @@ char *hao_normalize_module(JSContext *ctx, const char *base,
     else joined[0] = '.';
     joined[dir_len] = '/';
     memcpy(joined + dir_len + 1, specifier, spec_len + 1);
-    char *resolved = hao_lexical_absolute(joined);
+    char *resolved = (char *)hao_module_lexical_absolute((const unsigned char *)joined);
     hao_free(joined);
     if (!resolved) {
         JS_ThrowReferenceError(ctx, "Module not found: %s", specifier);
