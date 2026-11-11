@@ -198,6 +198,7 @@ int main(int argc, char **argv) {
             !strstr(content, "status") || !strstr(content, "ok"))) status = 73;
         goto cleanup;
     }
+    if (send_request_signed(control, "shutdown_request", "{\"restart\":false}", 1) < 0) status = 101;
     if (send_request_signed(shell, "kernel_info_request", "{}", 1) < 0) status = 63;
     if (send_request(shell, "kernel_info_request", "{}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||

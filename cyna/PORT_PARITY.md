@@ -225,6 +225,13 @@ improvement, with a smoke check.
   inspection, history, silent execution, and user expressions beyond the Zig
   handler's request set. Those additions need their own behavior review and
   do not establish parity for the shared request types.
+  A reduced kernel probe sent a `shutdown_request` with one corrupted HMAC
+  digit before a valid `kernel_info_request`. Zig shut down and the shared
+  consumer failed with status 70; Cyna ignored the forged shutdown and answered
+  the valid request. Zig's `wire.recvMessage` parses the signature frame but
+  does not verify it against the connection key; it signs outbound messages
+  only. Cyna's inbound validation is retained as a security improvement, and
+  the Cyna kernel consumer now checks recovery after the forged control request.
   The kernel integration test now sends an `execute_request` without `code`
   followed by a valid `kernel_info_request`. Cyna stays alive and answers the
   latter, matching Zig's early return before execution count changes.
