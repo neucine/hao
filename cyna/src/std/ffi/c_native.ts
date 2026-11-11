@@ -5,6 +5,12 @@ import { backingLength, bytesPerElement, writePod, readPod } from "std:ffi/c_abi
 import { invalidArg } from "std:ffi/c_abi/errors";
 
 const libraries = new Map<number, Prepared>();
+const runtimeErrorCodes = new Set([
+  'invalid_arg', 'missing_arg', 'shape_mismatch', 'invalid_shape',
+  'invalid_dtype', 'out_of_memory', 'device_mismatch', 'device_error',
+  'grad_error', 'io_error', 'cancelled', 'invalid_state',
+  'unsupported_lowering', 'internal', 'thread_pool_unavailable',
+]);
 
 export function prepareNative(name: string, declarations: string, opts?: any): Prepared {
   if (typeof name !== 'string' || !name) throw invalidArg('cdecl: invalid library name');
@@ -118,9 +124,8 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
         } catch { /* retain the original call failure */ }
       }
     }
-    const error: any = new Error(message);
-    if (errors.code) error.code = errors.code;
-    throw error;
+    const code = runtimeErrorCodes.has(errors.code) ? errors.code : 'internal';
+    throw new RuntimeError(code, message);
   }
   for (const item of staged) readPod(item.view, item.spec, item.object, prepared.pods);
   return outIndex < 0 ? raw : native.out;

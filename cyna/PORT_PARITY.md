@@ -159,6 +159,10 @@ improvement, with a smoke check.
   A missing declared C symbol now produces the same `RuntimeError` code
   `io_error`, `SymbolNotFound` message suffix, and native stack label under
   both runtimes. Previously Cyna passed through the adapter's `InternalError`.
+  C ABI status policy failures now construct `RuntimeError` as Zig does, with
+  the configured code and an `internal` fallback for unrecognized codes. A
+  shared native function probe matched the name, code, and message for both
+  `io_error` and an unknown policy code.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.

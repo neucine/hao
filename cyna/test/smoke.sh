@@ -710,6 +710,21 @@ typedef struct { uint8_t tag; HaoPoint point; int16_t tail; } HaoNested;
 void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
+cat > "$fixture_dir/ffi-c-policy-error.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+import { getEnv } from 'std:process';
+const path = `${getEnv('HAO_FFI_TEST_PATH')}/libhao_search_fixture.dylib`;
+for (const code of ['io_error', 'bogus']) {
+  const library = cdecl(path, 'int32_t hao_fail_with_code(int32_t code);', {
+    functions: { hao_fail_with_code: { errors: { kind: 'status', ok: 0, code, message: 'policy failed' } } },
+  });
+  try { library.hao_fail_with_code(1); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+  library.close();
+}
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-c-policy-error.ts")" = \
+  "$(printf 'RuntimeError io_error policy failed\nRuntimeError internal policy failed')"
 cat > "$fixture_dir/ffi-terminator.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 for (const declaration of ['double sqrt(double x)', 'double sqrt(double x);']) {
