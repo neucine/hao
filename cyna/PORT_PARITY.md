@@ -92,6 +92,12 @@ improvement, with a smoke check.
   through Cyna's `std:fs` adapter, while Zig reports each operation's expected
   path or data `TypeError`. Cyna now consumes the conversion exception and
   reports Zig's error for Symbols and throwing `toString` methods.
+  A path component of 256 bytes made the pinned Cyna `std.fs.exists` return a
+  typed error through Hao's exported Cyna function and crashed in
+  `failure_trace.c:25`; Zig's `existsSync` returns `false`. Hao now performs
+  this Boolean existence check in its C adapter and exports it through
+  `fs.cy`. The smoke suite covers 256 and 1023 byte names. Compiler attribution
+  is still under investigation.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,

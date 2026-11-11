@@ -196,6 +196,12 @@ printf "import fs from 'std:fs'; const path = '%s/data.txt'; console.log(fs.exis
 filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
 filesystem_expected=$(printf 'false\ntrue hello 5')
 test "$filesystem_actual" = "$filesystem_expected"
+cat > "$fixture_dir/filesystem-long-name.ts" <<'EOF'
+import { existsSync } from 'std:fs';
+console.log(existsSync('a'.repeat(256)));
+console.log(existsSync('a'.repeat(1023)));
+EOF
+test "$("$runtime" "$fixture_dir/filesystem-long-name.ts")" = "$(printf 'false\nfalse')"
 cat > "$fixture_dir/filesystem-args.ts" <<'EOF'
 import { existsSync, readFileSync, statSync, writeFileSync } from 'std:fs';
 const coercionFailure = { toString() { throw new Error('coercion failed'); } };

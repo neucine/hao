@@ -2,7 +2,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "runtime_allocator.h"
+
+int hao_fs_path_exists(const unsigned char *path) {
+    return path && access((const char *)path, F_OK) == 0 ? 1 : 0;
+}
 
 int hao_fs_read_limited(const unsigned char *path, size_t length, unsigned char *output, size_t capacity) {
     if (!path || !output || length > PATH_MAX || capacity > INT_MAX) return -1;
