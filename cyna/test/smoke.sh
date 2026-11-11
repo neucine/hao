@@ -726,13 +726,20 @@ try { prepareNative('m', 'double sqrt(double x);',
 catch (error) { console.log(error.name, error.code, error.message); }
 try { prepareNative('m', 'double sqrt(double x); double sqrt(double y);'); }
 catch (error) { console.log(error.name, error.code, error.message); }
+for (const declarations of ['int sum(int a, int b);', 'void set_cb(void (*cb)(int));', 'double sqrt(double x)']) {
+  try { prepareNative('m', declarations); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
 EOF
-test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s' \
+test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
   '{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
   '{"symbols":["sqrt"],"policies":{"handles":{},"functions":{}}}' \
   '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
   'RuntimeError internal prepareNative: failed to build descriptor' \
-  'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateFunctionName')"
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateFunctionName' \
+  'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature' \
+  'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature' \
+  'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError')"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
 const library = openNative('m', 'double sqrt(double x);');

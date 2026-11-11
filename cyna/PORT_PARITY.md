@@ -173,8 +173,10 @@ improvement, with a smoke check.
   A declaration matrix found a duplicate function error mismatch. Both
   `prepareNative` and `openNative` now report Zig's
   `declaration lowering failed: DuplicateFunctionName` message for this case.
-  The smoke suite covers `prepareNative`; unsupported declaration and syntax
-  error messages still need alignment.
+  The declaration matrix now also matches Zig for unsupported primitive types,
+  function pointer declarations, and missing semicolons. The smoke suite
+  covers these `prepareNative` cases; other declaration forms and option
+  combinations still need comparison.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from

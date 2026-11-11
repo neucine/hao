@@ -16,8 +16,16 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
   if (typeof name !== 'string' || !name) throw invalidArg('cdecl: invalid library name');
   try { return parse(declarations, opts); }
   catch (error) {
-    if (error instanceof RuntimeError && error.message === 'duplicate C function') {
-      throw invalidArg(`${operation}: declaration lowering failed: DuplicateFunctionName`, 'DuplicateFunctionName');
+    if (error instanceof RuntimeError) {
+      if (error.message === 'duplicate C function') {
+        throw invalidArg(`${operation}: declaration lowering failed: DuplicateFunctionName`, 'DuplicateFunctionName');
+      }
+      if (error.message === 'unsupported C declarations' || error.message.startsWith('unsupported C type:')) {
+        throw invalidArg(`${operation}: unsupported or invalid C declarations: UnsupportedFeature`, 'UnsupportedFeature');
+      }
+      if (error.message === 'C declaration requires a terminating semicolon') {
+        throw invalidArg(`${operation}: unsupported or invalid C declarations: SyntaxError`, 'SyntaxError');
+      }
     }
     throw error;
   }
