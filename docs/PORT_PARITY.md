@@ -14,7 +14,7 @@ directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
 Run the retained public comparisons together with
 `python3 test/port/run_differentials.py <legacy-binary> <cyna-binary>`.
-All 19 differential programs passed against the current local binaries. They
+All 20 differential programs passed against the current local binaries. They
 cover the cases recorded below; they do not establish behavior for every
 possible input or every source boundary.
 Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
@@ -493,6 +493,11 @@ improvement, with a smoke check.
   numeric and invalid shell port forms through both CLIs. It also records two
   deliberate strict JSON differences: Zig accepts a leading-zero number and
   takes the first duplicate `shell_port`, while Cyna rejects those files.
+  The retained `test/port/jupyter_install_differential.py` checks installation
+  under an absolute temporary `HOME`. Zig's `fs.makePath` drops the leading
+  slash, creates directories relative to the working directory, and exits with
+  `FileWriteFailed`. Cyna's `fs.make_path` creates the intended absolute path
+  and writes a valid kernel JSON file. This is a deliberate path repair.
   For `silent`, `store_history`, and a shutdown `restart` request, Cyna follows
   the Jupyter protocol while Zig ignores those fields. These are deliberate
   behavior extensions, retained by the Cyna kernel consumer. A shared probe
