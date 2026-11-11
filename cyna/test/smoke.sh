@@ -682,6 +682,9 @@ uint64_t hao_high_bit(uint64_t value) { return value >> 63; }
 uint64_t hao_echo_u64(uint64_t value) { return value; }
 uint64_t hao_u64_max(void) { return UINT64_MAX; }
 uint64_t hao_u64_mid(void) { return UINT64_C(9007199254740993); }
+int8_t hao_echo_i8(int8_t value) { return value; }
+uint8_t hao_echo_u8(uint8_t value) { return value; }
+float hao_echo_f32(float value) { return value; }
 static char hao_long_text[1024 * 1024 + 18];
 const char *hao_long_string(void) {
     memset(hao_long_text, 'x', sizeof(hao_long_text) - 1);
@@ -836,6 +839,20 @@ console.log(library.hao_long_string().length);
 library.close();
 EOF
 test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-u64.ts")" = "$(printf '1\n18446744073709552000\n18446744073709552000 9007199254740992\n1048593')"
+cat > "$fixture_dir/ffi-widths.ts" <<'EOF'
+import { dlopen } from 'std:ffi';
+import { getEnv } from 'std:process';
+const path = getEnv('HAO_FFI_TEST_PATH');
+const library = dlopen(`${path}/libhao_search_fixture.dylib`, {
+  hao_echo_i8: { args: ['i8'], returns: 'i8' },
+  hao_echo_u8: { args: ['u8'], returns: 'u8' },
+  hao_echo_f32: { args: ['f32'], returns: 'f32' },
+});
+console.log(library.hao_echo_i8(130), library.hao_echo_i8(-129), library.hao_echo_u8(258));
+console.log(library.hao_echo_f32(1.1));
+library.close();
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-widths.ts")" = "$(printf '%s\n%s' '-126 127 2' '1.100000023841858')"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
