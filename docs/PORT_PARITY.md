@@ -332,6 +332,10 @@ improvement, with a smoke check.
   A further 28 header variants and 30 request line variants matched response
   status and length under both runtimes, including NUL rejection, connection
   directives, transfer encodings, method case, paths, and version spellings.
+  Another 35 completed raw requests matched full response bytes across host
+  header variants, request targets, and content lengths. The shared server
+  consumer retains host NUL rejection, percent encoded targets, and three
+  content length spellings from that probe.
   A raw response comparison also matched every byte for GET and HEAD success,
   HTTP/1.0 success, missing Host, Expect rejection, handler failure, and an
   empty JSON POST failure. The shared server consumer retains exact response
