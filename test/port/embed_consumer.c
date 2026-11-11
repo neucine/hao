@@ -106,6 +106,23 @@ int main(int argc, char **argv) {
         hao_embed_run_until_idle(runtime) != 0 ||
         hao_embed_eval(runtime, (const unsigned char *)timer_check, strlen(timer_check),
             (const unsigned char *)"<timers>", 8) != 0) return 124;
+    const char *isolated_timer =
+        "globalThis.__timerReady = false; globalThis.__timerId = setTimeout(() => { globalThis.__timerReady = true; }, 1);"
+        "if (globalThis.__timerId !== 2) throw Error('timer ID was not local');";
+    const char *cancel_local = "clearTimeout(globalThis.__timerId);";
+    const char *cancel_check = "if (globalThis.__timerReady) throw Error('cancelled timer fired');";
+    if (hao_embed_eval(runtime, (const unsigned char *)isolated_timer, strlen(isolated_timer),
+            (const unsigned char *)"<timers>", 8) != 0 ||
+        hao_embed_eval(other, (const unsigned char *)isolated_timer, strlen(isolated_timer),
+            (const unsigned char *)"<timers>", 8) != 0 ||
+        hao_embed_eval(runtime, (const unsigned char *)cancel_local, strlen(cancel_local),
+            (const unsigned char *)"<timers>", 8) != 0) return 126;
+    if (hao_embed_run_until_idle(runtime) != 0 ||
+        hao_embed_eval(runtime, (const unsigned char *)cancel_check, strlen(cancel_check),
+            (const unsigned char *)"<timers>", 8) != 0 ||
+        hao_embed_run_until_idle(other) != 0 ||
+        hao_embed_eval(other, (const unsigned char *)timer_check, strlen(timer_check),
+            (const unsigned char *)"<timers>", 8) != 0) return 127;
     if (hao_embed_last_error(other, error, sizeof(error)) != 0) return 17;
     const char *pending_timer = "setTimeout(() => { throw Error('timer survived free'); }, 100);";
     if (hao_embed_eval(other, (const unsigned char *)pending_timer, strlen(pending_timer),

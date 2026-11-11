@@ -469,7 +469,10 @@ nested `Symbol` values also use Zig's empty inspection text, with smoke checks.
   timers are observed and the pending timer closes safely during free. Cyna
   stores timer IDs and handles per runtime; the Zig implementation uses a
   process-global timer registry. This test covers the Cyna embedding isolation
-  contract rather than claiming identical timer ID allocation across hosts.
+  contract rather than claiming identical timer ID allocation with Zig.
+  The consumer now confirms both runtimes allocate the same next local timer
+  ID, then cancels only one. The other timer still fires, checking that a
+  cancellation cannot cross embedded runtime boundaries.
   Addon extension recognition and normalized module names now live in
   `js/addon.cy`; the C loader retains dynamic library and QuickJS callbacks.
   The native addon consumer now checks `js_array_length` for ordinary and
