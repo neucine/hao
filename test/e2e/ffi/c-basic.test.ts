@@ -91,4 +91,24 @@ describe('c basic', () => {
 
     libc.close()
   })
+
+  test('uses the first buffer length and validates element alignment', () => {
+    const libc = cdecl('c', 'void* memcpy(void* dest, const void* src, size_t n);', {
+      functions: { memcpy: { buffers: {
+        dest: { length: 'n', element: 'u16', direction: 'out' },
+        src: { length: 'n', element: 'u16' },
+      } } },
+    })
+    const dest = new Uint8Array(4)
+    libc.memcpy(dest, new Uint8Array([1, 2, 3, 4, 5, 6]))
+    expect(Array.from(dest)).toEqual([1, 2, 0, 0])
+
+    let error: any = null
+    try { libc.memcpy(new Uint8Array(3), new Uint8Array(4)) }
+    catch (caught) { error = caught }
+    expect(error).toBeInstanceOf(RuntimeError)
+    expect(error.code).toBe('invalid_arg')
+    expect(error.message).toBe('C: typed-array byte length must align with declared buffer element size')
+    libc.close()
+  })
 })

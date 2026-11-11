@@ -3,10 +3,10 @@
 Reference: `legacy` at `e1f4b59`. Port: `main` (`cyna-port` also points to the
 cutover commit). A matching path means an
 implementation location, not proof of equivalent behavior. The end to end suite
-currently exercises 20 files and 82 cases; it does not cover every Zig source
+currently exercises 20 files and 83 cases; it does not cover every Zig source
 boundary.
 On the current trees, `hao test test/e2e` passed 67 Zig cases with 7 skips and
-75 Cyna cases with 7 skips. The Cyna branch adds eight cases, so these totals
+76 Cyna cases with 7 skips. The Cyna branch adds nine cases, so these totals
 are suite health evidence rather than proof of behavior parity. Running the
 unchanged `legacy` suite under the Cyna binary with
 `python3 test/port/legacy_e2e.py` also passes 67 cases with 7 skips. This
@@ -571,6 +571,13 @@ improvement, with a smoke check.
   native call. Plain typed arrays, offset views, and `ArrayBuffer` inputs still
   match Zig. The shared FFI end to end case checks the error and message under
   both binaries.
+  A `u16` buffer policy probe found that Cyna's alignment diagnostic differed
+  from Zig's and its shared length rule rejected unequal buffers. Cyna now
+  uses Zig's first buffer length and diagnostic. A longer second buffer works
+  under both binaries, as the shared end to end case verifies. Cyna still
+  rejects a second buffer shorter than the declared element count; Zig passes
+  the first length to native code even when that could overread the second
+  buffer. This is a deliberate bounds protection difference.
   A shared libc probe matched `cstring` argument byte lengths for accented and
   emoji text, `strcmp` ordering, and nullable `cstring` returns from `getenv`.
   The smoke suite retains these direct FFI conversions.

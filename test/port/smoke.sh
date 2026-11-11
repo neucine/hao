@@ -842,7 +842,7 @@ if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixtu
     exit 1
 fi
 ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" 2>&1)
-case "$ffi_summary" in *'Tests:'*'7 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
+case "$ffi_summary" in *'Tests:'*'8 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
 error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" 2>&1)
 case "$error_summary" in *'Tests:'*'2 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
 cat > "$fixture_dir/broken.test.ts" <<'EOF'

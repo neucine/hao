@@ -222,6 +222,7 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
   const outIndex = policy?.returns?.out == null ? -1 : fn.params.findIndex(param => param.name === policy.returns.out);
   const buffers = policy?.buffers ?? {};
   const lengths = new Map<string, number>();
+  const capacities = new Map<string, number[]>();
   const visible = fn.params.filter(param => param.name !== policy?.returns?.out &&
     !Object.values(buffers).some((buffer: any) => buffer.length === param.name));
   if (args.length !== visible.length) throw runtimeArg('C: wrong number of arguments');
@@ -241,13 +242,17 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
     const buffer = buffers[param.name];
     if (buffer) {
       const length = backingLength(value) / bytesPerElement(buffer.element);
-      if (!Number.isInteger(length)) throw runtimeArg('buffer length is not aligned to its element type');
-      const existing = lengths.get(buffer.length);
-      if (existing !== undefined && existing !== length) throw runtimeArg('buffer lengths disagree');
-      lengths.set(buffer.length, length);
+      if (!Number.isInteger(length)) throw runtimeArg('C: typed-array byte length must align with declared buffer element size');
+      const available = capacities.get(buffer.length) ?? [];
+      available.push(length);
+      capacities.set(buffer.length, available);
+      if (!lengths.has(buffer.length)) lengths.set(buffer.length, length);
     }
   }
-  for (const [name, length] of lengths) values.set(name, length);
+  for (const [name, length] of lengths) {
+    if (capacities.get(name)!.some(capacity => capacity < length)) throw runtimeArg('buffer lengths disagree');
+    values.set(name, length);
+  }
   const native = globalThis.__hao_ffi_call(handle, symbol, fn.params.map(param => values.get(param.name)),
     outIndex < 0 ? undefined : outIndex);
   const raw = outIndex < 0 ? native : native.raw;
