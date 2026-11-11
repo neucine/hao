@@ -252,6 +252,9 @@ improvement, with a smoke check.
   The shared consumer now checks execution counts of 1, 2, and 5 across a
   successful cell, an empty result, and a later failing cell. Both runtimes
   preserve the count sequence; the assertion accepts JSON whitespace differences.
+  The shared kernel consumer now also sends a binary heartbeat containing an
+  embedded NUL before the shell requests. Both runtimes echo the exact three
+  bytes and continue through the shared execution and shutdown sequence.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
   A direct `std:ffi/native` fixture passed under both runtimes: opening libc,

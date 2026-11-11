@@ -83,19 +83,29 @@ int main(int argc, char **argv) {
     void *shell = zmq_socket(context, ZMQ_DEALER);
     void *control = zmq_socket(context, ZMQ_DEALER);
     void *iopub = zmq_socket(context, ZMQ_SUB);
+    void *heartbeat = zmq_socket(context, ZMQ_REQ);
     int timeout = 5000, linger = 0;
     zmq_setsockopt(shell, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
     zmq_setsockopt(control, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
     zmq_setsockopt(iopub, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
+    zmq_setsockopt(heartbeat, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
     zmq_setsockopt(iopub, ZMQ_SUBSCRIBE, "", 0);
     zmq_setsockopt(shell, ZMQ_LINGER, &linger, sizeof(linger));
     zmq_setsockopt(control, ZMQ_LINGER, &linger, sizeof(linger));
     zmq_setsockopt(iopub, ZMQ_LINGER, &linger, sizeof(linger));
+    zmq_setsockopt(heartbeat, ZMQ_LINGER, &linger, sizeof(linger));
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:1", base); zmq_connect(shell, endpoint);
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:2", base); zmq_connect(control, endpoint);
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:3", base); zmq_connect(iopub, endpoint);
+    snprintf(endpoint, sizeof(endpoint), "ipc://%s:5", base); zmq_connect(heartbeat, endpoint);
     usleep(300000);
     char content[65536]; int status = 0;
+    const unsigned char ping[] = {'p', 0, 'q'};
+    unsigned char pong[sizeof(ping)];
+    if (zmq_send(heartbeat, ping, sizeof(ping), 0) != (int)sizeof(ping) ||
+        zmq_recv(heartbeat, pong, sizeof(pong), 0) != (int)sizeof(pong) ||
+        memcmp(ping, pong, sizeof(ping)) != 0) status = 102;
+    if (status) goto cleanup;
     if (shared) {
         if (send_request(shell, "kernel_info_request", "{}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||
@@ -420,7 +430,7 @@ cleanup:
     if (status) kill(child, SIGTERM);
     int child_status = 0; waitpid(child, &child_status, 0);
     if (!status && (!WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0)) status = 9;
-    zmq_close(shell); zmq_close(control); zmq_close(iopub); zmq_ctx_term(context);
+    zmq_close(shell); zmq_close(control); zmq_close(iopub); zmq_close(heartbeat); zmq_ctx_term(context);
     unlink(path);
     unlink(module_path);
     free(runtime);
