@@ -15,6 +15,11 @@ A source can appear in more than one row because one adapter crosses more than o
 The source inventory checks that both `cyna.toml` and `cyna.lib.toml` list exactly those 17 C sources under `src/bridge/`, with no duplicate or uncompiled project C source.
 
 The allocator boundary has a concrete ownership reason. Zig's `runtime_allocator.zig` wraps its backing allocator and counts Hao-owned Zig allocations. In the Cyna port, the native adapters use `hao_alloc` and its accounting header; `runtime_allocator.cy` exposes that allocator to Cyna callers. QuickJS uses its own allocator and is reported separately. Moving only the counters into Cyna would split allocations from their corresponding frees and change the reported scope. This is a Hao runtime allocator contract, not evidence that Cyna std needs a new allocator API.
+Zig resets its global counters when initializing a runtime. The C bridge keeps
+process wide counters across embedded runtime creation because those runtimes
+can overlap and free allocations after another runtime is created. The smoke
+suite runs the native allocator test for alignment, allocation, resize, free,
+and counter accounting.
 
 `errors.c` is a QuickJS callback adapter: it installs a `JS_NewCFunction` callback, reads the runtime's stack-trace setting from the QuickJS context, captures native frames with `backtrace`, and returns a QuickJS string. `errors.cy` owns the JavaScript `RuntimeError` definition and installation sequence. The native frame capture is platform work at the QuickJS boundary; no Cyna std expansion follows from this adapter alone.
 

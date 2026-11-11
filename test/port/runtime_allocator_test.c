@@ -17,6 +17,11 @@ int main(void) {
     HaoAllocatorStats grown = hao_allocator_stats();
     assert(grown.active_size == 64 && grown.peak_size == 64);
     assert(grown.allocated_size == 64 && grown.allocation_count == 1);
+    assert(hao_realloc(bytes, SIZE_MAX) == NULL);
+    assert(hao_calloc(SIZE_MAX, 2) == NULL);
+    HaoAllocatorStats rejected = hao_allocator_stats();
+    assert(rejected.active_size == 64 && rejected.allocated_size == 64);
+    assert(rejected.allocation_count == 1);
 
     bytes = hao_realloc(bytes, 16);
     assert(bytes);

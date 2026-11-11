@@ -7,6 +7,9 @@ embed_library=${HAO_EMBED_LIB:-"$repo_root/build/libhao-cyna-embed.a"}
 cyna_bin=${HAO_CYNA_BIN:-"${HAO_CYNA_SOURCE:-$repo_root/.deps/cyna-source}/zig-out/bin/cyna"}
 fixture_dir=$(mktemp -d)
 trap 'rm -rf "$fixture_dir"' EXIT HUP INT TERM
+clang "$repo_root/test/port/runtime_allocator_test.c" \
+    "$repo_root/src/bridge/runtime_allocator.c" -o "$fixture_dir/runtime-allocator-test"
+"$fixture_dir/runtime-allocator-test"
 test "$("$runtime" --version)" = 'hao 0.1.2'
 test "$("$runtime" -v)" = 'hao 0.1.2'
 python3 - "$runtime" <<'PY'
