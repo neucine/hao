@@ -1430,6 +1430,16 @@ test "$("$runtime" "$fixture_dir/process-conversion-errors.ts")" = "$(printf '%s
   'TypeError process.run args must be a string array' \
   'TypeError process.run cwd must be a string' \
   'TypeError process.run maxOutputBytes must be positive')"
+cat > "$fixture_dir/process-env-conversion.ts" <<'EOF'
+import { getEnvNative } from 'std:process/native';
+for (const value of [Symbol('x'), { toString() { throw Error('boom'); } }]) {
+  try { getEnvNative(value as any); console.log('ok'); }
+  catch (error) { console.log((error as any).name, (error as any).message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/process-env-conversion.ts")" = "$(printf '%s\n%s' \
+  'TypeError getEnvNative expects a variable name' \
+  'TypeError getEnvNative expects a variable name')"
 cat > "$fixture_dir/process-large-env.ts" <<'EOF'
 import { getEnvNative } from 'std:process/native';
 console.log(getEnvNative('HAO_BIG_ENV')?.length);

@@ -151,6 +151,8 @@ improvement, with a smoke check.
   four options now use Zig's public `TypeError` messages. The Cyna console
   preserves the embedded NUL in a printed input label where Zig truncates it;
   both lookups return the same environment value.
+  `getEnvNative` now reports Zig's variable name `TypeError` for a `Symbol` or
+  throwing `toString`, rather than exposing the JavaScript conversion error.
 
 - The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
   `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a

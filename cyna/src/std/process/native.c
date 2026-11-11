@@ -102,7 +102,7 @@ static JSValue hao_get_env_native(JSContext *ctx, JSValueConst this_val,
     (void)this_val;
     if (argc < 1) return JS_ThrowTypeError(ctx, "getEnvNative expects a variable name");
     const char *name = JS_ToCString(ctx, argv[0]);
-    if (!name) return JS_EXCEPTION;
+    if (!name) return option_type_error(ctx, "getEnvNative expects a variable name");
     const char *value = getenv(name);
     JS_FreeCString(ctx, name);
     return value ? JS_NewString(ctx, value) : JS_NULL;
