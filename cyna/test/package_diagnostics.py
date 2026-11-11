@@ -43,4 +43,15 @@ with tempfile.TemporaryDirectory(prefix="hao-package-diagnostics-") as directory
     assert result.returncode == 1 and result.stdout == "", result
     assert result.stderr == "Module source not found\n", result
 
+    oversized = root / "oversized.ts"
+    oversized.write_text('import "./oversized-source.ts";\n')
+    (root / "oversized-source.ts").write_bytes(b"a" * (10 * 1024 * 1024 + 1))
+    directory = root / "directory.ts"
+    directory.write_text('import "./source-directory";\n')
+    (root / "source-directory").mkdir()
+    for source in (oversized, directory):
+        result = subprocess.run([runtime, source], capture_output=True, text=True)
+        assert result.returncode == 1 and result.stdout == "", result
+        assert result.stderr == "Module source not found\n", result
+
 print("Package diagnostics matched legacy")

@@ -47,7 +47,9 @@ The package loader now carries resolution failure categories across the Cyna
 boundary. A shared fixture matched Zig's stderr and exit status for missing
 packages, manifests, exports, invalid JSON, CommonJS packages, non ESM entries,
 missing entry files, and relative source files. The smoke suite retains this
-diagnostic matrix.
+diagnostic matrix. The module loader now sets the same error when an imported
+source is oversized or resolves to a directory; it previously returned with
+an unset QuickJS exception and printed `[uninitialized]`.
 
 The Cyna configuration path uses `std.config` for Boolean and positive integer
 parsing. A direct Zig/Cyna acceptance comparison covered stack size, GC

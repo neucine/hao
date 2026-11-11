@@ -401,22 +401,26 @@ JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
     }
     if (fseek(file, 0, SEEK_END) != 0) {
         fclose(file);
+        JS_ThrowReferenceError(ctx, "Module source not found");
         return NULL;
     }
     long size = ftell(file);
     if (size < 0 || size > 10 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {
         fclose(file);
+        JS_ThrowReferenceError(ctx, "Module source not found");
         return NULL;
     }
     char *source = hao_alloc((size_t)size + 1);
     if (!source) {
         fclose(file);
+        JS_ThrowReferenceError(ctx, "Module source not found");
         return NULL;
     }
     size_t read_count = fread(source, 1, (size_t)size, file);
     fclose(file);
     if (read_count != (size_t)size) {
         hao_free(source);
+        JS_ThrowReferenceError(ctx, "Module source not found");
         return NULL;
     }
     source[size] = 0;
