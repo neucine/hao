@@ -25,3 +25,7 @@ jobs:
           sh -n cyna/build.sh
           sh -n cyna/build_deps.sh
           sh -n cyna/test/smoke.sh
+      - name: Check Zig source inventory
+        run: |
+          git fetch --no-tags --depth=1 origin legacy:refs/remotes/origin/legacy
+          python3 cyna/test/source_inventory.py

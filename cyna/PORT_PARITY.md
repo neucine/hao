@@ -19,6 +19,10 @@ The public 0.5.0 release also lacks `std.config`, which this port uses.
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `cyna/src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
 intentional implementation locations:
+`python3 cyna/test/source_inventory.py` checks this inventory against the
+`legacy` Git tree, including the existence of every mapped port location;
+the `cyna-port` CI runs it after fetching `legacy`. This checks file coverage,
+while behavior parity still requires the comparisons below.
 
 | Legacy source | Cyna port location | Reason for layout change |
 | --- | --- | --- |
