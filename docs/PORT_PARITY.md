@@ -291,6 +291,13 @@ improvement, with a smoke check.
   their state after an early error, so a later cell does not receive a stray
   callback failure when the old Promise eventually settles.
 
+- A retained `test/port/http_url_differential.py` compares 42 URL, method, and
+  option cases against Zig, including a live request with a `+` numeric port.
+  `std/http/native.cy` now validates the URI scheme and authority before libcurl
+  accepts relative or malformed strings as hosts. The C worker preserves
+  transport callbacks and maps DNS failure to Zig's `UnknownHostName`. The
+  differential matches legacy; more URI forms remain for comparison.
+
 - HTTP client trace context was a confirmed difference: with the same local
   HTTP server, `await trace('parent', async () => { await get(url);
   trace('child', () => {}); })` produced `{"sameTrace":true,"parented":true}`

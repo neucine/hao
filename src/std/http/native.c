@@ -205,6 +205,16 @@ static void perform_http(uv_work_t *work) {
     response->manual_redirect = job->manual_redirect;
     CURL *curl = NULL;
     char *temporary_path = NULL;
+    unsigned char *transport_url = NULL;
+    static const char *const url_errors[] = {NULL, "InvalidFormat", "UnexpectedCharacter",
+        "UnsupportedUriScheme", "UriMissingHost", "InvalidPort", "InvalidHostName"};
+    int url_error = hao_http_url_error((const unsigned char *)job->url);
+    if (url_error > 0 && (size_t)url_error < sizeof(url_errors) / sizeof(url_errors[0])) {
+        set_legacy_error(job, url_errors[url_error]);
+        goto done;
+    }
+    transport_url = hao_http_transport_url((const unsigned char *)job->url);
+    if (!transport_url) { set_error(job, "out of memory"); goto done; }
     if (job->download_path) {
         size_t length = strlen(job->download_path);
         temporary_path = hao_alloc(length + 17);
@@ -221,7 +231,7 @@ static void perform_http(uv_work_t *work) {
     }
     curl = curl_easy_init();
     if (!curl) { set_error(job, "unable to initialize HTTP client"); goto done; }
-    curl_easy_setopt(curl, CURLOPT_URL, job->url);
+    curl_easy_setopt(curl, CURLOPT_URL, (const char *)transport_url);
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, job->method);
@@ -266,6 +276,7 @@ static void perform_http(uv_work_t *work) {
         } else {
             const char *legacy_name = NULL;
             if (code == CURLE_COULDNT_CONNECT) legacy_name = "ConnectionRefused";
+            if (code == CURLE_COULDNT_RESOLVE_HOST) legacy_name = "UnknownHostName";
             if (code == CURLE_URL_MALFORMAT) legacy_name = "InvalidFormat";
             if (code == CURLE_UNSUPPORTED_PROTOCOL) legacy_name = "UnsupportedUriScheme";
             if (code == CURLE_TOO_MANY_REDIRECTS) legacy_name = "TooManyHttpRedirects";
@@ -309,6 +320,7 @@ static void perform_http(uv_work_t *work) {
     if (response->download_file) fclose(response->download_file);
     if (temporary_path) { unlink(temporary_path); hao_free(temporary_path); }
     if (curl) curl_easy_cleanup(curl);
+    hao_free(transport_url);
 }
 static int append_response_header(JSContext *ctx, JSValueConst headers, const HaoHeader *header) {
     JSValue existing = JS_GetPropertyStr(ctx, headers, header->name);
@@ -413,20 +425,11 @@ static void finish_http(uv_work_t *work, int status) {
 }
 static char *copy_property(JSContext *ctx, JSValueConst object, const char *name) {
     JSValue value = JS_GetPropertyStr(ctx, object, name);
-    const char *text = JS_ToCString(ctx, value);
+    const char *text = JS_IsNull(value) || JS_IsUndefined(value) ? NULL : JS_ToCString(ctx, value);
     char *copy = text ? hao_strdup(text) : NULL;
     if (text) JS_FreeCString(ctx, text);
     JS_FreeValue(ctx, value);
     return copy;
-}
-static bool valid_method(const char *method) {
-    static const char *const methods[] = {
-        "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "QUERY"
-    };
-    for (size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
-        if (strcmp(method, methods[i]) == 0) return true;
-    }
-    return false;
 }
 static bool parse_options(HaoHttpJob *job, JSValueConst options) {
     JSContext *ctx = job->ctx;
@@ -444,7 +447,7 @@ static bool parse_options(HaoHttpJob *job, JSValueConst options) {
         return false;
     }
     JS_FreeValue(ctx, limit);
-    if (!job->url || !job->method || !valid_method(job->method)) return false;
+    if (!job->url || !job->method || !hao_http_valid_method((const unsigned char *)job->method)) return false;
     job->response.limit = (size_t)max_bytes;
     JSValue path = JS_GetPropertyStr(ctx, options, "downloadPath");
     if (!JS_IsUndefined(path) && !JS_IsNull(path)) {

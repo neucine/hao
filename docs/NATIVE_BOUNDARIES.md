@@ -9,24 +9,24 @@ Rust owns TypeScript transpilation in `libs/transpiler`. Its exported C signatur
 `std/fs/native.cy` exports the filesystem C ABI consumed by the adjacent QuickJS adapter; `fs.cy` owns bounded reads and script diagnostics.
 The Cyna `write` declaration in `stderr.cy` binds the platform C library directly; it has no project C implementation. The native host and QuickJS adapters expose their C to C entry points through adjacent headers, including async loop, filesystem, process, HTTP, FFI, telemetry metrics, addons, errors, and process memory. Their private QuickJS and libuv implementation details remain inside the C files.
 Process memory snapshots are assembled in `process_memory.cy` and exported to the metrics adapter; `process_memory.c/.h` contain the platform ABI reads and their C declarations.
+`std/http/native.cy` owns request method and URL validation and adapts numeric port spellings for libcurl. `std/http/native.c/.h` retain libcurl callbacks, response assembly, and QuickJS conversion.
 `telemetry/metrics.cy` owns metric definition and operation policy; `telemetry/metrics.c/.h` retain per-context storage, QuickJS conversion, and memory gauges.
 `errors.cy` owns RuntimeError registration and its JavaScript definition; `errors.c/.h` provide QuickJS evaluation and the native stack callback.
 `js/addon.cy` owns addon path detection and normalized module names; `module.c` calls its C ABI exports. `js/addon.c` retains dynamic loading and QuickJS callback state.
 The async loop C ABI exports live in `async/uv.cy`. The module imports libuv's loop operations and the shared allocator directly. `async/uv.h` declares the exported signatures for C callers; no project C source implements these functions.
 
-Three legacy Zig files currently map to a same stem C source without a Cyna
+Two legacy Zig files currently map to a same stem C source without a Cyna
 source file. These are explicit native boundaries, not proof of behavioral
 parity. The source inventory requires every C only mapping in this table.
 
 | Legacy source | C boundary | Reason for C boundary |
 | --- | --- | --- |
 | `std/ffi/native.zig` | `src/std/ffi/native.c` | libffi call layouts, dynamic symbols, and QuickJS values meet in one native adapter. |
-| `std/http/native.zig` | `src/std/http/native.c` | libcurl callbacks and QuickJS response values share native state. |
 | `std/http/server_uv.zig` | `src/std/http/server_uv.c` | libuv TCP callbacks hold QuickJS request and response values. |
 
 ## Why C remains
 
-The current build contains 17 project C sources (4,586 lines). Hao now builds pinned Cyna source revision `e16127d`, which includes the `std.fs.exists` result fix (LG-79) and bounded `std.fs.read_bytes_limited` (LG-82). `fs.cy` and `package.cy` use these APIs. `fs.cy` classifies script read failures using Cyna filesystem errors and path checks. Jupyter connection reads use `std.fs.read_bytes_limited_exact`, which rejects growth after the initially measured bytes. Most remaining C code is native library and QuickJS integration; the table below records roles rather than language blockers.
+The current build contains 17 project C sources (4,589 lines). Hao now builds pinned Cyna source revision `e16127d`, which includes the `std.fs.exists` result fix (LG-79) and bounded `std.fs.read_bytes_limited` (LG-82). `fs.cy` and `package.cy` use these APIs. `fs.cy` classifies script read failures using Cyna filesystem errors and path checks. Jupyter connection reads use `std.fs.read_bytes_limited_exact`, which rejects growth after the initially measured bytes. Most remaining C code is native library and QuickJS integration; the table below records roles rather than language blockers.
 
 | C sources | Current role | Blocker status |
 | --- | --- | --- |
