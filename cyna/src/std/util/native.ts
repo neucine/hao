@@ -42,27 +42,32 @@ export function inspect(value: unknown, options?: InspectOptions): string {
     if (typeof item !== "object" && typeof item !== "function") return String(item);
     if (depth >= opts.maxDepth) return "[Object]";
 
-    if (typeof item.repr === "function") {
-      try {
-        const repr = item.repr({ mode: "text" });
+    try {
+      const reprMethod = item.repr;
+      if (typeof reprMethod === "function") {
+        const repr = reprMethod.call(item, { mode: "text" });
         const data = repr && typeof repr === "object" ? repr.data : repr;
-        if (data !== null && data !== undefined) return truncate(String(data));
-      } catch (_) { /* Fall back to ordinary inspection. */ }
-    }
-    if (item.dtype != null && item.shape != null && typeof item.toString === "function") {
-      return String(item);
-    }
+        if (data !== null && data !== undefined && typeof data !== "symbol") return truncate(String(data));
+      }
+    } catch (_) { /* Fall back to ordinary inspection. */ }
+    try {
+      if (item.dtype != null && item.shape != null && typeof item.toString === "function") return String(item);
+    } catch (_) { return ""; }
     if (typeof item === "function") return item.name ? `[Function: ${item.name}]` : "[Function]";
     if (seen.has(item)) return "[Circular]";
     seen.add(item);
     try {
       const array = Array.isArray(item);
-      const keys = array ? item : Object.keys(item);
+      let keys: any;
+      try { keys = array ? item : Object.keys(item); }
+      catch (_) { return array ? "[ ]" : "{ }"; }
       const count = Math.min(keys.length, opts.maxArrayLength);
       const entries: string[] = [];
       for (let index = 0; index < count; index++) {
-        entries.push(array ? format(item[index], depth + 1)
-          : `${keys[index]}: ${format(item[keys[index]], depth + 1)}`);
+        let rendered = "";
+        try { rendered = format(item[array ? index : keys[index]], depth + 1); }
+        catch (_) { /* Zig appends no value on conversion failure. */ }
+        entries.push(array ? rendered : `${keys[index]}: ${rendered}`);
       }
       if (keys.length > count) entries.push(`... ${keys.length - count} more items`);
       return array ? `[ ${entries.join(", ")} ]` : `{ ${entries.join(", ")} }`;

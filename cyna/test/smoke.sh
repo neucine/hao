@@ -284,6 +284,15 @@ setInspectOptions({ maxDepth: NaN });
 console.log(getInspectOptions().maxDepth);
 EOF
 test "$("$runtime" "$fixture_dir/util-limits.ts")" = "$(printf '[Object]\n{ nested: { value: 1 } }\nInfinity\n0')"
+cat > "$fixture_dir/util-errors.ts" <<'EOF'
+import { inspect } from 'std:util';
+console.log(inspect({ repr() { return { data: Symbol('x') }; }, a: 1 }));
+console.log('arraylike', inspect({ dtype: 'x', shape: [1], toString() { throw Error('bad array'); } }));
+console.log(inspect({ get repr() { throw Error('bad getter'); }, a: 1 }));
+console.log(inspect({ get a() { throw Error('bad field'); } }));
+console.log(inspect(new Proxy({ a: 1 }, { ownKeys() { throw Error('bad keys'); } })));
+EOF
+test "$("$runtime" "$fixture_dir/util-errors.ts")" = "$(printf '{ repr: [Function: repr], a: 1 }\narraylike \n{ repr: , a: 1 }\n{ a:  }\n{ }')"
 
 cat > "$fixture_dir/console-inspect.ts" <<'EOF'
 console.log({ value: 3 }, [1, 2]);

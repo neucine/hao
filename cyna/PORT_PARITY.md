@@ -129,7 +129,12 @@ improvement, with a smoke check.
   treats both signs of infinity and values above `usize` capacity as unlimited;
   Cyna previously fell back to its default for `NaN` and clamped negative
   infinity to zero. The port now matches Zig's `inspect` output and
-  `getInspectOptions` values for those cases, with smoke coverage.
+  `getInspectOptions` values for those cases, with smoke coverage. A further
+  shared probe found that throwing `repr` getters, object field getters,
+  array-like `toString`, and proxy `ownKeys` escaped from Cyna's formatter,
+  whereas Zig produced an empty value or empty object. Cyna now matches the
+  Zig output for these cases, including a `repr` result whose data is a
+  `Symbol`; the smoke suite retains representative errors.
 
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
