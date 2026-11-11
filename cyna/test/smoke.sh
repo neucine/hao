@@ -678,6 +678,9 @@ char *hao_mutable_char_pointer(void) { static char value[] = "mutable"; return v
 const char *hao_const_char_pointer(void) { return "constant"; }
 void hao_fill_bytes(uint8_t *data, size_t length) { for (size_t i = 0; i < length; ++i) data[i] = (uint8_t)(i + 1); }
 uint64_t hao_high_bit(uint64_t value) { return value >> 63; }
+uint64_t hao_echo_u64(uint64_t value) { return value; }
+uint64_t hao_u64_max(void) { return UINT64_MAX; }
+uint64_t hao_u64_mid(void) { return UINT64_C(9007199254740993); }
 static char hao_long_text[1024 * 1024 + 18];
 const char *hao_long_string(void) {
     memset(hao_long_text, 'x', sizeof(hao_long_text) - 1);
@@ -795,13 +798,18 @@ import { getEnv } from 'std:process';
 const path = getEnv('HAO_FFI_TEST_PATH');
 const library = dlopen(`${path}/libhao_search_fixture.dylib`, {
   hao_high_bit: { args: ['u64'], returns: 'u64' },
+  hao_echo_u64: { args: ['u64'], returns: 'u64' },
+  hao_u64_max: { args: [], returns: 'u64' },
+  hao_u64_mid: { args: [], returns: 'u64' },
   hao_long_string: { args: [], returns: 'cstring' },
 });
 console.log(library.hao_high_bit(9223372036854775808n));
+console.log(library.hao_echo_u64(18446744073709551615n));
+console.log(library.hao_u64_max(), library.hao_u64_mid());
 console.log(library.hao_long_string().length);
 library.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-u64.ts")" = "$(printf '1\n1048593')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-u64.ts")" = "$(printf '1\n18446744073709552000\n18446744073709552000 9007199254740992\n1048593')"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';

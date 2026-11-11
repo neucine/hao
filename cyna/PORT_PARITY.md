@@ -89,6 +89,10 @@ that adapter.
   FFI end to end suite passes 4 Zig cases and 7 Cyna cases; three added Cyna
   cases cover invalid declarations and multiline type parsing. These checks
   do not cover all marshaling widths or C ABI policy combinations.
+  A separate C library probe compared `u64` arguments and returns at 2^53,
+  2^63, and `UINT64_MAX` under both runtimes. The observed JavaScript numbers,
+  including rounding above 2^53, matched. The Cyna smoke fixture now retains
+  the `UINT64_MAX` and 2^53 + 1 checks.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.
