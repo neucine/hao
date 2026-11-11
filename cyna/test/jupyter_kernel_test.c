@@ -51,7 +51,8 @@ static int receive_content(void *socket, char *out, size_t capacity) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 2) return 2;
+    if (argc != 2 && (argc != 3 || strcmp(argv[2], "--shared"))) return 2;
+    int shared = argc == 3;
     char *runtime = realpath(argv[1], NULL);
     if (!runtime) return 2;
     alarm(15);
@@ -85,6 +86,31 @@ int main(int argc, char **argv) {
     snprintf(endpoint, sizeof(endpoint), "ipc://%s:3", base); zmq_connect(iopub, endpoint);
     usleep(300000);
     char content[65536]; int status = 0;
+    if (shared) {
+        if (send_request(shell, "kernel_info_request", "{}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "implementation") || !strstr(content, "hao")) status = 69;
+        int info_idle_seen = 0;
+        for (int i = 0; !status && i < 4 && !info_idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 74; break; }
+            if (strstr(content, "execution_state") && strstr(content, "idle")) info_idle_seen = 1;
+        }
+        if (!status && !info_idle_seen) status = 75;
+        if (!status && (send_request(shell, "execute_request", "{\"code\":\"1 + 1\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "status") || !strstr(content, "ok"))) status = 70;
+        int result_seen = 0, idle_seen = 0;
+        for (int i = 0; !status && i < 8 && !idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 71; break; }
+            if (strstr(content, "text/plain") && strstr(content, "2")) result_seen = 1;
+            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+        }
+        if (!status && (!result_seen || !idle_seen)) status = 72;
+        if (!status && (send_request(control, "shutdown_request", "{\"restart\":false}") < 0 ||
+            receive_content(control, content, sizeof(content)) < 0 ||
+            !strstr(content, "status") || !strstr(content, "ok"))) status = 73;
+        goto cleanup;
+    }
     if (send_request_signed(shell, "kernel_info_request", "{}", 1) < 0) status = 63;
     if (send_request(shell, "kernel_info_request", "{}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
@@ -288,6 +314,7 @@ int main(int argc, char **argv) {
     if (!status && (send_request(control, "shutdown_request", "{\"restart\":true}") < 0 ||
         receive_content(control, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"restart\":true"))) status = 8;
+cleanup:
     if (status) kill(child, SIGTERM);
     int child_status = 0; waitpid(child, &child_status, 0);
     if (!status && (!WIFEXITED(child_status) || WEXITSTATUS(child_status) != 0)) status = 9;

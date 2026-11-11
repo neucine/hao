@@ -53,6 +53,7 @@ test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'
 clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_kernel_test.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto -o "$fixture_dir/jupyter-kernel-test"
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime")" = 'kernel ok'
+test "$("$fixture_dir/jupyter-kernel-test" "$runtime" --shared)" = 'kernel ok'
 HAO_JUPYTER_KERNEL_DIR="$fixture_dir/kernels/hao" "$runtime" jupyter install > "$fixture_dir/kernelspec-output"
 python3 - "$fixture_dir/kernels/hao/kernel.json" "$runtime" <<'PY'
 import json, sys
