@@ -29,3 +29,19 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin legacy:refs/remotes/origin/legacy
           python3 cyna/test/source_inventory.py
+
+  native-port:
+    runs-on: [self-hosted, macOS, ARM64, macbook-arm64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select pinned Cyna compiler
+        run: |
+          echo "$HOME/.cyna/0.5.1-beta.1/bin" >> "$GITHUB_PATH"
+          "$HOME/.cyna/0.5.1-beta.1/bin/cyna" version
+      - name: Build Hao with Cyna
+        run: sh cyna/build.sh
+      - name: Verify native behavior
+        run: |
+          sh cyna/test/smoke.sh
+          python3 cyna/test/legacy_e2e.py
