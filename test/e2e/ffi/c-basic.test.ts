@@ -82,6 +82,13 @@ describe('c basic', () => {
 
     expect(Array.from(dest)).toEqual([10, 20, 30, 40])
 
+    const view = new DataView(src.buffer)
+    let error: any = null
+    try { libc.memcpy(dest, view) } catch (caught) { error = caught }
+    expect(error).toBeInstanceOf(RuntimeError)
+    expect(error.code).toBe('invalid_arg')
+    expect(error.message).toBe('C: buffer arguments must be typed arrays or ArrayBuffer-backed views')
+
     libc.close()
   })
 })

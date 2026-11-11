@@ -5,8 +5,9 @@ export function bytesPerElement(name: string): number {
     ['u32', 'i32', 'f32'].includes(name) ? 4 : 8;
 }
 export function backingLength(value: any): number {
-  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return value.byteLength;
-  throw invalidArg('buffer argument must be an ArrayBuffer or typed array');
+  if (value instanceof ArrayBuffer ||
+      ArrayBuffer.isView(value) && !(value instanceof DataView)) return value.byteLength;
+  throw invalidArg('C: buffer arguments must be typed arrays or ArrayBuffer-backed views');
 }
 function podField(view: DataView, field: PodField, value?: any, base = 0): any {
   const at = base + field.offset;

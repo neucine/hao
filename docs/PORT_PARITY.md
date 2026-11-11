@@ -565,6 +565,12 @@ improvement, with a smoke check.
   Zig converts a typed array to zero in the raw `dlopen` path. The smoke suite
   checks both the shared error cases and an offset typed array view. Additional
   pointer lifetime combinations remain open.
+  A public `std:ffi.c` buffer probe found that Zig rejects `DataView` with
+  `RuntimeError invalid_arg`, while Cyna accepted it and left the destination
+  unchanged. The Cyna declaration wrapper now rejects `DataView` before the
+  native call. Plain typed arrays, offset views, and `ArrayBuffer` inputs still
+  match Zig. The shared FFI end to end case checks the error and message under
+  both binaries.
   A shared libc probe matched `cstring` argument byte lengths for accented and
   emoji text, `strcmp` ordering, and nullable `cstring` returns from `getenv`.
   The smoke suite retains these direct FFI conversions.
