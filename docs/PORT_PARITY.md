@@ -131,8 +131,11 @@ Five further shared fixtures matched plain reporter output after normalizing
 durations: failed `beforeAll`, failed `afterAll`, a nested `beforeEach` failure,
 multiple `afterEach` failures, and async hooks. A `describe.only` and
 `describe.skip` fixture also matched stdout, exit status, and normalized
-reporter output with no grep and three grep values. Other hook and filtering
-combinations remain open. Rerun the nine compared outcomes with
+reporter output with no grep and three grep values. A nested suite fixture now
+checks `beforeAll`, `afterAll`, and per-case hooks under four grep values,
+including a selected skipped case and an unmatched filter. The failure fixtures
+also run with a matching and an unmatched filter. All 24 outcomes match;
+other hook and filtering combinations remain open. Rerun them with
 `python3 test/port/runner_differential.py <legacy-binary> <cyna-binary>`.
 The failed module glyph now uses Zig's red ANSI style when the reporter is in
 ANSI mode; the smoke suite checks plain and ANSI modes separately.

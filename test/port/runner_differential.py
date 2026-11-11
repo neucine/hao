@@ -25,6 +25,8 @@ describe("s",()=>{beforeAll(async()=>{await Promise.resolve();console.log("befor
 describe("ordinary",()=>{beforeAll(()=>console.log("ordinary before"));afterAll(()=>console.log("ordinary after"));test("alpha",()=>console.log("alpha"));test.skip("needle skip",()=>console.log("bad"))});
 describe.only("focused",()=>{beforeAll(()=>console.log("focused before"));afterAll(()=>console.log("focused after"));test("needle one",()=>console.log("one"));test.skip("needle skipped",()=>console.log("bad"));test.only("needle two",()=>console.log("two"))});
 describe.skip("blocked",()=>{beforeAll(()=>console.log("blocked before"));test("needle three",()=>console.log("bad"))});''',
+    "filter-hooks": '''import {describe,test,beforeAll,afterAll,beforeEach,afterEach} from "std:test";
+describe("outer",()=>{beforeAll(()=>console.log("outer before"));afterAll(()=>console.log("outer after"));beforeEach(()=>console.log("outer each"));afterEach(()=>console.log("outer cleanup"));test("alpha",()=>console.log("alpha body"));describe("inner",()=>{beforeAll(()=>console.log("inner before"));afterAll(()=>console.log("inner after"));test("beta",()=>console.log("beta body"));test.skip("gamma",()=>console.log("bad"))})});''',
 }
 
 
@@ -48,12 +50,14 @@ def main() -> None:
         for name, text in CASES.items():
             source = Path(directory) / f"{name}.test.ts"
             source.write_text(text)
-            variants = [None, "needle", "alpha", "nope"] if name == "modes" else [None]
+            variants = [None, "needle", "alpha", "nope"] if name == "modes" else \
+                [None, "alpha", "beta", "gamma", "nope"] if name == "filter-hooks" else \
+                [None, "a", "nope"]
             for grep in variants:
                 expected = outcome(legacy, source, grep)
                 actual = outcome(port, source, grep)
                 assert actual == expected, (name, grep, expected, actual)
-    print("Runner differential: 9 cases matched")
+    print("Runner differential: 24 cases matched")
 
 
 if __name__ == "__main__":
