@@ -515,6 +515,11 @@ improvement, with a smoke check.
   `comm_info_request` under both runtimes. Both reply with the expected
   completion status and comm map after earlier execute errors, and then
   continue to accept control shutdown.
+  The Zig shell dispatcher has no handlers for `complete_request`,
+  `inspect_request`, or `history_request`. Cyna implements these additional
+  notebook replies in `jupyter/main.cy`; the Cyna kernel consumer checks them.
+  They are extensions, so the shared consumer does not require replies from
+  Zig for those request types.
   The shared consumer now checks execution counts of 1, 2, and 5 across a
   successful cell, an empty result, and a later failing cell. Both runtimes
   preserve the count sequence; the assertion accepts JSON whitespace differences.
