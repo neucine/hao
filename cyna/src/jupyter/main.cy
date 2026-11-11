@@ -262,7 +262,9 @@ pub fn run(path: string): i32 {
                 const header_text = text_or_empty(transport.header());
                 const content_text = text_or_empty(transport.content());
                 const header = parse_json(header_text) catch (error) { continue; };
-                const content = parse_json(content_text) catch (error) { continue; };
+                // Requests without a usable content object can still carry a
+                // valid header. Zig dispatches those by message type.
+                const content = parse_json(content_text) catch (error) => parse_json("{}") catch (fallback_error) { continue; };
                 if field(&header, "msg_type") is kind {
                     if kind == "shutdown_request" and channel == 2 {
                         var restart = "false";

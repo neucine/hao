@@ -203,9 +203,19 @@ int main(int argc, char **argv) {
         if (!status && (send_request(shell, "comm_info_request", "{}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||
             !strstr(content, "\"comms\"") || !strstr(content, "\"status\""))) status = 100;
-        if (!status && (send_request(control, "shutdown_request", "{\"restart\":false}") < 0 ||
+        if (!status && (send_request(shell, "kernel_info_request", "{") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"implementation\""))) status = 103;
+        info_idle_seen = 0;
+        for (int i = 0; !status && i < 4 && !info_idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 104; break; }
+            if (strstr(content, "execution_state") && strstr(content, "idle")) info_idle_seen = 1;
+        }
+        if (!status && !info_idle_seen) status = 105;
+        if (!status && (send_request(control, "shutdown_request", "{") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
-            !strstr(content, "status") || !strstr(content, "ok"))) status = 73;
+            !strstr(content, "status") || !strstr(content, "ok") ||
+            !strstr(content, "restart") || !strstr(content, "false"))) status = 73;
         goto cleanup;
     }
     if (send_request_signed(control, "shutdown_request", "{\"restart\":false}", 1) < 0) status = 101;

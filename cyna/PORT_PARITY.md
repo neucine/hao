@@ -325,6 +325,13 @@ improvement, with a smoke check.
   inspection, history, silent execution, and user expressions beyond the Zig
   handler's request set. Those additions need their own behavior review and
   do not establish parity for the shared request types.
+  For `silent`, `store_history`, and a shutdown `restart` request, Cyna follows
+  the Jupyter protocol while Zig ignores those fields. These are deliberate
+  behavior extensions, retained by the Cyna kernel consumer. A shared probe
+  found that Zig still dispatches `kernel_info_request` and `shutdown_request`
+  when their content is malformed JSON, while Cyna discarded them before
+  dispatch. Cyna now uses empty content for that case; the same probe passes
+  under both binaries.
   A reduced kernel probe sent a `shutdown_request` with one corrupted HMAC
   digit before a valid `kernel_info_request`. Zig shut down and the shared
   consumer failed with status 70; Cyna ignored the forged shutdown and answered
