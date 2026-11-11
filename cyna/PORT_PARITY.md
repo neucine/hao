@@ -82,6 +82,13 @@ that adapter.
   latter, matching Zig's early return before execution count changes.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
+  A direct `std:ffi/native` fixture passed under both runtimes: opening libc,
+  calling `getpid`, closing twice, and calling after close produced the same
+  result types and `TypeError FFI: library has been closed`. The Cyna smoke
+  fixture now checks a successful call before the duplicate close. The shared
+  FFI end to end suite passes 4 Zig cases and 7 Cyna cases; three added Cyna
+  cases cover invalid declarations and multiline type parsing. These checks
+  do not cover all marshaling widths or C ABI policy combinations.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.

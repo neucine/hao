@@ -650,11 +650,12 @@ test "$("$runtime" "$fixture_dir/ffi-mixed.ts")" = 12
 cat > "$fixture_dir/ffi-closed.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/native';
 const handle = openNative('m', { cos: { args: ['f64'], returns: 'f64' } });
+console.log(callNative(handle, 'cos', [0]));
 closeNative(handle);
 closeNative(handle);
 try { callNative(handle, 'cos', [0]); } catch (error) { console.log(error.name, error.message); }
 EOF
-test "$("$runtime" "$fixture_dir/ffi-closed.ts")" = 'TypeError FFI: library has been closed'
+test "$("$runtime" "$fixture_dir/ffi-closed.ts")" = "$(printf '1\nTypeError FFI: library has been closed')"
 cat > "$fixture_dir/ffi-arity.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/native';
 for (const invoke of [() => openNative('m'), () => callNative(0, 'cos'), () => closeNative(), () => closeNative(-1)]) {
