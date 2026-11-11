@@ -34,14 +34,14 @@ while behavior parity still requires the comparisons below.
 | Legacy source | Cyna port location | Reason for layout change |
 | --- | --- | --- |
 | `hao.zig` | `src/runtime.cy`, `src/std.cy`, `src/embed.cy` | Cyna modules and the embedding C ABI replace the Zig root export module. |
-| `js/abi.zig`, `js/mod.zig` | `bridge.c`, `src/module.c`, `src/runtime_host.h` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
+| `js/abi.zig`, `js/mod.zig` | `src/bridge.c`, `src/module.c`, `src/runtime_host.h` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
 | `link.zig` | `cyna.toml`, `cyna.lib.toml`, `build.sh` | Linking is declared in the Cyna build manifests. |
-| `qjs.zig` | `src/runtime.cy`, `bridge.c`, `src/runtime_host.h` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
+| `qjs.zig` | `src/runtime.cy`, `src/bridge.c`, `src/runtime_host.h` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
 | `std/ffi/Library.zig`, `std/ffi/runtime.zig`, `std/ffi/trampoline.zig`, `std/ffi/types.zig` | `src/std/ffi/native.c`, `src/std/ffi/native.ts` | One libffi adapter replaces the Zig library and call trampoline layers. |
-| `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `bridge.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
+| `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `src/bridge.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
 | `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/telemetry/interface.c`, `src/std/telemetry/native.ts` | Cyna `std.telemetry` supplies the host backend; JavaScript keeps the public trace ring and cursor API. |
 | `telemetry/server.zig` | `src/std/telemetry/console.ts`, `src/telemetry/dashboard.html` | The telemetry console uses the ported HTTP server and existing dashboard. |
-| `transpiler.zig` | `bridge.c`, `src/module.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
+| `transpiler.zig` | `src/bridge.c`, `src/module.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
 
 The legacy TypeScript standard modules are byte identical in the port except
 `std/http/index.ts`: the Cyna tree separates its HTTP server into
@@ -240,7 +240,7 @@ improvement, with a smoke check.
   The remaining Zig `Loop` methods have explicit implementation locations:
   loop allocation, deinitialization, and nonblocking runs are in
   `async/uv.c`; current-loop ownership is the `HaoRuntime` handle in
-  `bridge.c` and `runtime_host.h`; timer start, cancellation, one-shot fire,
+  `src/bridge.c` and `runtime_host.h`; timer start, cancellation, one-shot fire,
   and close callbacks are in `global/timer.c`; HTTP worker requests use
   libuv from `std/http/native.c`. Zig's `async/uv.zig` FFI declarations are
   replaced by the libuv header included at these C boundaries.
@@ -651,6 +651,10 @@ The executable, embedding library, and Jupyter connection check now use root
 manifests `cyna.toml`, `cyna.lib.toml`, and
 `cyna.jupyter-connection.toml`. `build.sh` writes both runtime artifacts
 under `build/`.
+The native QuickJS host adapter now lives at `src/bridge.c`, and the HMAC
+helper used by Jupyter wire code and its consumers lives at
+`src/jupyter/crypto.h`. Their build and test includes use those canonical
+source locations.
 An additional `std:util` matrix matched 26 option forms, including numeric
 limits, nonnumeric values, and throwing getters. Among 28 further values,
 `repr()` returning `null` was a mismatch; a focused probe also found
@@ -658,3 +662,11 @@ limits, nonnumeric values, and throwing getters. Among 28 further values,
 results whose `data` is null or undefined fall back to ordinary inspection.
 The TypeScript adapter now follows that distinction, and the smoke suite
 retains all three outcomes.
+Package root probes found that a regular file named `node_modules/x` makes
+the pinned Cyna build crash while Zig reports `Package manifest not found`.
+The package resolver now uses its bounded `access(2)` helper for root,
+manifest, and entry existence checks. A six case file, directory, and symlink
+matrix now matches Zig; the file root case is retained in the port fixture.
+This avoids the installed Cyna 0.5.1-beta.1 typed `std.fs.exists` error path
+already documented as LG-79 in the Cyna language gaps ledger. The source
+compiler has a fix, but Hao remains pinned to the installed beta.

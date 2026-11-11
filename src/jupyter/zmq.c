@@ -1,6 +1,6 @@
 #include <zmq.h>
 #include "../runtime_allocator.h"
-#include "../../crypto.h"
+#include "crypto.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

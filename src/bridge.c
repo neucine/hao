@@ -1,5 +1,5 @@
 #include <quickjs.h>
-#include "src/runtime_allocator.h"
+#include "runtime_allocator.h"
 #include <uv.h>
 #include <stdbool.h>
 #include <ctype.h>
@@ -47,7 +47,7 @@ int hao_runtime_trace_limit_exceeded(void) {
            capacity > 1048576 && telemetry_console_requested();
 }
 
-#include "src/runtime_host.h"
+#include "runtime_host.h"
 
 extern char *hao_transpile_types_for_path(const char *source, const char *source_path);
 extern char *hao_transform_module(const char *source, const char *source_path,

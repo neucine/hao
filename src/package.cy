@@ -1,4 +1,3 @@
-import { exists } from std.fs;
 import { read_file_limited } from .fs;
 import { dirname, join } from std.path;
 import { env_get } from std.process;
@@ -6,6 +5,11 @@ import { Value, parse } from std.json;
 import { copy_output, text_from_c } from .c_bytes;
 
 extern c("hao_fs_path_exists_len") fn path_exists_len(path: *const c_uchar, length: c_size_t): c_int;
+
+fn path_exists(path: string): bool {
+    const bytes = path.bytes();
+    return path_exists_len(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) != 0;
+}
 
 struct Resolution {
     path: ?string;
@@ -162,8 +166,7 @@ fn find_entry(root: string, entry: string, package_type: ?string): Resolution {
         // Keep a trailing separator for access(2): a file followed by '/' is
         // missing, while a directory followed by '/' still exists.
         const access_path = $"{root}/{candidate}";
-        const bytes = access_path.bytes();
-        if path_exists_len(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) != 0 {
+        if path_exists(access_path) {
             if supported_entry(candidate, package_type) { return found(path); }
             return failed(-3);
         }
@@ -188,7 +191,7 @@ fn resolve_in(root: string, subpath: string): Resolution {
         }
         return failed(-5);
     } else {
-        const present = exists(manifest_path) catch (code) => false;
+        const present = path_exists(manifest_path);
         if present { return failed(-1); }
         return failed(-4);
     }
@@ -212,7 +215,7 @@ fn resolve(base: string, specifier: string): Resolution {
                 const root = trim_root(roots.slice(start, index));
                 if root.len() > 0 {
                     const package_root = join2(root, name);
-                    const found = exists(package_root.clone()) catch (code) => false;
+                    const found = path_exists(package_root.clone());
                     if found {
                         return resolve_in(package_root, subpath);
                     }
@@ -226,7 +229,7 @@ fn resolve(base: string, specifier: string): Resolution {
     while directory.len() > 0 {
         const node_modules = join2(directory, "node_modules");
         const package_root = join2(node_modules, name);
-        const found = exists(package_root.clone()) catch (code) => false;
+        const found = path_exists(package_root.clone());
         if found {
             return resolve_in(package_root, subpath);
         }

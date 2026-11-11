@@ -39,6 +39,13 @@ with tempfile.TemporaryDirectory(prefix="hao-package-diagnostics-") as directory
         assert result.returncode == 1 and result.stdout == "", (name, result)
         assert result.stderr == f"{reason}: {name} (from {source})\n", (name, result)
 
+    (modules / "file-root").write_text("not a directory\n")
+    source = root / "file-root.ts"
+    source.write_text('import "file-root";\n')
+    result = subprocess.run([runtime, source], capture_output=True, text=True)
+    assert result.returncode == 1 and result.stdout == "", result
+    assert result.stderr == f"Package manifest not found: file-root (from {source})\n", result
+
     absolute = modules / "absolute"
     absolute.mkdir()
     (absolute / "package.json").write_text(json.dumps({"type": "module", "exports": "/index.ts"}))
