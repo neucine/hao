@@ -740,10 +740,17 @@ for (const [symbol, args] of [['missing', [4]], ['sqrt', []]]) {
 closeNative(library.handle);
 try { callNative(library.handle, 'sqrt', [4]); }
 catch (error) { console.log(error.name, error.code, error.message); }
+for (const invalid of [0, -1, 'bad']) {
+  try { closeNative(invalid); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
 EOF
-test "$("$runtime" "$fixture_dir/ffi-c-call-errors.ts")" = "$(printf '%s\n%s\n%s' \
+test "$("$runtime" "$fixture_dir/ffi-c-call-errors.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
   'RuntimeError invalid_arg C: unknown symbol' \
   'RuntimeError invalid_arg C: wrong number of arguments' \
+  'RuntimeError invalid_arg C: invalid library handle' \
+  'RuntimeError invalid_arg C: invalid library handle' \
+  'RuntimeError invalid_arg C: invalid library handle' \
   'RuntimeError invalid_arg C: invalid library handle')"
 cat > "$fixture_dir/ffi-c-conversion-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';

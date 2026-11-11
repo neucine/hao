@@ -164,5 +164,11 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
 }
 export function closeNative(handle: number): void {
   libraries.delete(handle);
-  globalThis.__hao_ffi_close(handle);
+  try { globalThis.__hao_ffi_close(handle); }
+  catch (error) {
+    if (error instanceof TypeError && error.message === 'FFI: invalid library handle') {
+      throw invalidArg('C: invalid library handle');
+    }
+    throw error;
+  }
 }

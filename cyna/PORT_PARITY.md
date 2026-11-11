@@ -182,6 +182,9 @@ improvement, with a smoke check.
   matched both runtimes for a `Symbol` passed to `f64` and `u64`, and an object
   whose numeric conversion throws. The unsigned fallback now tries a string
   conversion after a failed signed conversion, as Zig does.
+  `closeNative` now maps invalid zero, negative, and nonnumeric handles to
+  Zig's `RuntimeError invalid_arg C: invalid library handle`. A direct probe
+  also matched repeated closes and unknown positive handles.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.
