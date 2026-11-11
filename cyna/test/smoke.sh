@@ -724,12 +724,15 @@ console.log(JSON.stringify(prepareNative('x',
 try { prepareNative('m', 'double sqrt(double x);',
   { functions: { sqrt: { errors: { kind: 'status', ok: 0, code: 'io_error' } } } }); }
 catch (error) { console.log(error.name, error.code, error.message); }
+try { prepareNative('m', 'double sqrt(double x); double sqrt(double y);'); }
+catch (error) { console.log(error.name, error.code, error.message); }
 EOF
-test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s' \
+test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s' \
   '{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
   '{"symbols":["sqrt"],"policies":{"handles":{},"functions":{}}}' \
   '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
-  'RuntimeError internal prepareNative: failed to build descriptor')"
+  'RuntimeError internal prepareNative: failed to build descriptor' \
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateFunctionName')"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
 const library = openNative('m', 'double sqrt(double x);');

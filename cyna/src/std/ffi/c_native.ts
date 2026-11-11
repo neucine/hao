@@ -12,15 +12,21 @@ const runtimeErrorCodes = new Set([
   'unsupported_lowering', 'internal', 'thread_pool_unavailable',
 ]);
 
-function prepareSpec(name: string, declarations: string, opts?: any): Prepared {
+function prepareSpec(name: string, declarations: string, opts: any, operation: string): Prepared {
   if (typeof name !== 'string' || !name) throw invalidArg('cdecl: invalid library name');
-  return parse(declarations, opts);
+  try { return parse(declarations, opts); }
+  catch (error) {
+    if (error instanceof RuntimeError && error.message === 'duplicate C function') {
+      throw invalidArg(`${operation}: declaration lowering failed: DuplicateFunctionName`, 'DuplicateFunctionName');
+    }
+    throw error;
+  }
 }
 export function prepareNative(name: string, declarations: string, opts?: any): {
   descriptor: Record<string, { args: string[]; returns: string }>;
   policies: { handles: Record<string, { close?: string }>; functions: Record<string, any> };
 } {
-  const prepared = prepareSpec(name, declarations, opts);
+  const prepared = prepareSpec(name, declarations, opts, 'prepareNative');
   const descriptor: Record<string, { args: string[]; returns: string }> = {};
   for (const fn of prepared.functions) {
     const policy = prepared.policies?.functions?.[fn.name];
@@ -75,7 +81,7 @@ function openWithSearch(name: string, search: any): number {
   throw invalidArg('library unavailable');
 }
 export function openNative(name: string, declarations: string, opts?: any): { handle: number; symbols: string[]; policies: any } {
-  const prepared = prepareSpec(name, declarations, opts);
+  const prepared = prepareSpec(name, declarations, opts, 'openNative');
   let handle: number;
   try { handle = openWithSearch(name, prepared.policies?.search); }
   catch (_) { throw new RuntimeError('io_error', 'openNative: failed to open library'); }

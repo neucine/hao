@@ -170,6 +170,11 @@ improvement, with a smoke check.
   policy forms Zig cannot represent in a descriptor report the same
   `RuntimeError` category. More declaration and option combinations remain
   to be compared.
+  A declaration matrix found a duplicate function error mismatch. Both
+  `prepareNative` and `openNative` now report Zig's
+  `declaration lowering failed: DuplicateFunctionName` message for this case.
+  The smoke suite covers `prepareNative`; unsupported declaration and syntax
+  error messages still need alignment.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from

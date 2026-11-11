@@ -74,7 +74,9 @@ export function parse(declarations: string, opts: any): Prepared {
     }
     const match = /^([\s\S]+?[\s*])([A-Za-z_]\w*)\s*\(([^()]*)\)$/.exec(statement);
     if (!match) throw invalidArg(`invalid C declaration: ${statement}`);
-    if (functions.some(item => item.name === match[2])) throw invalidArg(`duplicate C function: ${match[2]}`);
+    if (functions.some(item => item.name === match[2])) {
+      throw invalidArg('duplicate C function', 'DuplicateFunctionName');
+    }
     const params: Parameter[] = [];
     const rawParams: { name: string; type: string }[] = [];
     if (match[3].trim() && match[3].trim() !== 'void') {
