@@ -45,23 +45,6 @@ export function getRegisteredCounts() {
   return { registeredTests: count, registeredHooks, suiteDepth: deepest(root, 0) };
 }
 
-export function discardTestFile(path: string): void {
-  const discard = (node: Suite): void => {
-    for (const kind of ['before_all', 'after_all', 'before_each', 'after_each'] as HookKind[]) {
-      const before = node.hooks[kind].length;
-      node.hooks[kind] = node.hooks[kind].filter(hook => hook.file !== path);
-      registeredHooks -= before - node.hooks[kind].length;
-    }
-    node.entries = node.entries.filter(entry => {
-      if ('fn' in entry) return entry.file !== path;
-      discard(entry);
-      return entry.entries.length > 0 || Object.values(entry.hooks).some(hooks => hooks.length > 0);
-    });
-  };
-  discard(root);
-  current = root;
-}
-
 function chain(node: Suite): Suite[] {
   const result: Suite[] = [];
   for (let part: Suite | null = node; part; part = part.parent) result.unshift(part);
@@ -206,4 +189,3 @@ export async function runRegistered(): Promise<void> {
 }
 
 globalThis.__hao_test_run = runRegistered;
-globalThis.__hao_test_discardFile = discardTestFile;

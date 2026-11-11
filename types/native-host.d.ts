@@ -26,7 +26,6 @@ declare var __hao_telemetry_captureContext: () => HaoTraceContext;
 declare var __hao_telemetry_enterContext: (context: HaoTraceContext) => HaoTraceContext;
 
 declare var __hao_test_beginCapture: (...args: any[]) => any;
-declare var __hao_test_discardFile: (...args: any[]) => any;
 declare var __hao_test_endCapture: (...args: any[]) => any;
 declare var __hao_test_executablePath: string;
 declare var __hao_test_failed: number;
