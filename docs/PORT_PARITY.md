@@ -57,7 +57,7 @@ it requires byte identity for all except the HTTP index split, utility inspector
 and TypeScript configuration described above. The Cyna utility inspector truncates strings at
 an embedded NUL before formatting, matching Zig's QuickJS C string conversion;
 the retained console differential checks plain, nested, array, `repr`, custom
-`toString`, and property name values.
+`toString`, property name, and function name values.
 TypeScript 5.9.3 checks the port's modules and declarations with the port's
 `src/tsconfig.json`. The port config adds its separate HTTP server module and
 telemetry paths and uses the shared QuickJS host declarations.

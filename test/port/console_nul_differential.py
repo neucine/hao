@@ -10,7 +10,8 @@ SOURCE = """import { inspect } from 'std:util';
 for (const value of ['a\\0b', { x: 'a\\0b' }, ['a\\0b'],
   { repr() { return { data: 'a\\0b' }; } },
   { dtype: 'x', shape: [], toString() { return 'a\\0b'; } },
-  { ['a\\0b']: 1 }]) {
+  { ['a\\0b']: 1 },
+  Object.defineProperty(function named() {}, 'name', { value: 'a\\0b' })]) {
   console.log(JSON.stringify(inspect(value)));
   console.log(value);
 }
@@ -31,7 +32,7 @@ def main() -> None:
         expected = run(legacy, script)
         actual = run(cyna, script)
         assert actual == expected, (expected, actual)
-    print("console inspection: six NUL containing values matched legacy")
+    print("console inspection: seven NUL containing values matched legacy")
 
 
 if __name__ == "__main__":

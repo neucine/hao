@@ -96,7 +96,7 @@ export function inspect(value: unknown, options?: InspectOptions): string {
       catch (_) { return ""; }
     }
     if (typeof item === "function") {
-      try { const name = item.name; return typeof name === "string" && name ? `[Function: ${name}]` : "[Function]"; }
+      try { const rawName = item.name; const name = typeof rawName === "string" ? cString(rawName) : ""; return name ? `[Function: ${name}]` : "[Function]"; }
       catch (_) { return "[Function]"; }
     }
     if (seen.has(item)) return "[Circular]";
