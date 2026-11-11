@@ -135,6 +135,12 @@ improvement, with a smoke check.
   whereas Zig produced an empty value or empty object. Cyna now matches the
   Zig output for these cases, including a `repr` result whose data is a
   `Symbol`; the smoke suite retains representative errors.
+  Zig's `maxStringLength` measures UTF-8 bytes. A shared matrix of accented,
+  CJK, and emoji strings at multiple limits exposed Cyna's UTF-16 unit count;
+  Cyna now truncates by UTF-8 bytes and emits a replacement character for each
+  byte cut from an incomplete character. An unpaired surrogate also counts as
+  three UTF-8 replacement bytes while retaining the original string if the
+  limit does not truncate it. The smoke suite checks representative limits.
 
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also

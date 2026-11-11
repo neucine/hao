@@ -33,8 +33,32 @@ export function inspect(value: unknown, options?: InspectOptions): string {
   if (arguments.length === 0) return undefined as any;
   const opts = merge(options);
   const seen = new Set<object>();
-  const truncate = (text: string) => text.length > opts.maxStringLength
-    ? text.slice(0, opts.maxStringLength) + "..." : text;
+  const truncate = (text: string) => {
+    if (opts.maxStringLength === Infinity || !/[^\x00-\x7f]/.test(text)) {
+      return text.length > opts.maxStringLength ? text.slice(0, opts.maxStringLength) + "..." : text;
+    }
+    let normalized = "";
+    for (let index = 0; index < text.length; index++) {
+      const unit = text.charCodeAt(index);
+      if (unit >= 0xd800 && unit <= 0xdbff && index + 1 < text.length) {
+        const next = text.charCodeAt(index + 1);
+        if (next >= 0xdc00 && next <= 0xdfff) {
+          normalized += text.slice(index, index + 2);
+          index++;
+          continue;
+        }
+      }
+      normalized += unit >= 0xd800 && unit <= 0xdfff ? "\uFFFD" : text[index];
+    }
+    const bytes = unescape(encodeURIComponent(normalized));
+    if (bytes.length <= opts.maxStringLength) return text;
+    const prefix = bytes.slice(0, opts.maxStringLength);
+    for (let length = prefix.length; length >= 0; length--) {
+      try { return decodeURIComponent(escape(prefix.slice(0, length))) + "\uFFFD".repeat(prefix.length - length) + "..."; }
+      catch (_) { /* The byte limit cut through a UTF-8 sequence. */ }
+    }
+    return "...";
+  };
 
   function format(item: any, depth: number): string {
     if (typeof item === "string") return truncate(item);

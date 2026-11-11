@@ -293,6 +293,15 @@ console.log(inspect({ get a() { throw Error('bad field'); } }));
 console.log(inspect(new Proxy({ a: 1 }, { ownKeys() { throw Error('bad keys'); } })));
 EOF
 test "$("$runtime" "$fixture_dir/util-errors.ts")" = "$(printf '{ repr: [Function: repr], a: 1 }\narraylike \n{ repr: , a: 1 }\n{ a:  }\n{ }')"
+cat > "$fixture_dir/util-unicode.ts" <<'EOF'
+import { inspect } from 'std:util';
+console.log(inspect('é', { maxStringLength: 1 }));
+console.log(inspect('🐈', { maxStringLength: 2 }));
+console.log(inspect('世界', { maxStringLength: 4 }));
+console.log(inspect('a🐈b', { maxStringLength: 5 }));
+console.log(inspect('\uD83D', { maxStringLength: 1 }));
+EOF
+test "$("$runtime" "$fixture_dir/util-unicode.ts")" = "$(printf '�...\n��...\n世�...\na🐈...\n�...')"
 
 cat > "$fixture_dir/console-inspect.ts" <<'EOF'
 console.log({ value: 3 }, [1, 2]);
