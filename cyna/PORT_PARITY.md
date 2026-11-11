@@ -11,12 +11,9 @@ unchanged `legacy` suite under the Cyna binary with
 `python3 cyna/test/legacy_e2e.py` also passes 67 cases with 7 skips. This
 directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
-The `cyna-port` CI runs TypeScript, C header, and script checks on a hosted
-runner. It also runs the native build, smoke suite, and unchanged legacy end to
-end suite on the organization's macOS ARM64 runner with pinned Cyna
-0.5.1-beta.1. The compiler distribution is not yet published at the public
-download endpoint, so the native CI job currently depends on that runner's
-installed compiler.
+The `cyna-port` CI runs TypeScript, C header, and script checks. Native build
+and smoke verification currently run locally with pinned Cyna 0.5.1-beta.1;
+that compiler distribution is not published at the public download endpoint.
 The public 0.5.0 release also lacks `std.config`, which this port uses.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
