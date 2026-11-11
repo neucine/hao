@@ -58,6 +58,8 @@ Startup settings `RUNTIME_QJS_STACK_SIZE`, `RUNTIME_QJS_GC_THRESHOLD`, and
 `RUNTIME_LIBUV_THREADPOOL_SIZE` configure QuickJS and libuv before evaluation.
 The stack defaults to 8 MiB. Invalid positive size
 settings fail initialization.
+Invalid startup settings are reported before command dispatch, including for
+`--version` and usage requests.
 At startup, the Cyna host loads an optional `.env` file from the current
 directory. Set `DOTENV` to require a specific file, or set it to an empty value
 to disable loading. Existing environment values take precedence, and the file

@@ -3,7 +3,7 @@ import { read_file_limited } from .fs;
 import { Runtime } from .runtime;
 import { install } from .std;
 import { collect, sort } from .std.test_files;
-import { load_dotenv } from .config;
+import { load_dotenv, telemetry_console_settings, native_stack_trace_enabled } from .config;
 import { run as run_jupyter } from .jupyter.main;
 import { install as install_jupyter } from .jupyter.install;
 import { string as hao_version } from .version;
@@ -11,6 +11,8 @@ import { string as hao_version } from .version;
 extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
 extern c("hao_fs_script_read_error") fn script_read_error(path: *const c_uchar, length: c_size_t, limit: c_size_t): c_int;
 extern c("hao_test_print_load") fn test_print_load(index: c_size_t, total: c_size_t, path: *const c_uchar, length: c_size_t): void;
+extern c("hao_runtime_size_settings_valid") fn size_settings_valid(): c_int;
+extern c("hao_runtime_trace_limit_exceeded") fn trace_limit_exceeded(): c_int;
 
 fn write_stderr(message: string): void {
     const bytes = message.bytes();
@@ -52,6 +54,19 @@ fn main(): i32 {
         println("Unable to load dotenv file");
         return 1;
     }
+    // Zig loads and validates configuration before dispatching even --version.
+    if size_settings_valid() == 0 {
+        write_stderr("error: BadConfigValue\n");
+        return 1;
+    }
+    const console_settings = telemetry_console_settings() catch (code) {
+        write_stderr("error: BadConfigValue\n");
+        return 1;
+    };
+    const native_stack_setting = native_stack_trace_enabled() catch (code) {
+        write_stderr("error: BadConfigValue\n");
+        return 1;
+    };
     const arguments = args();
     if arguments.len() < 2 {
         usage();
@@ -103,6 +118,10 @@ fn main(): i32 {
             return 2;
         }
         sort(&test_files);
+    }
+    if trace_limit_exceeded() != 0 {
+        write_stderr("error: TelemetryTraceLimitExceeded\n");
+        return 1;
     }
     const runtime = Runtime.init();
     if runtime is host {

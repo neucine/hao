@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 static bool positive_size_env(const char *name, size_t *out, bool *present) {
@@ -21,6 +22,29 @@ static bool positive_size_env(const char *name, size_t *out, bool *present) {
     if (errno || !end || *end || parsed == 0 || parsed > SIZE_MAX) return false;
     *out = (size_t)parsed;
     return true;
+}
+
+int hao_runtime_size_settings_valid(void) {
+    size_t value = 0;
+    bool present = false;
+    if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &value, &present) ||
+        !positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &value, &present) ||
+        !positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &value, &present) ||
+        !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &value, &present)) return 0;
+    return 1;
+}
+
+static bool telemetry_console_requested(void) {
+    const char *value = getenv("RUNTIME_TELEMETRY_CONSOLE");
+    return value && (!strcmp(value, "1") || !strcasecmp(value, "true") ||
+                     !strcasecmp(value, "yes") || !strcasecmp(value, "on"));
+}
+
+int hao_runtime_trace_limit_exceeded(void) {
+    size_t capacity = 4096;
+    bool present = false;
+    return positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &capacity, &present) &&
+           capacity > 1048576 && telemetry_console_requested();
 }
 
 #include "src/runtime_host.h"
@@ -218,9 +242,12 @@ uintptr_t hao_runtime_new(void) {
     if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &stack_size, &stack_present) ||
         !positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &gc_threshold, &gc_present) ||
         !positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &thread_pool_size, &pool_present) ||
-        !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &trace_records, &trace_present) ||
-        trace_records > 1048576) {
+        !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &trace_records, &trace_present)) {
         fprintf(stderr, "Invalid Hao runtime size setting\n");
+        return 0;
+    }
+    if (hao_runtime_trace_limit_exceeded()) {
+        fprintf(stderr, "error: TelemetryTraceLimitExceeded\n");
         return 0;
     }
     if (pool_present) {

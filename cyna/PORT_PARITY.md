@@ -65,6 +65,12 @@ console ports across valid and invalid values. It found that Zig accepts signed
 zero for the console port; Cyna now accepts it too, and the smoke suite retains
 `-00` as a regression case. The compared values now have the same accept or
 reject result.
+  Startup validation now runs before CLI dispatch, as Zig's configuration
+  loading does. A direct matrix matched exit status, stdout, and stderr for
+  invalid size, telemetry, and native stack settings with `--version`, a
+  missing script, and bare `test`. The trace record limit only applies when
+  the telemetry console is enabled, matching Zig's ring allocation. The
+  focused CLI fixture retains these error order and diagnostic checks.
   A live console comparison found that `/api/metrics` includes all ten Zig
   host memory metric names. Cyna also exposes QuickJS metrics supplied by
   `std.telemetry`; the smoke suite now guards the shared host metric set.

@@ -129,6 +129,7 @@ if RUNTIME_QJS_STACK_SIZE="$(printf '\t16777216')" "$runtime" "$fixture_dir/main
     echo 'expected leading whitespace in stack size to fail' >&2
     exit 1
 fi
+python3 "$repo_root/cyna/test/config_cli.py" "$runtime"
 cat > "$fixture_dir/settings.env" <<'EOF'
 # startup settings and quoted values
 export HAO_DOTENV_TEST="loaded # intact"
