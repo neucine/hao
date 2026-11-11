@@ -2,6 +2,15 @@ import type { Parameter, FunctionSpec, PodSpec } from "std:ffi/c_abi/ast";
 import type { Prepared } from "std:ffi/c_abi/metadata";
 import { podSpec, ffiType } from "std:ffi/c_abi/lower";
 import { invalidArg } from "std:ffi/c_abi/errors";
+function functionType(type: string, returning = false): string {
+  const bare = /^(?:const\s+)?([A-Za-z_]\w*)$/.exec(type.trim());
+  if (bare && !['void', 'bool', 'char', 'size_t', 'float', 'double',
+    'int8_t', 'int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t',
+    'short', 'int', 'long', 'unsigned', 'signed', 'volatile', 'restrict', 'static', 'extern'].includes(bare[1])) {
+    return 'named';
+  }
+  return ffiType(type, returning);
+}
 function stripComments(source: string): string {
   let result = '';
   for (let index = 0; index < source.length;) {
@@ -85,16 +94,18 @@ export function parse(declarations: string, opts: any): Prepared {
     if (match[3].trim() && match[3].trim() !== 'void') {
       for (const rawParam of match[3].split(',')) {
         const param = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
+        if (rawParam.trim() === 'void') throw invalidArg('missing C parameter name');
         if (!param) throw invalidArg(`invalid C parameter: ${rawParam}`);
+        if (param[1].trim() === 'void') throw invalidArg(`invalid C parameter: ${rawParam}`);
         if (params.some(item => item.name === param[2])) throw invalidArg(`duplicate C parameter: ${param[2]}`);
         const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
         const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;
-        params.push({ name: param[2], type: ffiType(param[1]), pod, rawType: param[1].trim() });
+        params.push({ name: param[2], type: functionType(param[1]), pod, rawType: param[1].trim() });
         rawParams.push({ name: param[2], type: param[1].trim() });
         typeReferences.push(param[1]);
       }
     }
-    functions.push({ name: match[2], params, returns: ffiType(match[1], true) });
+    functions.push({ name: match[2], params, returns: functionType(match[1], true) });
     declarationTypes.set(match[2], { params: rawParams });
     typeReferences.push(match[1]);
   }

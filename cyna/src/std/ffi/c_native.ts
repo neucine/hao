@@ -26,6 +26,9 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
       if (error.message.startsWith('duplicate C type:')) {
         throw invalidArg(`${operation}: declaration lowering failed: DuplicateTypeName`, 'DuplicateTypeName');
       }
+      if (error.message.startsWith('unknown C type:')) {
+        throw invalidArg(`${operation}: declaration lowering failed: UnknownNamedType`, 'UnknownNamedType');
+      }
       if (error.message.startsWith('unknown C function policy:')) {
         throw invalidArg(`${operation}: declaration lowering failed: UnknownFunctionOption`, 'UnknownFunctionOption');
       }
@@ -34,6 +37,9 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
       }
       if (error.message === 'C output parameter is not a pointer') {
         throw invalidArg(`${operation}: declaration lowering failed: OutParamNotPointer`, 'OutParamNotPointer');
+      }
+      if (error.message === 'missing C parameter name') {
+        throw invalidArg(`${operation}: declaration lowering failed: MissingParamName`, 'MissingParamName');
       }
       const bufferError = new Map([
         ['unknown C buffer pointer parameter', 'UnknownBufferPointerParam'],
@@ -52,12 +58,17 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
       if (error.message === 'unsupported C declarations' ||
           error.message === 'unsupported POD bitfield' ||
           error.message.startsWith('unsupported C type:')) {
+        if (/^(?:unsupported C type: )?(?:static|extern|volatile)\b/.test(error.message) ||
+            error.message.startsWith('unsupported POD field type: volatile')) {
+          throw invalidArg(`${operation}: unsupported or invalid C declarations: SyntaxError`, 'SyntaxError');
+        }
         throw invalidArg(`${operation}: unsupported or invalid C declarations: UnsupportedFeature`, 'UnsupportedFeature');
       }
       if (error.message === 'C declaration requires a terminating semicolon' ||
           error.message === 'unterminated C block comment' ||
           error.message.startsWith('invalid C declaration:') ||
           error.message.startsWith('invalid C parameter:') ||
+          error.message.startsWith('invalid POD field:') ||
           error.message.startsWith('unsupported C typedef:')) {
         throw invalidArg(`${operation}: unsupported or invalid C declarations: SyntaxError`, 'SyntaxError');
       }
@@ -72,6 +83,9 @@ export function prepareNative(name: string, declarations: string, opts?: any): {
   const prepared = prepareSpec(name, declarations, opts, 'prepareNative');
   const descriptor: Record<string, { args: string[]; returns: string }> = {};
   for (const fn of prepared.functions) {
+    if (fn.returns === 'named' || fn.params.some(param => param.type === 'named')) {
+      throw new RuntimeError('internal', 'prepareNative: failed to build descriptor');
+    }
     const policy = prepared.policies?.functions?.[fn.name];
     if (policy?.errors || Object.keys(policy?.buffers ?? {}).length) {
       throw new RuntimeError('internal', 'prepareNative: failed to build descriptor');
@@ -126,6 +140,9 @@ function openWithSearch(name: string, search: any): number {
 }
 export function openNative(name: string, declarations: string, opts?: any): { handle: number; symbols: string[]; policies: any } {
   const prepared = prepareSpec(name, declarations, opts, 'openNative');
+  if (prepared.functions.some(fn => fn.returns === 'named' || fn.params.some(param => param.type === 'named'))) {
+    throw invalidArg('openNative: unsupported function policy in runtime path: UnsupportedFeature', 'UnsupportedFeature');
+  }
   let handle: number;
   try { handle = openWithSearch(name, prepared.policies?.search); }
   catch (_) { throw new RuntimeError('io_error', 'openNative: failed to open library'); }

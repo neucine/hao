@@ -854,6 +854,38 @@ RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: U
 {"descriptor":{"f":{"args":["ptr"],"returns":"void"}},"policies":{"handles":{},"functions":{}}}
 EOF
 )"
+cat > "$fixture_dir/ffi-c-named-types.ts" <<'EOF'
+import { prepareNative, openNative } from 'std:ffi/c/native';
+for (const declaration of [
+  'void f(void, int32_t x);',
+  'void f(void x);',
+  'typedef struct { char bytes[4]; } Foo; void f(Foo *x);',
+  'typedef struct { volatile int32_t x; } Foo; void f(Foo *x);',
+  'static double f(double x);',
+  'typedef struct { int32_t x; } Foo; Foo sqrt(void);',
+]) {
+  try { console.log(JSON.stringify(prepareNative('m', declaration))); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
+for (const declaration of [
+  'typedef struct { int32_t x; } Foo; Foo sqrt(void);',
+  'typedef struct Foo Foo; double sqrt(Foo value);',
+]) {
+  try { openNative('m', declaration); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/ffi-c-named-types.ts")" = "$(cat <<'EOF'
+RuntimeError invalid_arg prepareNative: declaration lowering failed: MissingParamName
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError internal prepareNative: failed to build descriptor
+RuntimeError invalid_arg openNative: unsupported function policy in runtime path: UnsupportedFeature
+RuntimeError invalid_arg openNative: unsupported function policy in runtime path: UnsupportedFeature
+EOF
+)"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
 const library = openNative('m', 'double sqrt(double x);');

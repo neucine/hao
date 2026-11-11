@@ -237,6 +237,11 @@ improvement, with a smoke check.
   comments, unsupported arrays and unions, bitfields, standalone struct
   references, mismatched opaque typedef aliases, and empty POD declarations.
   The last four cases needed parser changes and have smoke coverage.
+  A further declaration matrix now matches Zig for named by-value function
+  types, malformed `void` parameters, arrays and `volatile` POD fields, and
+  `static` or `extern` function declarations. The smoke suite checks the
+  resulting `prepareNative` and `openNative` error categories. Other C
+  declaration and policy combinations still need comparison.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from
