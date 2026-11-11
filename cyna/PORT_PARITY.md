@@ -237,6 +237,11 @@ improvement, with a smoke check.
   shared framing matrix matched HTTP/1.0 without Host; duplicate and empty
   Host; folded headers; malformed method and version; Content-Length spacing,
   signs, and conflicts with Transfer-Encoding. The deterministic cases are in
+  the server consumer. A further raw request matrix matched Zig's exact
+  responses for absolute URI rejection, request line spacing, tab separators,
+  host header whitespace, duplicate ordinary headers, leading zero and trailing
+  tab content lengths, non-ASCII host bytes, lowercase methods, `OPTIONS *`,
+  and bare carriage return rejection. The deterministic cases are retained in
   the server consumer. Other protocol framing and shutdown cases remain open.
   A raw response comparison also matched every byte for GET and HEAD success,
   HTTP/1.0 success, missing Host, Expect rejection, handler failure, and an
