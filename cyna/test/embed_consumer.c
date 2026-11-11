@@ -26,6 +26,9 @@ int main(int argc, char **argv) {
     if (hao_embed_eval(runtime, (const unsigned char *)"", 0, NULL, 1) == 0) return 5;
     if (hao_embed_register_module(runtime, NULL, 1, (const unsigned char *)"", 0) == 0) return 6;
     if (hao_embed_register_module(runtime, (const unsigned char *)"x", 1, NULL, 1) == 0) return 7;
+    if (hao_embed_register_module(runtime, (const unsigned char *)"", 0, (const unsigned char *)"", 0) == 0) return 25;
+    const unsigned char nul_name[] = { 'd', 'e', 'm', 'o', 0, ':', 'x' };
+    if (hao_embed_register_module(runtime, nul_name, sizeof(nul_name), (const unsigned char *)"", 0) == 0) return 26;
     if (hao_embed_install_std(runtime, NULL, 1) == 0) return 8;
     if (hao_embed_install_std(runtime, (const unsigned char *)"/missing-hao-modules", 20) == 0) return 19;
     if (!hao_embed_last_error(runtime, error, sizeof(error)) ||

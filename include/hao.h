@@ -20,7 +20,8 @@ HaoRuntimeHandle hao_embed_new(void);
 void hao_embed_free(HaoRuntimeHandle runtime);
 
 /* Return zero on success. Source and names are copied before returning.
-   A null byte pointer is valid only when its length is zero. */
+   A null byte pointer is valid only when its length is zero. Module specifiers
+   must be nonempty and cannot contain a NUL byte. */
 int hao_embed_eval(HaoRuntimeHandle runtime, const unsigned char *source,
                    size_t source_len, const unsigned char *filename, size_t filename_len);
 int hao_embed_register_module(HaoRuntimeHandle runtime, const unsigned char *specifier,

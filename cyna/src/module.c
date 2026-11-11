@@ -67,7 +67,8 @@ static char *hao_lexical_absolute(const char *path) {
 int hao_runtime_register(uintptr_t handle, const char *name, size_t name_len,
                          const char *source, size_t source_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
-    if (name_len == SIZE_MAX || source_len == SIZE_MAX) return 1;
+    if (!name_len || name_len == SIZE_MAX || source_len == SIZE_MAX ||
+        memchr(name, 0, name_len)) return 1;
     HaoSourceModule *module = hao_calloc(1, sizeof(*module));
     if (!module) return 1;
     module->name = hao_alloc(name_len + 1);

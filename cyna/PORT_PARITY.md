@@ -55,6 +55,13 @@ that adapter.
   of the full parity audit.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
+  Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port currently
+  exposes a C embedding ABI for source modules. Its consumer verifies two runtime
+  lifetimes, error replacement, buffer validation, and source registration.
+  Registration now rejects empty and NUL-containing specifiers explicitly,
+  consistent with the Zig registry's empty package rejection and its
+  length-aware specifiers. Native package registration and lifecycle callbacks
+  remain an API parity gap.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
   the Zig kernel beyond the current kernel integration test.
   The Cyna wire layer validates the HMAC and discards malformed multipart
