@@ -204,6 +204,10 @@ improvement, with a smoke check.
   segmentation fault for unknown handle policies and invalid close symbols
   in isolated probes, while Cyna returns an error. Those cases cannot use an identical
   error comparison until the Zig reference behavior is repaired.
+  An expanded syntax matrix matched Zig for whitespace, pointer spelling,
+  comments, unsupported arrays and unions, bitfields, standalone struct
+  references, mismatched opaque typedef aliases, and empty POD declarations.
+  The last four cases needed parser changes and have smoke coverage.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from

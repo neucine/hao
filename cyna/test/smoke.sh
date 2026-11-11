@@ -821,6 +821,25 @@ for (const frozen of [false, true]) {
 }
 EOF
 test "$("$runtime" "$fixture_dir/ffi-c-options-purity.ts")" = "$(printf 'sqrt number 3\nsqrt number 3')"
+cat > "$fixture_dir/ffi-c-syntax-matrix.ts" <<'EOF'
+import { prepareNative } from 'std:ffi/c/native';
+for (const declaration of [
+  'typedef struct { int32_t x:3; } Bits; void f(Bits *b);',
+  'void f(struct Foo *x);',
+  'typedef struct Foo Bar; void f(Bar *x);',
+  'typedef struct { } Empty; void f(Empty *x);',
+]) {
+  try { console.log(JSON.stringify(prepareNative('m', declaration))); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/ffi-c-syntax-matrix.ts")" = "$(cat <<'EOF'
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature
+{"descriptor":{"f":{"args":["ptr"],"returns":"void"}},"policies":{"handles":{},"functions":{}}}
+EOF
+)"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
 const library = openNative('m', 'double sqrt(double x);');

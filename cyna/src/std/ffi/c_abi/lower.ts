@@ -13,6 +13,9 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
   for (const source of body.split(';')) {
     const declaration = source.trim();
     if (!declaration) continue;
+    if (/\b[A-Za-z_]\w*\s*:\s*\d+\s*$/.test(declaration)) {
+      throw invalidArg('unsupported POD bitfield', 'UnsupportedFeature');
+    }
     const match = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(declaration);
     if (!match) throw invalidArg(`invalid POD field: ${declaration}`);
     const name = match[1].trim();
@@ -24,7 +27,6 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
     size += layout.size;
     alignment = Math.max(alignment, layout.alignment);
   }
-  if (!fields.length) throw invalidArg('empty POD struct');
   return { fields, size: Math.ceil(size / alignment) * alignment, alignment,
     invalidLayout: fields.some(field => field.type === 'ptr' || field.type === 'cstring' ||
       field.pod && resolve(field.pod)?.invalidLayout) };

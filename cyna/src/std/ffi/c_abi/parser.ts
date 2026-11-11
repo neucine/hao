@@ -23,6 +23,9 @@ function stripComments(source: string): string {
 export function parse(declarations: string, opts: any): Prepared {
   if (typeof declarations !== 'string') throw invalidArg('cdecl: declarations must be a string');
   const source = stripComments(declarations);
+  if (/\bstruct\s+[A-Za-z_]\w*\s*\*/.test(source)) {
+    throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
+  }
   if (/#|\.\.\.|\(\s*\*\s*[A-Za-z_]\w*\s*\)/.test(source)) {
     throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
   }
@@ -66,7 +69,8 @@ export function parse(declarations: string, opts: any): Prepared {
     if (!statement) continue;
     if (statement.startsWith('typedef ')) {
       const declaration = /^typedef\s+struct\s+([A-Za-z_]\w*)\s+([A-Za-z_]\w*)$/.exec(statement);
-      if (!declaration || declaration[1] !== declaration[2]) throw invalidArg(`unsupported C typedef: ${statement}`);
+      if (!declaration) throw invalidArg(`unsupported C typedef: ${statement}`);
+      if (declaration[1] !== declaration[2]) throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
       if (opaqueTypes.has(declaration[1]) || declaration[1] in podBodies) throw invalidArg(`duplicate C type: ${declaration[1]}`);
       opaqueTypes.add(declaration[1]);
       continue;

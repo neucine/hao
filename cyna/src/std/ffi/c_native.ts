@@ -49,7 +49,9 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
       if (unknownType && !['short', 'int', 'long', 'unsigned', 'signed', 'volatile', 'restrict', 'const'].includes(unknownType[1])) {
         throw invalidArg(`${operation}: declaration lowering failed: UnknownNamedType`, 'UnknownNamedType');
       }
-      if (error.message === 'unsupported C declarations' || error.message.startsWith('unsupported C type:')) {
+      if (error.message === 'unsupported C declarations' ||
+          error.message === 'unsupported POD bitfield' ||
+          error.message.startsWith('unsupported C type:')) {
         throw invalidArg(`${operation}: unsupported or invalid C declarations: UnsupportedFeature`, 'UnsupportedFeature');
       }
       if (error.message === 'C declaration requires a terminating semicolon' ||
