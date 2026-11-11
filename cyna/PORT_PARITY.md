@@ -107,7 +107,11 @@ that adapter.
   an empty string result with no output packet, stdout stream, rich SVG display,
   an execution error with its IOPub error
   packet, and control shutdown. The wider Cyna test still exercises Cyna
-  additions; broader message and scheduling combinations remain open.
+  additions. It also checks an embedded NUL in a cell result: the Cyna bridge
+  retains the full string and JSON encodes the control byte. Zig's current
+  `jsonEscape` emits a raw NUL in this packet, so this is a deliberate
+  valid JSON improvement. Broader message and scheduling combinations remain
+  open.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
   A direct `std:ffi/native` fixture passed under both runtimes: opening libc,

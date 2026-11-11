@@ -344,6 +344,16 @@ int main(int argc, char **argv) {
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\"") ||
         !strstr(content, "Error: broken") || !strstr(content, "at <"))) status = 12;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"'a\\\\u0000b'\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"ok\""))) status = 89;
+    int nul_result = 0, nul_idle = 0;
+    for (int i = 0; !status && i < 40 && (!nul_idle || !nul_result); i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 90; break; }
+        if (strstr(content, "\"text/plain\":\"a\\u0000b\"")) nul_result = 1;
+        if (strstr(content, "\"execution_state\":\"idle\"")) nul_idle = 1;
+    }
+    if (!status && (!nul_result || !nul_idle)) status = 91;
     for (int i = 0; !status && i < 130; i++) {
         char request[128];
         snprintf(request, sizeof(request), "{\"code\":\"globalThis.__histWrap = %d\"}", i);

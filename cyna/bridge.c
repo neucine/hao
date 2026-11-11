@@ -609,8 +609,9 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
         JS_FreeValue(ctx, exception);
         exception = JS_DupValue(ctx, display);
     }
-    const char *value = JS_ToCString(ctx, display);
-    JS_SetPropertyStr(ctx, packet, "value", value ? JS_NewString(ctx, value) : JS_NULL);
+    size_t value_len = 0;
+    const char *value = JS_ToCStringLen(ctx, &value_len, display);
+    JS_SetPropertyStr(ctx, packet, "value", value ? JS_NewStringLen(ctx, value, value_len) : JS_NULL);
     if (!JS_IsUndefined(mime)) JS_SetPropertyStr(ctx, packet, "mime", mime);
     JS_SetPropertyStr(ctx, packet, "error", JS_NewBool(ctx, !JS_IsUndefined(exception)));
     /* Zig's notebook formatter omits an empty primitive string result. */
