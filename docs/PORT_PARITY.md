@@ -225,6 +225,15 @@ improvement, with a smoke check.
   `codex/hao-fs-result-bridge` fixes this in `a05414d` and passes its native
   regression and C ABI suite. Hao retains the adapter while pinned to the
   installed 0.5.1-beta.1 compiler.
+  The pinned standard library's `std.fs.read_bytes` also reads the full file
+  after sizing it; it cannot enforce Hao's read limits before allocation.
+  Cyna branch `codex/hao-bounded-read` adds `read_bytes_limited` and
+  `FsError.too_large` in `51b13ba`. Its focused native test passes 2/2 and
+  `test-fast` passes 246/246. The unfiltered native std.fs gate passes 10/11;
+  its existing raw `malloc` assertion fails on an unrelated line already in
+  `std_fs.c`. Hao can adopt the bounded API after a compiler distribution
+  includes it and the typed error path fix, then rerun the filesystem
+  differential cases before removing the C reader.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,

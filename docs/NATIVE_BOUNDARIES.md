@@ -11,7 +11,7 @@ The async loop C ABI exports live in `async/uv.cy`. The module imports libuv's l
 
 ## Why C remains
 
-The current build contains 18 project C sources (4,636 lines). Only one pinned-compiler blocker is confirmed: `fs_limit.c` contains an existence workaround for the installed 0.5.1-beta.1 `std.fs.exists` error-path crash (Cyna LG-79). Its bounded reader also preserves Zig's open-and-size behavior. The source compiler fix is not in Hao's installed beta.
+The current build contains 18 project C sources (4,636 lines). `fs_limit.c` has two identified Cyna adoption gaps: the installed 0.5.1-beta.1 compiler crashes on the typed `std.fs.exists` error path (Cyna LG-79), and its standard library has no bounded byte read (LG-82). The bounded reader preserves Zig's open-and-size behavior and rejects oversized files before allocation. Both fixes exist on Cyna source branches, but neither is in Hao's installed beta.
 
 | C sources | Current role | Blocker status |
 | --- | --- | --- |
@@ -19,6 +19,6 @@ The current build contains 18 project C sources (4,636 lines). Only one pinned-c
 | `std/fs/native.c`, `std/process/native.c`, `telemetry/interface.c`, `telemetry/metrics.c` | QuickJS adapters for standard modules and telemetry | C API integration choice; no Cyna impossibility established |
 | `std/ffi/native.c`, `std/http/native.c`, `std/http/server_uv.c`, `jupyter/zmq.c` | libffi, libcurl, libuv, and ZeroMQ calls and callbacks | Native library integration choice; no Cyna impossibility established |
 | `std/process/execute.c`, `process_memory.c`, `runtime_allocator.c` | POSIX subprocess and memory accounting, host memory counters, and allocator shared with C libraries | Host implementation choice; no Cyna impossibility established |
-| `fs_limit.c` | Bounded file reads and the `std.fs.exists` workaround | Confirmed blocker for the installed beta's typed error path |
+| `fs_limit.c` | Bounded file reads and the `std.fs.exists` workaround | One confirmed installed compiler defect and one missing standard library capability; source fixes await adoption |
 
 The removed `c_bytes.c` only wrapped pointer reads and `memcpy`. `c_bytes.cy` now performs those operations in an audited `unchecked` block. This passed the executable and static library builds, the port smoke suite, and 235 Zig/Cyna native value comparisons. Other C files need a behavior and API review before moving their implementations; this table is an ownership inventory, not a claim that Cyna cannot express their work.
