@@ -392,6 +392,13 @@ improvement, with a smoke check.
   was exceeded. Cyna now reports Zig's `TooManyHttpRedirects` category. All
   seven cases match, and the smoke suite checks the boundary between a
   successful chain and an excessive one.
+  A retained 20 case local redirect comparison now covers POST with and
+  without a body, GET and PUT, codes 301, 302, 303, 307, and 308, manual mode,
+  and chained redirects.
+  The libcurl adapter lets POST become GET on 301 through 303, reports Zig's
+  `RedirectRequiresResend` when a redirect would need a body resent, and
+  restarts a custom method as GET on 303. A bodyless POST remains POST on 307.
+  All 20 public outcomes match Zig.
   A shared response header probe found that Cyna overwrote repeated header
   names while Zig accumulated them into arrays. The adapter now preserves
   arrival order for repeated keys and keeps differently cased keys separate,

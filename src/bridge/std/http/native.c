@@ -30,6 +30,13 @@ typedef struct {
     int skip_body;
     bool chunked;
     bool manual_redirect;
+    bool has_request_body;
+    bool post_request;
+    bool redirect_requires_resend;
+    bool redirect_to_get;
+    bool custom_method;
+    long redirect_status;
+    char *redirect_location;
     FILE *download_file;
     EVP_MD_CTX *digest;
 } HaoHttpResponse;
@@ -71,6 +78,7 @@ static void destroy_job(HaoHttpJob *job) {
     hao_free(job->download_path);
     hao_free(job->body);
     hao_free(job->final_url);
+    hao_free(job->response.redirect_location);
     hao_free(job->response.body);
     free_headers(job->response.headers);
     curl_slist_free_all(job->request_headers);
@@ -131,9 +139,11 @@ static size_t receive_header(char *data, size_t size, size_t count, void *opaque
     if (length >= 5 && memcmp(data, "HTTP/", 5) == 0) {
         response->skip_body = 0;
         response->chunked = false;
+        response->redirect_status = 0;
         char *space = memchr(data, ' ', length);
         if (space) {
             long status = strtol(space + 1, NULL, 10);
+            response->redirect_status = status;
             response->skip_body = (status >= 100 && status < 200) ||
                 (!response->manual_redirect && status >= 300 && status < 400);
         }
@@ -156,10 +166,28 @@ static size_t receive_header(char *data, size_t size, size_t count, void *opaque
     char *colon = memchr(data, ':', length);
     if (!colon || colon == data) return length;
     size_t name_length = (size_t)(colon - data);
+    if (!response->manual_redirect && response->has_request_body &&
+        ((response->redirect_status == 307 || response->redirect_status == 308) ||
+         (!response->post_request && response->redirect_status >= 301 &&
+          response->redirect_status <= 302)) &&
+        name_length == 8 && strncasecmp(data, "Location", 8) == 0) {
+        response->redirect_requires_resend = true;
+        return 0;
+    }
     const char *value = colon + 1;
     size_t value_length = (size_t)(data + length - value);
     while (value_length && isspace((unsigned char)*value)) { value++; value_length--; }
     while (value_length && isspace((unsigned char)value[value_length - 1])) value_length--;
+    if (!response->manual_redirect && response->custom_method &&
+        response->redirect_status == 303 && name_length == 8 &&
+        strncasecmp(data, "Location", 8) == 0 && value_length) {
+        response->redirect_location = hao_alloc(value_length + 1);
+        if (!response->redirect_location) { response->failed = 2; return 0; }
+        memcpy(response->redirect_location, value, value_length);
+        response->redirect_location[value_length] = 0;
+        response->redirect_to_get = true;
+        return 0;
+    }
     if (name_length == 17 && strncasecmp(data, "Transfer-Encoding", 17) == 0) {
         const char *token = value;
         size_t remaining = value_length;
@@ -203,6 +231,10 @@ static void perform_http(uv_work_t *work) {
     HaoHttpJob *job = work->data;
     HaoHttpResponse *response = &job->response;
     response->manual_redirect = job->manual_redirect;
+    response->has_request_body = job->has_body;
+    response->post_request = strcmp(job->method, "POST") == 0;
+    response->custom_method = strcmp(job->method, "GET") != 0 &&
+        strcmp(job->method, "POST") != 0;
     CURL *curl = NULL;
     char *temporary_path = NULL;
     unsigned char *transport_url = NULL;
@@ -234,7 +266,9 @@ static void perform_http(uv_work_t *work) {
     curl_easy_setopt(curl, CURLOPT_URL, (const char *)transport_url);
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, job->method);
+    if (strcmp(job->method, "POST") == 0) curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    else if (strcmp(job->method, "GET") != 0 || job->has_body)
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, job->method);
     if (strcmp(job->method, "HEAD") == 0) curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, job->manual_redirect ? 0L : 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
@@ -260,10 +294,52 @@ static void perform_http(uv_work_t *work) {
         }
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, job->body);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)job->body_length);
+    } else if (strcmp(job->method, "POST") == 0) {
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)0);
     }
     if (job->request_headers) curl_easy_setopt(curl, CURLOPT_HTTPHEADER, job->request_headers);
     CURLcode code = curl_easy_perform(curl);
+    if (response->redirect_to_get) {
+        char *current_url = NULL;
+        long followed = 0;
+        curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &current_url);
+        curl_easy_getinfo(curl, CURLINFO_REDIRECT_COUNT, &followed);
+        CURLU *url = curl_url();
+        char *next_url = NULL;
+        CURLUcode url_status = url && current_url ? curl_url_set(url, CURLUPART_URL, current_url, 0) : CURLUE_BAD_HANDLE;
+        if (url_status == CURLUE_OK)
+            url_status = curl_url_set(url, CURLUPART_URL, response->redirect_location, 0);
+        if (url_status == CURLUE_OK) url_status = curl_url_get(url, CURLUPART_URL, &next_url, 0);
+        if (url_status != CURLUE_OK || followed >= 3) {
+            if (next_url) curl_free(next_url);
+            if (url) curl_url_cleanup(url);
+            set_legacy_error(job, followed >= 3 ? "TooManyHttpRedirects" : "InvalidFormat");
+            goto done;
+        }
+        curl_easy_setopt(curl, CURLOPT_URL, next_url);
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+        curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 2L - followed);
+        response->custom_method = false;
+        response->has_request_body = false;
+        response->redirect_to_get = false;
+        response->redirect_status = 0;
+        response->skip_body = 0;
+        response->chunked = false;
+        response->status_text[0] = 0;
+        free_headers(response->headers);
+        response->headers = response->headers_tail = NULL;
+        curl_free(next_url);
+        curl_url_cleanup(url);
+        code = curl_easy_perform(curl);
+    }
     if (code != CURLE_OK) {
+        if (response->redirect_requires_resend) {
+            set_legacy_error(job, "RedirectRequiresResend");
+            goto done;
+        }
         if (response->failed == 1) {
             set_legacy_error(job, job->download_path ? "DownloadTooLarge" : "ResponseTooLarge");
             goto done;
