@@ -44,7 +44,7 @@ request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
 A retained 38-case `test/port/http_server_limits_differential.py` compares native server port, connection, timeout, and hostname validation with Zig, including nonfinite and fractional numbers, BigInt, Symbol and object conversion, and embedded NUL in the hostname. The C ABI checks floating point validity before Cyna receives the values; Cyna owns the server limit policy in `std/http/server_uv.cy`.
 
-`std/ffi/native.cy` now owns the 15 descriptor type names and exports their numeric codes to the adjacent libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All same stem C sources now have Cyna companions; this inventory result is separate from behavior parity.
+`std/ffi/native.cy` now owns the 15 descriptor type names and unsigned decimal pointer parsing, exporting both policies to the adjacent libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All same stem C sources now have Cyna companions; this inventory result is separate from behavior parity.
 
 The 18 legacy `std/**/*.d.ts` declarations and all 12 legacy TypeScript source
 and asset files now have matching port locations. The inventory checks them;
@@ -537,6 +537,7 @@ improvement, with a smoke check.
   `1.100000023841858` from `hao_echo_f32(1.1)`, while Zig's current trampoline
   returns `1.273197475e-314`. The Cyna smoke suite now retains this ABI check;
   the correct `f32` result is an intentional improvement over Zig's bug.
+  A retained `test/port/ffi_unsigned_differential.py` now compares 45 Zig/Cyna `u64` and pointer argument outcomes, including `UINT64_MAX`, repeated trailing `n`, invalid decimal text, overflow, and numeric conversion. The known Zig `-1` unsigned exception defect is excluded from that equality assertion and covered by the explicit Cyna error check below. The decimal fallback parser now lives in `std/ffi/native.cy`; the C adapter keeps QuickJS conversions and libffi calls.
   An extended unsigned input probe matched positive values, truncation, and
   Symbol or throwing-object conversion errors. For `-1`, Zig silently returns
   `undefined` because its unsigned conversion fails without setting a JavaScript

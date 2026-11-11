@@ -233,14 +233,8 @@ static bool unsigned_arg(JSContext *ctx, JSValueConst input, uint64_t *out) {
     size_t length = 0;
     const char *text = JS_ToCStringLen(ctx, &length, input);
     if (!text) return false;
-    while (length && text[length - 1] == 'n') length--;
     uint64_t parsed = 0;
-    bool valid = length > 0;
-    for (size_t i = 0; valid && i < length; i++) {
-        unsigned digit = (unsigned char)text[i] - '0';
-        if (digit > 9 || parsed > (UINT64_MAX - digit) / 10) valid = false;
-        else parsed = parsed * 10 + digit;
-    }
+    bool valid = hao_ffi_parse_unsigned((const unsigned char *)text, length, &parsed) != 0;
     JS_FreeCString(ctx, text);
     if (valid) *out = parsed;
     return valid;
