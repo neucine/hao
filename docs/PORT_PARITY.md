@@ -613,3 +613,9 @@ path. The retained checks cover both previously divergent forms.
 An additional 234 run manifest matrix matched Zig and Cyna for root and
 subpath imports using string, object, null, array, and numeric values in
 `exports` or `main`, with absent, `module`, and `commonjs` package types.
+An async timer probe matched eight of nine callback, cancellation, delay,
+and rejection cases. The remaining case scheduled a rejected Promise and a
+second timer 2 ms later. Zig printed the second timer in 17 of 40 runs;
+Cyna printed it in 40 of 40. At 20 ms the existing smoke case verifies both
+exit before the second timer. The 2 ms observation depends on scheduling and
+does not establish a deterministic behavior difference.
