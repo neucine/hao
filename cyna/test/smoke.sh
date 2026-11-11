@@ -162,9 +162,14 @@ const sparse = [];
 sparse.length = 2147483648;
 console.log(native.arrayLength(['a', 'b']), native.arrayLength(sparse));
 console.log(native.invalidHandleProbe());
+for (const args of [[], [1], [Symbol('x'), 2], [{ valueOf() { throw new Error('coercion failed'); } }, 2]]) {
+  try { native.add(...args); }
+  catch (error) { console.log(error.name, error.message); }
+}
+for (const value of [null, 1, Symbol('x'), [], [1, 2]]) console.log(native.arrayLength(value));
 EOF
 addon_actual=$("$runtime" "$fixture_dir/addon.ts")
-test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false\n2 -1\n15')"
+test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false\n2 -1\n15\nTypeError add expects two numbers\nTypeError add expects two numbers\nTypeError add expects two numbers\nTypeError add expects two numbers\n-1\n0\n0\n0\n2')"
 
 mkdir -p "$fixture_dir/node_modules/metric"
 clang -dynamiclib -I "$repo_root/include" "$repo_root/cyna/test/metric_addon.c" -o "$fixture_dir/node_modules/metric/native.dylib"

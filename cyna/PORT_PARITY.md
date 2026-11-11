@@ -11,6 +11,10 @@ unchanged `legacy` suite under the Cyna binary with
 `python3 cyna/test/legacy_e2e.py` also passes 67 cases with 7 skips. This
 directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
+The `cyna-port` CI runs TypeScript, C header, and script checks. Native build
+and smoke verification currently run locally with pinned Cyna 0.5.1-beta.1;
+that compiler distribution is not published at the public download endpoint.
+The public 0.5.0 release also lacks `std.config`, which this port uses.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `cyna/src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
@@ -127,6 +131,10 @@ improvement, with a smoke check.
   handle, which represents `undefined`. A shared C addon probe returns `15`
   under both the Zig and Cyna runtimes for invalid conversion and predicate
   checks.
+  The shared compiled addon now also checks conversion failures for missing,
+  `Symbol`, and throwing numeric arguments, plus array length results for
+  null, scalar, `Symbol`, empty, and populated inputs. Zig and Cyna produced
+  identical output for these cases.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
   the Zig kernel beyond the current kernel integration test.
   The Cyna wire layer validates the HMAC and discards malformed multipart
