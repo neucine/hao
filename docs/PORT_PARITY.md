@@ -12,16 +12,7 @@ unchanged `legacy` suite under the Cyna binary with
 `python3 test/port/legacy_e2e.py` also passes 67 cases with 7 skips. This
 directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
-The `cyna-port` CI runs TypeScript, C header, and script checks. Native build
-and smoke verification currently run locally with pinned Cyna 0.5.1-beta.1;
-that compiler distribution is not published at the public download endpoint.
-The public 0.5.0 release also lacks `std.config`, which this port uses.
-The 0.5.1-beta.1 distribution was staged locally from Cyna PR #9 using the
-compiler-rt archives in the published 0.5.0 distribution. Its staged compiler
-successfully built Hao and its embedding library, and `test/port/smoke.sh`
-passed with that compiler. The archive SHA-256 is
-`34cd1346773a1aa6d291ad1f3858494e66276ea074191ec802d48e7d35e24134`.
-This is local distribution verification; the beta remains unpublished.
+Hao builds against pinned Cyna source revision `f069052` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
@@ -215,32 +206,7 @@ improvement, with a smoke check.
   path or data `TypeError`. Cyna now consumes the conversion exception and
   reports Zig's error for Symbols and throwing `toString` methods.
   A path component of 256 bytes made the pinned Cyna `std.fs.exists` return a
-  typed error through Hao's exported Cyna function and crashed in
-  `failure_trace.c:25`; Zig's `existsSync` returns `false`. Hao now performs
-  this Boolean existence check in its C adapter and exports it through
-  `fs.cy`. The smoke suite covers 256 and 1023 byte names. The cause is now
-  confirmed in Cyna's LLVM return conversion: it copied the scalar C result
-  into a larger result without initializing trace metadata, then released the
-  uninitialized handle on the error path. Cyna branch
-  `codex/hao-fs-result-bridge` fixes this in `a05414d` and passes its native
-  regression and C ABI suite. Hao retains the adapter while pinned to the
-  installed 0.5.1-beta.1 compiler.
-  The pinned standard library's `std.fs.read_bytes` also reads the full file
-  after sizing it; it cannot enforce Hao's read limits before allocation.
-  Cyna branch `codex/hao-bounded-read` adds `read_bytes_limited` and
-  `FsError.too_large` in `51b13ba`. Its focused native test passes 2/2 and
-  `test-fast` passes 246/246. The unfiltered native std.fs gate passes 10/11;
-  its existing raw `malloc` assertion fails on an unrelated line already in
-  `std_fs.c`. Hao can adopt the bounded API after a compiler distribution
-  includes it and the typed error path fix, then rerun the filesystem
-  differential cases before removing the C reader.
-  A source build of Cyna `51b13ba` compiled Hao into a separate executable
-  without changing the pinned beta build. That executable matched Zig on the
-  retained 84 filesystem path operations and 23 write values and passed the
-  unchanged legacy end to end suite: 67 passed, 7 skipped. The
-  `legacy_e2e.py` runner accepts an optional executable path for this check.
-  These runs validate source compiler compatibility, while Hao still calls its
-  C bounded reader until the new standard library API is adopted in source.
+  typed error through Hao’s exported Cyna function. Cyna source revision `f069052` fixes the LLVM result conversion and provides `std.fs.read_bytes_limited`. Hao now uses both `std.fs.exists` and bounded reads in Cyna. The filesystem differential covers 84 path operations and 23 write values; the unchanged legacy suite passes 67 cases with 7 skips. The Jupyter connection reader still uses C for its additional growth check.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,
@@ -746,12 +712,11 @@ The retained `test/port/native_value_differential.py` compares another 210
 output limit values. All 235 results match Zig with the current Cyna build.
 Package root probes found that a regular file named `node_modules/x` makes
 the pinned Cyna build crash while Zig reports `Package manifest not found`.
-The package resolver now uses its bounded `access(2)` helper for root,
+The package resolver now uses Cyna `std.fs.exists` for root,
 manifest, and entry existence checks. A six case file, directory, and symlink
 matrix now matches Zig; the file root case is retained in the port fixture.
-This avoids the installed Cyna 0.5.1-beta.1 typed `std.fs.exists` error path
-already documented as LG-79 in the Cyna language gaps ledger. The source
-compiler has a fix, but Hao remains pinned to the installed beta.
+The pinned Cyna source fixes the typed `std.fs.exists` error path
+documented as LG-79 in the Cyna language gaps ledger.
 
 ## Native boundary layout
 

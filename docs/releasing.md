@@ -5,14 +5,13 @@ The `main` branch contains the Cyna implementation. Its version is recorded in
 version output. Keep those
 values together when preparing a release.
 
-Before tagging, build and verify on Apple Silicon macOS with Cyna
-`0.5.1-beta.1` installed:
+Before tagging, build and verify on Apple Silicon macOS with Zig 0.17.0:
 
 ```sh
 sh build.sh
-cyna check .
-cyna check cyna.lib.toml
-cyna check cyna.jupyter-connection.toml
+.deps/cyna-source/zig-out/bin/cyna check .
+.deps/cyna-source/zig-out/bin/cyna check cyna.lib.toml
+.deps/cyna-source/zig-out/bin/cyna check cyna.jupyter-connection.toml
 sh test/port/smoke.sh
 ./build/hao-cyna test test/e2e
 ```

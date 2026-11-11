@@ -88,8 +88,8 @@ hao test test/e2e/runtime
 
 Build Hao on macOS arm64:
 
-Install Cyna 0.5.1-beta.1 before building. This compiler version currently
-requires a development distribution; see [Cyna build requirements](docs/implementation.md).
+The build fetches and compiles pinned Cyna source revision `f069052` with Zig 0.17.0.
+See [Cyna build requirements](docs/implementation.md).
 
 ```bash
 sh build.sh

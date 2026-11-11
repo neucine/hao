@@ -137,10 +137,10 @@ declarations support `runtime-default`,
 search directories.
 Library searches accept `.dylib` and `.so` names in configured directories.
 
-Builds currently require Apple Silicon macOS, Cyna 0.5.1-beta.1, Rust,
+Builds currently require Apple Silicon macOS, Zig 0.17.0, Rust,
 CMake, a C compiler, and the Homebrew curl, libffi, zeromq, and openssl@3
-libraries. The pinned Cyna beta is not available from the public release
-installer yet, so use an installed development distribution of that version.
+libraries. `build.sh` fetches and builds pinned Cyna source revision `f069052`;
+`HAO_CYNA_SOURCE` can point to an existing checkout at that revision.
 From the Hao repository root, run `sh build.sh`, then
 `./build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
 transpiler archive and pinned QuickJS and libuv C libraries through

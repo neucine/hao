@@ -9,6 +9,7 @@
 int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                         unsigned char *output, size_t capacity);
 int hao_fs_exists(const unsigned char *path);
+unsigned char *hao_fs_read_alloc(const unsigned char *path, size_t length, size_t limit);
 int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);
 int hao_process_run_json(const unsigned char *options, size_t options_len,
                          unsigned char *stdout_output, unsigned char *stderr_output,

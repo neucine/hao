@@ -2,7 +2,6 @@
 #include <quickjs.h>
 #include "../../runtime_allocator.h"
 #include "../../cyna_exports.h"
-#include "../../fs_limit.h"
 #include <stdint.h>
 #include <limits.h>
 #include <stdio.h>
@@ -30,12 +29,12 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
     if (argc < 1) return JS_ThrowTypeError(ctx, "readFileSync expects a path");
     const char *path = JS_ToCString(ctx, argv[0]);
     if (!path) return hao_fs_arg_error(ctx, "readFileSync expects a path");
-    unsigned char *buffer = hao_fs_read_alloc_limited((const unsigned char *)path,
+    unsigned char *buffer = hao_fs_read_alloc((const unsigned char *)path,
                                                       strlen(path), 100 * 1024 * 1024);
     JS_FreeCString(ctx, path);
     if (!buffer) return JS_ThrowInternalError(ctx, "failed to read file");
     JSValue result = JS_NewString(ctx, (const char *)buffer);
-    hao_fs_free_buffer(buffer);
+    hao_free(buffer);
     return result;
 }
 

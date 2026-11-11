@@ -2,7 +2,9 @@
 set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-runtime="$repo_root/build/hao-cyna"
+runtime=${HAO_RUNTIME:-"$repo_root/build/hao-cyna"}
+embed_library=${HAO_EMBED_LIB:-"$repo_root/build/libhao-cyna-embed.a"}
+cyna_bin=${HAO_CYNA_BIN:-"${HAO_CYNA_SOURCE:-$repo_root/.deps/cyna-source}/zig-out/bin/cyna"}
 fixture_dir=$(mktemp -d)
 trap 'rm -rf "$fixture_dir"' EXIT HUP INT TERM
 test "$("$runtime" --version)" = 'hao 0.1.2'
@@ -44,10 +46,15 @@ result = subprocess.run([sys.argv[1], str(Path(sys.argv[2]) / 'main.ts')],
     env={**os.environ, 'DOTENV': str(dotenv)}, capture_output=True, text=True)
 assert result.returncode == 1 and result.stdout == '' and result.stderr == 'error: StreamTooLong\n', result
 PY
-cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
+cyna_dir=$(CDPATH= cd -- "$(dirname -- "$cyna_bin")/.." && pwd -P)
+if [ -f "$cyna_dir/lib/libcyna_std.a" ]; then
+    cyna_lib="$cyna_dir/lib"
+else
+    cyna_lib="$cyna_dir/targets/aarch64-apple-darwin/lib"
+fi
 clang -I "$repo_root/include" -I "$repo_root/.deps/install/include" "$repo_root/test/port/embed_consumer.c" \
-    "$repo_root/build/libhao-cyna-embed.a" \
-    -L "$cyna_dir/targets/aarch64-apple-darwin/lib" -lcyna_std -lcyna \
+    "$embed_library" \
+    -L "$cyna_lib" -lcyna_std -lcyna \
     -L "$repo_root/.deps/install/lib" -lquickjs -luv \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
@@ -77,7 +84,7 @@ EOF
 cat > "$fixture_dir/jupyter-explicit.json" <<'EOF'
 {"transport":"ipc","ip":"0.0.0.0","shell_port":1,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5,"key":"secret","signature_scheme":"hmac-sha256"}
 EOF
-cyna build "$repo_root/cyna.jupyter-connection.toml" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
+"$cyna_bin" build "$repo_root/cyna.jupyter-connection.toml" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-connection.json")" = "$(printf 'tcp://127.0.0.1:57503\n\nhmac-sha256')"
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-explicit.json")" = "$(printf 'ipc://0.0.0.0:1\nsecret\nhmac-sha256')"
 cat > "$fixture_dir/jupyter-exponent-port.json" <<'EOF'

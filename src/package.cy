@@ -1,4 +1,4 @@
-import { path_exists_len } from .fs_limit;
+import { exists } from std.fs;
 import { read_file_limited } from .fs;
 import { dirname, join } from std.path;
 import { env_get } from std.process;
@@ -8,7 +8,11 @@ import { copy_output, text_from_c } from .c_bytes;
 
 fn path_exists(path: string): bool {
     const bytes = path.bytes();
-    return path_exists_len(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) != 0;
+    if bytes.len() > 4096 { return false; }
+    for byte in bytes {
+        if byte == 0 { return false; }
+    }
+    return exists(path) catch (code) => false;
 }
 
 struct Resolution {

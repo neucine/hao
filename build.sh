@@ -3,15 +3,38 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$repo_root"
-required_cyna='cyna 0.5.1-beta.1'
-installed_cyna=$(cyna version 2>&1)
-if [ "$installed_cyna" != "$required_cyna" ]; then
-    echo "Hao Cyna port requires $required_cyna; found $installed_cyna" >&2
+cyna_revision=f069052
+cyna_source=${HAO_CYNA_SOURCE:-"$repo_root/.deps/cyna-source"}
+if ! git -C "$cyna_source" rev-parse --git-dir >/dev/null 2>&1; then
+    git clone --quiet --branch codex/hao-bounded-read-current --single-branch \
+        https://github.com/neucine/cyna.git "$cyna_source"
+    git -C "$cyna_source" checkout --quiet --detach "$cyna_revision"
+fi
+actual_revision=$(git -C "$cyna_source" rev-parse --short=7 HEAD)
+if [ "$actual_revision" != "$cyna_revision" ]; then
+    echo "Hao requires Cyna source $cyna_revision; found $actual_revision" >&2
     exit 1
 fi
+zig_libs_revision=a91b58271be94a4e402a856403fe0fa83add1709
+zig_libs_source="$(dirname "$cyna_source")/zig-libs"
+if ! git -C "$zig_libs_source" rev-parse --git-dir >/dev/null 2>&1; then
+    git clone --quiet https://github.com/neucine/zig-libs.git "$zig_libs_source"
+    git -C "$zig_libs_source" checkout --quiet --detach "$zig_libs_revision"
+fi
+actual_zig_libs=$(git -C "$zig_libs_source" rev-parse HEAD)
+if [ "$actual_zig_libs" != "$zig_libs_revision" ]; then
+    echo "Hao requires zig-libs $zig_libs_revision; found $actual_zig_libs" >&2
+    exit 1
+fi
+if [ "$(zig version)" != '0.17.0' ]; then
+    echo 'Hao requires Zig 0.17.0 to build its pinned Cyna compiler' >&2
+    exit 1
+fi
+(cd "$cyna_source" && zig build)
+cyna_bin="$cyna_source/zig-out/bin/cyna"
 sh build_deps.sh
-cyna build .
-cyna build cyna.lib.toml --output build/libhao-cyna-embed.a
+"$cyna_bin" build .
+"$cyna_bin" build cyna.lib.toml --output build/libhao-cyna-embed.a
 mkdir -p build/modules
 cp src/std/runtime/index.ts build/modules/runtime.ts
 cp src/std/fs/index.ts build/modules/fs.ts

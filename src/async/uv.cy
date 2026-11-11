@@ -1,4 +1,5 @@
 import { runtime_run_turn } from .bridge;
+import { allocate as runtime_alloc, free } from .runtime_allocator;
 // libuv owns the opaque loop and callback handles. Cyna drives one turn at a
 // time so QuickJS jobs are drained between native callbacks.
 
@@ -7,8 +8,6 @@ extern c("uv_loop_init") fn loop_init(loop: *c_void): c_int;
 extern c("uv_loop_close") fn loop_close(loop: *c_void): c_int;
 extern c("uv_loop_alive") fn loop_alive(loop: *c_void): c_int;
 extern c("uv_run") fn uv_run(loop: *c_void, mode: c_int): c_int;
-extern c("hao_alloc") fn runtime_alloc(size: c_size_t): *c_void;
-extern c("hao_free") fn free(pointer: *c_void): void;
 
 export c("hao_async_uv_new") fn new_loop(): *c_void {
     const loop = runtime_alloc(loop_size());
