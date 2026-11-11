@@ -88,6 +88,10 @@ improvement, with a smoke check.
   opens the file before measuring its size, while Cyna's use of `stat` returned
   the size. Cyna now opens and seeks the file like Zig, and the smoke suite
   checks the permission error under a non-root user.
+  An argument conversion matrix found that QuickJS conversion failures leaked
+  through Cyna's `std:fs` adapter, while Zig reports each operation's expected
+  path or data `TypeError`. Cyna now consumes the conversion exception and
+  reports Zig's error for Symbols and throwing `toString` methods.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,

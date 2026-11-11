@@ -20,11 +20,17 @@ void hao_copy_bytes(unsigned char *output, const unsigned char *input, size_t le
     memcpy(output, input, length);
 }
 
+static JSValue hao_fs_arg_error(JSContext *ctx, const char *message) {
+    JSValue cause = JS_GetException(ctx);
+    JS_FreeValue(ctx, cause);
+    return JS_ThrowTypeError(ctx, "%s", message);
+}
+
 static JSValue hao_fs_exists_sync(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     if (argc < 1) return JS_ThrowTypeError(ctx, "existsSync expects a path");
     const char *path = JS_ToCString(ctx, argv[0]);
-    if (!path) return JS_EXCEPTION;
+    if (!path) return hao_fs_arg_error(ctx, "existsSync expects a path");
     int found = hao_fs_exists((const unsigned char *)path);
     JS_FreeCString(ctx, path);
     return JS_NewBool(ctx, found != 0);
@@ -34,7 +40,7 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
     (void)this_val;
     if (argc < 1) return JS_ThrowTypeError(ctx, "readFileSync expects a path");
     const char *path = JS_ToCString(ctx, argv[0]);
-    if (!path) return JS_EXCEPTION;
+    if (!path) return hao_fs_arg_error(ctx, "readFileSync expects a path");
     unsigned char *buffer = hao_fs_read_alloc_limited((const unsigned char *)path,
                                                       strlen(path), 100 * 1024 * 1024);
     JS_FreeCString(ctx, path);
@@ -49,12 +55,12 @@ static JSValue hao_fs_write_file_sync(JSContext *ctx, JSValueConst this_val, int
     if (argc < 1) return JS_ThrowTypeError(ctx, "writeFileSync expects a path");
     if (argc < 2) return JS_ThrowTypeError(ctx, "writeFileSync expects data");
     const char *path = JS_ToCString(ctx, argv[0]);
-    if (!path) return JS_EXCEPTION;
+    if (!path) return hao_fs_arg_error(ctx, "writeFileSync expects a path");
     size_t length = 0;
     const char *data = JS_ToCStringLen(ctx, &length, argv[1]);
     if (!data) {
         JS_FreeCString(ctx, path);
-        return JS_EXCEPTION;
+        return hao_fs_arg_error(ctx, "writeFileSync expects data");
     }
     int status = hao_fs_write((const unsigned char *)path, (const unsigned char *)data, strlen(data));
     JS_FreeCString(ctx, data);
@@ -67,7 +73,7 @@ static JSValue hao_fs_stat_sync(JSContext *ctx, JSValueConst this_val, int argc,
     (void)this_val;
     if (argc < 1) return JS_ThrowTypeError(ctx, "statSync expects a path");
     const char *path = JS_ToCString(ctx, argv[0]);
-    if (!path) return JS_EXCEPTION;
+    if (!path) return hao_fs_arg_error(ctx, "statSync expects a path");
     FILE *file = fopen(path, "rb");
     JS_FreeCString(ctx, path);
     if (!file) return JS_ThrowInternalError(ctx, "failed to stat file");

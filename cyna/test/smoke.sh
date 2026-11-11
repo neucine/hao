@@ -196,6 +196,34 @@ printf "import fs from 'std:fs'; const path = '%s/data.txt'; console.log(fs.exis
 filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
 filesystem_expected=$(printf 'false\ntrue hello 5')
 test "$filesystem_actual" = "$filesystem_expected"
+cat > "$fixture_dir/filesystem-args.ts" <<'EOF'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'std:fs';
+const coercionFailure = { toString() { throw new Error('coercion failed'); } };
+for (const [name, call] of [
+  ['existsSync', (value: unknown) => existsSync(value as string)],
+  ['readFileSync', (value: unknown) => readFileSync(value as string)],
+  ['statSync', (value: unknown) => statSync(value as string)],
+  ['writeFileSync', (value: unknown) => writeFileSync(value as string, 'x')],
+] as const) {
+  for (const value of [Symbol('path'), coercionFailure]) {
+    try { call(value); } catch (error) { console.log(error.name, error.message); }
+  }
+}
+try { writeFileSync('/tmp/unused-hao-path', Symbol('data') as unknown as string); }
+catch (error) { console.log(error.name, error.message); }
+EOF
+test "$("$runtime" "$fixture_dir/filesystem-args.ts")" = "$(cat <<'EOF'
+TypeError existsSync expects a path
+TypeError existsSync expects a path
+TypeError readFileSync expects a path
+TypeError readFileSync expects a path
+TypeError statSync expects a path
+TypeError statSync expects a path
+TypeError writeFileSync expects a path
+TypeError writeFileSync expects a path
+TypeError writeFileSync expects data
+EOF
+)"
 if [ "$(id -u)" -ne 0 ]; then
     printf 'hidden' > "$fixture_dir/unreadable.txt"
     chmod 000 "$fixture_dir/unreadable.txt"
