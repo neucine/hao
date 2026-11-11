@@ -139,18 +139,30 @@ int main(int argc, char **argv) {
         }
         if (!status && !idle_seen) status = 88;
         if (!status && (send_request(shell, "execute_request",
-            "{\"code\":\"console.log('hao-stream'); 3\"}") < 0 ||
+            "{\"code\":\"console.log('hao-stream'); console.error('hao-error'); 3\"}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok"))) status = 76;
-        int stream_seen = 0;
+        int stream_stage = 0;
         result_seen = idle_seen = 0;
         for (int i = 0; !status && i < 8 && !idle_seen; i++) {
             if (receive_content(iopub, content, sizeof(content)) < 0) { status = 77; break; }
-            if (strstr(content, "stdout") && strstr(content, "hao-stream")) stream_seen = 1;
-            if (strstr(content, "text/plain") && strstr(content, "3")) result_seen = 1;
-            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+            if (strstr(content, "execution_state") && strstr(content, "busy")) {
+                if (stream_stage++ != 0) status = 106;
+            } else if (strstr(content, "\"code\"") && strstr(content, "hao-stream")) {
+                if (stream_stage++ != 1) status = 107;
+            } else if (strstr(content, "stdout") && strstr(content, "hao-stream")) {
+                if (stream_stage++ != 2) status = 108;
+            } else if (strstr(content, "stderr") && strstr(content, "hao-error")) {
+                if (stream_stage++ != 3) status = 109;
+            } else if (strstr(content, "text/plain") && strstr(content, "3")) {
+                if (stream_stage++ != 4) status = 110;
+                result_seen = 1;
+            } else if (strstr(content, "execution_state") && strstr(content, "idle")) {
+                if (stream_stage++ != 5) status = 111;
+                idle_seen = 1;
+            }
         }
-        if (!status && (!stream_seen || !result_seen || !idle_seen)) status = 78;
+        if (!status && (!result_seen || !idle_seen || stream_stage != 6)) status = 78;
         if (!status && (send_request(shell, "execute_request",
             "{\"code\":\"({ repr() { return { mime: 'image/svg+xml', data: '<svg/>' }; } })\"}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||
