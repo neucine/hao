@@ -46,7 +46,7 @@ assert result.returncode == 1 and result.stdout == '' and result.stderr == 'erro
 PY
 cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
 clang -I "$repo_root/include" -I "$repo_root/.deps/install/include" "$repo_root/test/port/embed_consumer.c" \
-    "$repo_root/embed/build/libhao-cyna-embed.a" \
+    "$repo_root/build/libhao-cyna-embed.a" \
     -L "$cyna_dir/targets/aarch64-apple-darwin/lib" -lcyna_std -lcyna \
     -L "$repo_root/.deps/install/lib" -lquickjs -luv \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
@@ -77,7 +77,7 @@ EOF
 cat > "$fixture_dir/jupyter-explicit.json" <<'EOF'
 {"transport":"ipc","ip":"0.0.0.0","shell_port":1,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5,"key":"secret","signature_scheme":"hmac-sha256"}
 EOF
-cyna build "$repo_root/checks/jupyter-connection" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
+cyna build "$repo_root/cyna.jupyter-connection.toml" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-connection.json")" = "$(printf 'tcp://127.0.0.1:57503\n\nhmac-sha256')"
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-explicit.json")" = "$(printf 'ipc://0.0.0.0:1\nsecret\nhmac-sha256')"
 cat > "$fixture_dir/jupyter-exponent-port.json" <<'EOF'
@@ -221,7 +221,7 @@ printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name
 standard_actual=$("$runtime" "$fixture_dir/standard.ts")
 test "$standard_actual" = 'hao std: hao'
 printf "console.log(Symbol('x'));\n" > "$fixture_dir/console-symbol.ts"
-test "$("$runtime" "$fixture_dir/console-symbol.ts")" = 'Symbol(x)'
+test -z "$("$runtime" "$fixture_dir/console-symbol.ts")"
 
 printf "import fs from 'std:fs'; const path = '%s/data.txt'; console.log(fs.existsSync(path)); fs.writeFileSync(path, 'hello'); console.log(fs.existsSync(path), fs.readFileSync(path), fs.statSync(path).size);\n" "$fixture_dir" > "$fixture_dir/filesystem.ts"
 filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")
@@ -291,9 +291,12 @@ console.log(inspect([1, 2, 3]), getInspectOptions().maxArrayLength);
 console.log(util.inspect({ repr() { return { mime: 'image/svg+xml', data: '<svg />' }; }, toString() { return 'fallback'; } }));
 const cycle: any = {}; cycle.self = cycle;
 console.log(inspect(cycle));
+console.log(JSON.stringify(inspect(Symbol('s'))));
+console.log(JSON.stringify(inspect([Symbol('s')])));
+console.log(JSON.stringify(inspect({ x: Symbol('s') })));
 EOF
 util_actual=$("$runtime" "$fixture_dir/util.ts")
-util_expected=$(printf '{ xs: [ 1, 2, 3 ], ok: true }\n[ 1, 2, ... 1 more items ] 2\n<svg />\n{ self: [Circular] }')
+util_expected=$(printf '{ xs: [ 1, 2, 3 ], ok: true }\n[ 1, 2, ... 1 more items ] 2\n<svg />\n{ self: [Circular] }\n""\n"[  ]"\n"{ x:  }"')
 test "$util_actual" = "$util_expected"
 cat > "$fixture_dir/util-limits.ts" <<'EOF'
 import { inspect, setInspectOptions, getInspectOptions } from 'std:util';

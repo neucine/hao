@@ -1,7 +1,8 @@
 # Releasing Hao
 
 The `main` branch contains the Cyna implementation. Its version is recorded in
-`cyna.toml`, `embed/cyna.toml`, and the CLI version output. Keep those
+`cyna.toml`, `cyna.lib.toml`, `cyna.jupyter-connection.toml`, and the CLI
+version output. Keep those
 values together when preparing a release.
 
 Before tagging, build and verify on Apple Silicon macOS with Cyna
@@ -10,7 +11,8 @@ Before tagging, build and verify on Apple Silicon macOS with Cyna
 ```sh
 sh build.sh
 cyna check .
-cyna check embed
+cyna check cyna.lib.toml
+cyna check cyna.jupyter-connection.toml
 sh test/port/smoke.sh
 ./build/hao-cyna test test/e2e
 ```

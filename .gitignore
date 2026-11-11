@@ -1,8 +1,6 @@
 .zig-cache/
 .cyna-cache/
 build/
-embed/build/
-checks/**/build/
 zig-out/
 zig-pkg/
 .deps/

@@ -11,7 +11,7 @@ if [ "$installed_cyna" != "$required_cyna" ]; then
 fi
 sh build_deps.sh
 cyna build .
-cyna build embed
+cyna build cyna.lib.toml --output build/libhao-cyna-embed.a
 mkdir -p build/modules
 cp src/std/runtime/index.ts build/modules/runtime.ts
 cp src/std/fs/index.ts build/modules/fs.ts

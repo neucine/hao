@@ -67,6 +67,7 @@ export function inspect(value: unknown, options?: InspectOptions): string {
   function format(item: any, depth: number): string {
     if (typeof item === "string") return truncate(item);
     if (item === null) return "null";
+    if (typeof item === "symbol") return "";
     if (typeof item !== "object" && typeof item !== "function") return String(item);
     if (depth >= opts.maxDepth) return "[Object]";
 

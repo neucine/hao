@@ -35,7 +35,7 @@ while behavior parity still requires the comparisons below.
 | --- | --- | --- |
 | `hao.zig` | `src/runtime.cy`, `src/std.cy`, `src/embed.cy` | Cyna modules and the embedding C ABI replace the Zig root export module. |
 | `js/abi.zig`, `js/mod.zig` | `bridge.c`, `src/module.c`, `src/runtime_host.h` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
-| `link.zig` | `cyna.toml`, `build.sh` | Linking is declared in the Cyna build manifest. |
+| `link.zig` | `cyna.toml`, `cyna.lib.toml`, `build.sh` | Linking is declared in the Cyna build manifests. |
 | `qjs.zig` | `src/runtime.cy`, `bridge.c`, `src/runtime_host.h` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
 | `std/ffi/Library.zig`, `std/ffi/runtime.zig`, `std/ffi/trampoline.zig`, `std/ffi/types.zig` | `src/std/ffi/native.c`, `src/std/ffi/native.ts` | One libffi adapter replaces the Zig library and call trampoline layers. |
 | `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `bridge.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
@@ -626,3 +626,14 @@ parent segment spellings now match in a direct comparison, and the retained
 package diagnostic fixture covers a successful parent export. An 18 case
 `std:fs` probe covering missing files, directories, symbols, null values, and
 embedded NULs also matched Zig without a port change.
+The `std:util` native boundary was compared for 22 primitive, string,
+collection, function, date, error, repr, and nested values. A symbol value
+was the only mismatch: Zig's QuickJS string conversion appends no text for a
+symbol, while Cyna's TypeScript adapter used JavaScript `String(symbol)`.
+The adapter now matches Zig for direct and nested symbols, with retained
+smoke cases for all three forms. Console logging also prints an empty line
+for a direct symbol, matching Zig.
+The executable, embedding library, and Jupyter connection check now use root
+manifests `cyna.toml`, `cyna.lib.toml`, and
+`cyna.jupyter-connection.toml`. `build.sh` writes both runtime artifacts
+under `build/`.

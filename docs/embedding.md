@@ -1,6 +1,7 @@
 # Embedding Hao
 
-The Cyna build produces `embed/build/libhao-cyna-embed.a` and exposes its C
+The Cyna library manifest is `cyna.lib.toml`. The build produces
+`build/libhao-cyna-embed.a` and exposes its C
 interface in `include/hao.h`. Create a runtime with `hao_embed_new`, register
 source modules with `hao_embed_register_module`, evaluate a module with
 `hao_embed_eval`, drain pending Promise and native work with
