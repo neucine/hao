@@ -1306,6 +1306,21 @@ timer_turns_actual=$("$runtime" "$fixture_dir/timer-turns.ts")
 timer_turns_expected=$(printf 'first\njob\nsecond')
 test "$timer_turns_actual" = "$timer_turns_expected"
 
+cat > "$fixture_dir/timer-nested.ts" <<'EOF'
+const events: string[] = [];
+const cancelled = setTimeout(() => events.push('cancelled'), 1);
+clearTimeout(cancelled);
+setTimeout(() => {
+  events.push('first');
+  Promise.resolve().then(() => events.push('job'));
+  setTimeout(() => {
+    events.push('nested');
+    console.log(JSON.stringify(events));
+  }, 1);
+}, 1);
+EOF
+test "$("$runtime" "$fixture_dir/timer-nested.ts")" = '["first","job","nested"]'
+
 cat > "$fixture_dir/timer-arguments.ts" <<'EOF'
 import { startTraceNative } from 'std:telemetry/native';
 console.log(typeof startTraceNative);

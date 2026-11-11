@@ -97,8 +97,9 @@ improvement, with a smoke check.
   serviced turn even when its final handle closes. `Loop.run_until_idle` also
   drains QuickJS jobs between turns. The smoke suite covers timer cancellation,
   callback errors, and a Promise job between two timer callbacks. This checks
-  the timer path; other libuv handle types and shutdown ordering still need
-  comparison.
+  the timer path. A shared nested timer probe additionally matched cancellation,
+  Promise job draining, and scheduling a new timer inside a callback. Other
+  libuv handle types and shutdown ordering still need comparison.
   Notebook Promise waiting now follows Zig's 64 idle turn cutoff and reports
   a libuv run failure. The kernel consumer checks that an unresolved Promise
   yields `Promise did not settle`, then accepts a later request. Its shared
