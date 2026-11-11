@@ -241,6 +241,18 @@ int main(int argc, char **argv) {
             if (strstr(content, "execution_state") && strstr(content, "idle")) info_idle_seen = 1;
         }
         if (!status && !info_idle_seen) status = 105;
+        if (!status && (send_request(shell, "kernel_info_request", "{}") < 0 ||
+            send_request(shell, "kernel_info_request", "{}") < 0)) status = 116;
+        for (int i = 0; !status && i < 2; i++) {
+            if (receive_content(shell, content, sizeof(content)) < 0 ||
+                !strstr(content, "\"implementation\"")) status = 117;
+        }
+        const char *expected_states[] = {"busy", "idle", "busy", "idle"};
+        for (int i = 0; !status && i < 4; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0 ||
+                !strstr(content, "execution_state") ||
+                !strstr(content, expected_states[i])) status = 118;
+        }
         if (!status && (send_request(control, "shutdown_request", "{") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok") ||

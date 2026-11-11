@@ -534,6 +534,10 @@ improvement, with a smoke check.
   The shared consumer now checks IOPub order for an execution that writes both
   streams and returns a value: busy status, input, stdout, stderr, result, and
   idle status. The same compiled consumer passes against both kernels.
+  It now also queues two `kernel_info_request` messages before reading either
+  response. Both kernels return two shell replies and publish busy, idle, busy,
+  idle in order. This checks one concurrent shell scheduling case; other
+  interleavings remain unverified.
   The Cyna ZeroMQ sockets now use Zig's 1000 ms linger on close, giving queued
   shutdown replies and IOPub frames the same delivery window. The existing
   shared kernel consumer still receives the shutdown reply after this change.
