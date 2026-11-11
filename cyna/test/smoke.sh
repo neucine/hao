@@ -716,11 +716,18 @@ EOF
 test "$("$runtime" "$fixture_dir/ffi-terminator.ts")" = "$(printf 'rejected\naccepted 2')"
 cat > "$fixture_dir/ffi-native-stack.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
-try { cdecl('m', 'double sqrt(double x)'); }
-catch (error) { console.log(typeof error.nativeStack, error.nativeStack?.startsWith('SyntaxError\n')); }
+for (const [declaration, nativeName] of [
+  ['double sqrt(double x)', 'SyntaxError'],
+  ['#include <stdio.h>', 'UnsupportedFeature'],
+  ['int printf(const char* fmt, ...);', 'UnsupportedFeature'],
+  ['int sum(int a, int b);', 'UnsupportedFeature'],
+]) {
+  try { cdecl('m', declaration); }
+  catch (error) { console.log(typeof error.nativeStack, error.nativeStack?.startsWith(nativeName + '\n')); }
+}
 EOF
-test "$(RUNTIME_NATIVE_STACK_TRACE=1 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = 'string true'
-test "$(RUNTIME_NATIVE_STACK_TRACE=0 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = 'undefined undefined'
+test "$(RUNTIME_NATIVE_STACK_TRACE=1 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = "$(printf 'string true\nstring true\nstring true\nstring true')"
+test "$(RUNTIME_NATIVE_STACK_TRACE=0 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = "$(printf 'undefined undefined\nundefined undefined\nundefined undefined\nundefined undefined')"
 cat > "$fixture_dir/ffi-char.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';

@@ -5,7 +5,7 @@ function scalarLayout(type: string): { size: number; alignment: number } {
   if (['i16', 'u16'].includes(type)) return { size: 2, alignment: 2 };
   if (['i32', 'u32', 'f32'].includes(type)) return { size: 4, alignment: 4 };
   if (['i64', 'u64', 'f64'].includes(type)) return { size: 8, alignment: 8 };
-  throw invalidArg(`unsupported POD field type: ${type}`);
+  throw invalidArg(`unsupported POD field type: ${type}`, 'UnsupportedFeature');
 }
 export function podSpec(body: string, resolve: (name: string) => PodSpec | null): PodSpec {
   const fields: PodField[] = [];
@@ -33,7 +33,7 @@ export function ffiType(type: string, returning = false): string {
   const constCharPointer = source.startsWith('const ');
   const normalized = source.replace(/^const\s+/, '').replace(/\*\s*const\b/g, '*').trim();
   if (/\b(short|int|long|unsigned|signed|volatile|restrict|const)\b/.test(normalized)) {
-    throw invalidArg(`unsupported C type: ${type}`);
+    throw invalidArg(`unsupported C type: ${type}`, 'UnsupportedFeature');
   }
   if (/\*/.test(normalized)) {
     if (constCharPointer && /^char\s*\*$/.test(normalized)) return 'cstring';
@@ -46,6 +46,6 @@ export function ffiType(type: string, returning = false): string {
     uint8_t: 'u8', uint16_t: 'u16', uint32_t: 'u32', uint64_t: 'u64',
   };
   const result = mapping[normalized];
-  if (!result) throw invalidArg(`unsupported C type: ${type}`);
+  if (!result) throw invalidArg(`unsupported C type: ${type}`, 'UnsupportedFeature');
   return result;
 }

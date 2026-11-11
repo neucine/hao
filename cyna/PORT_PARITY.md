@@ -2,8 +2,11 @@
 
 Reference: `legacy` at `e1f4b59`. Port: `cyna-port`. A matching path means an
 implementation location, not proof of equivalent behavior. The end to end suite
-currently exercises 20 files and 81 cases; it does not cover every Zig source
+currently exercises 20 files and 82 cases; it does not cover every Zig source
 boundary.
+On the current trees, `hao test test/e2e` passed 67 Zig cases with 7 skips and
+75 Cyna cases with 7 skips. The Cyna branch adds eight cases, so these totals
+are suite health evidence rather than proof of behavior parity.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `cyna/src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
@@ -34,7 +37,9 @@ that adapter.
   classified C FFI declaration errors carry a captured C stack in
   `nativeStack`. With the flag enabled, Zig and Cyna both produce a string
   beginning with `SyntaxError`; with it disabled, Cyna leaves the field
-  undefined. Other native error paths and exact stack frames remain to be
+  undefined. Unsupported declarations and platform width integer types now
+  use Zig's `UnsupportedFeature` prefix. Other native error paths and exact
+  stack frames remain to be
   compared. A direct `std:util` fixture covering primitives, arrays, objects,
   cycles, `repr()`, and inspect options produced identical output on both
   runtimes.
