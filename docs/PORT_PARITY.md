@@ -12,6 +12,11 @@ unchanged `legacy` suite under the Cyna binary with
 `python3 test/port/legacy_e2e.py` also passes 67 cases with 7 skips. This
 directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
+Run the retained public comparisons together with
+`python3 test/port/run_differentials.py <legacy-binary> <cyna-binary>`.
+All 18 differential programs passed against the current local binaries. They
+cover the cases recorded below; they do not establish behavior for every
+possible input or every source boundary.
 Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
