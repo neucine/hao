@@ -144,6 +144,9 @@ pub fn build(b: *std.Build) void {
         .flags = &.{
             "-std=gnu11",
             "-fwrapv",
+            // QuickJS 0.13.0 casts js_realloc_rt to DynBufReallocFunc in
+            // unicode_normalize; Clang's function sanitizer traps on normalize().
+            "-fno-sanitize=function",
             "-D_GNU_SOURCE",
             "-DCONFIG_VERSION=\"0.13.0\"",
         },
