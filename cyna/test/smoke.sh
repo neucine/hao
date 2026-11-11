@@ -485,6 +485,21 @@ try { startRootTraceNative('x'.repeat(97)); } catch (error) { console.log(error.
 try { startTraceNative(Symbol('name')); } catch (error) { console.log(error.name, error.message); }
 EOF
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-native-names.ts")" = "$(printf 'ok 1\nok 2\nInternalError failed to start trace span\nTypeError startRootTrace requires a name\nInternalError failed to start root trace span\nTypeError trace name must be a string')"
+cat > "$fixture_dir/telemetry-native-ids.ts" <<'EOF'
+import { startTraceNative, enterTraceNative, exitTraceNative, endTraceNative,
+  snapshotTraceRecordsNative } from 'std:telemetry/native';
+const id = startTraceNative('coerced');
+const scope = enterTraceNative(String(id));
+exitTraceNative(String(scope));
+endTraceNative(String(id), 7);
+console.log(snapshotTraceRecordsNative().records.at(-1).status);
+for (const invoke of [() => enterTraceNative(99), () => exitTraceNative(99),
+  () => endTraceNative(99), () => enterTraceNative(-1), () => exitTraceNative(),
+  () => endTraceNative(99, Symbol('status'))]) {
+  try { invoke(); } catch (error) { console.log(error.name, error.message); }
+}
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-native-ids.ts")" = "$(printf 'ok\nInternalError failed to enter trace span\nInternalError failed to exit trace span\nInternalError failed to end trace span\nTypeError trace span id must be a non-negative integer\nTypeError exitTrace requires a scope id\nTypeError trace status must be a string')"
 cat > "$fixture_dir/telemetry-disabled.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';

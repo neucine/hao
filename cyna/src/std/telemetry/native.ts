@@ -184,8 +184,17 @@ export function addTraceEventNative(id: number, name: string, attributes: TraceA
   if (typeof name !== 'string' || !name || utf8Length(name) > 96) throw Error('invalid trace name');
   recordSpan(span, 'event', 'unset', name, attributes);
 }
+function traceId(value: unknown, kind: 'span' | 'scope'): number {
+  let id: number;
+  try { id = Number(value) | 0; }
+  catch { throw new TypeError(`trace ${kind} id must be a non-negative integer`); }
+  if (id < 0) throw new TypeError(`trace ${kind} id must be a non-negative integer`);
+  return id;
+}
 export function enterTraceNative(id: number): number {
-  if (!spans.has(id)) throw Error('unknown trace span');
+  if (arguments.length < 1) throw new TypeError('enterTrace requires a span id');
+  id = traceId(id, 'span');
+  if (!spans.has(id)) throw new InternalError('failed to enter trace span');
   const scope = nextScopeId++;
   scopes.set(scope, { span: currentSpan, trace: currentTraceId, spanId: currentSpanId });
   currentSpan = id;
@@ -194,7 +203,9 @@ export function enterTraceNative(id: number): number {
   return scope;
 }
 export function exitTraceNative(scope: number): void {
-  if (!scopes.has(scope)) throw Error('unknown trace scope');
+  if (arguments.length < 1) throw new TypeError('exitTrace requires a scope id');
+  scope = traceId(scope, 'scope');
+  if (!scopes.has(scope)) throw new InternalError('failed to exit trace span');
   const previous = scopes.get(scope)!;
   currentSpan = previous.span;
   currentTraceId = previous.trace;
@@ -202,8 +213,15 @@ export function exitTraceNative(scope: number): void {
   scopes.delete(scope);
 }
 export function endTraceNative(id: number, status: 'ok' | 'err' | 'unset' = 'ok'): void {
+  if (arguments.length < 1) throw new TypeError('endTrace requires a span id');
+  id = traceId(id, 'span');
+  if (arguments.length >= 2) {
+    if (typeof status === 'symbol') throw new TypeError('trace status must be a string');
+    const text = String(status);
+    status = text === 'err' ? 'err' : text === 'unset' ? 'unset' : 'ok';
+  }
   const span = spans.get(id);
-  if (!span) throw Error('unknown trace span');
+  if (!span) throw new InternalError('failed to end trace span');
   recordSpan(span, 'span_end', status);
   spans.delete(id);
   trimTraceIds();
