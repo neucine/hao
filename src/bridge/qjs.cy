@@ -18,3 +18,11 @@ pub extern c("hao_embed_bytes_valid") fn bytes_valid(pointer: *const c_uchar, le
 pub extern c("hao_embed_clear_error") fn clear_error(handle: c_size_t): void;
 pub extern c("hao_embed_invalid_buffer") fn invalid_buffer(handle: c_size_t): void;
 pub extern c("hao_embed_set_error") fn set_error(handle: c_size_t, message: *const c_uchar, length: c_size_t): void;
+
+pub extern c("hao_runtime_register") fn runtime_register(handle: c_size_t, name: *const c_uchar, name_len: c_size_t, source: *const c_uchar, source_len: c_size_t): c_int;
+
+pub extern c("hao_global_install_console") fn install_console_native(handle: c_size_t): c_int;
+pub extern c("hao_test_print_load") fn test_print_load(index: c_size_t, total: c_size_t, path: *const c_uchar, length: c_size_t): void;
+pub extern c("hao_global_install_timer") fn install_timer_native(handle: c_size_t): c_int;
+pub extern c("hao_error_eval") fn eval_source(context: *c_void, source: *const c_uchar, length: c_size_t): c_int;
+pub extern c("hao_error_install_stack_capture") fn install_stack_capture(context: *c_void): void;

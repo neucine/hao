@@ -1,4 +1,4 @@
-import { runtime_drain } from .bridge;
+import { runtime_drain } from .bridge.qjs;
 import { run_turn } from .async.uv;
 
 

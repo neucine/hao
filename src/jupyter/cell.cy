@@ -68,7 +68,7 @@ pub fn rewrite_declarations(source: *const c_uchar, length: usize,
     return at;
 }
 
-export c("hao_jupyter_rewrite_cell") fn rewrite_cell_c(source: *const c_uchar,
+pub fn rewrite_cell_c(source: *const c_uchar,
     length: c_size_t, output: *c_uchar, capacity: c_size_t): c_size_t {
     const written = rewrite_declarations(source, length as usize, output, capacity as usize);
     if written is none { return capacity + 1; }

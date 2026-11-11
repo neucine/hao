@@ -247,7 +247,7 @@ fn resolve(base: string, specifier: string): Resolution {
     return failed(-1);
 }
 
-export c("hao_resolve_package") fn resolve_package(base_pointer: *const c_uchar, specifier_pointer: *const c_uchar, output: *c_uchar, capacity: c_size_t): c_int {
+pub fn resolve_package(base_pointer: *const c_uchar, specifier_pointer: *const c_uchar, output: *c_uchar, capacity: c_size_t): c_int {
     const base = text_from_c(base_pointer);
     const specifier = text_from_c(specifier_pointer);
     const resolution = resolve(base, specifier);

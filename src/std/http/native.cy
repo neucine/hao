@@ -106,18 +106,18 @@ pub fn transport_url(url: string): string {
     return url.clone();
 }
 
-export c("hao_http_valid_method") fn valid_method_c(method: *const c_uchar): c_int {
+pub fn valid_method_c(method: *const c_uchar): c_int {
     if method == (0 as! *const c_uchar) { return 0; }
     if valid_method(text_from_c(method)) { return 1; }
     return 0;
 }
 
-export c("hao_http_url_error") fn url_error_c(url: *const c_uchar): c_int {
+pub fn url_error_c(url: *const c_uchar): c_int {
     if url == (0 as! *const c_uchar) { return 1; }
     return url_error(text_from_c(url)) as c_int;
 }
 
-export c("hao_http_transport_url") fn transport_url_c(url: *const c_uchar): ?*c_uchar {
+pub fn transport_url_c(url: *const c_uchar): ?*c_uchar {
     if url == (0 as! *const c_uchar) { return none; }
     const value = transport_url(text_from_c(url));
     const bytes = value.bytes();

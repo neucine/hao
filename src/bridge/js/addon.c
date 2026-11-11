@@ -1,6 +1,6 @@
 #include "addon_native.h"
 #include "../telemetry/metrics.h"
-#include "../../include/addon.h"
+#include "../../../include/addon.h"
 #include "../runtime_allocator.h"
 #include <quickjs.h>
 #include <dlfcn.h>

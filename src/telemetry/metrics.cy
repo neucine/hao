@@ -9,14 +9,14 @@ fn valid_text(value: string, required: bool): bool {
     return true;
 }
 
-export c("hao_metric_text_valid") fn text_valid(pointer: *const c_uchar, length: c_size_t, required: c_int): c_int {
+pub fn text_valid(pointer: *const c_uchar, length: c_size_t, required: c_int): c_int {
     if pointer == (0 as! *const c_uchar) { return 0; }
     const bytes = copy_bytes(pointer, length as usize);
     if valid_text(string.from(bytes[..]), required != 0) { return 1; }
     return 0;
 }
 
-export c("hao_metric_kind") fn metric_kind(name: *const c_uchar): c_uint {
+pub fn metric_kind(name: *const c_uchar): c_uint {
     if name == (0 as! *const c_uchar) { return 0; }
     const value = text_from_c(name);
     if value == "counter" { return 1; }
@@ -25,7 +25,7 @@ export c("hao_metric_kind") fn metric_kind(name: *const c_uchar): c_uint {
     return 0;
 }
 
-export c("hao_metric_definition_valid") fn definition_valid(scope: *const c_uchar,
+pub fn definition_valid(scope: *const c_uchar,
     name: *const c_uchar, kind: c_uint, unit: *const c_uchar): c_int {
     if scope == (0 as! *const c_uchar) or name == (0 as! *const c_uchar) { return 0; }
     if kind < 1 or kind > 3 { return 0; }
@@ -34,17 +34,17 @@ export c("hao_metric_definition_valid") fn definition_valid(scope: *const c_ucha
     return 1;
 }
 
-export c("hao_metric_can_add") fn can_add(kind: c_uint, delta: c_double): c_int {
+pub fn can_add(kind: c_uint, delta: c_double): c_int {
     if kind == 3 or (kind == 1 and delta < 0) { return 0; }
     return 1;
 }
 
-export c("hao_metric_can_set") fn can_set(kind: c_uint, value: c_double): c_int {
+pub fn can_set(kind: c_uint, value: c_double): c_int {
     if kind != 2 { return 0; }
     return 1;
 }
 
-export c("hao_metric_can_observe") fn can_observe(kind: c_uint): c_int {
+pub fn can_observe(kind: c_uint): c_int {
     if kind != 3 { return 0; }
     return 1;
 }

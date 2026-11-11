@@ -1,4 +1,4 @@
-import { runtime_new, runtime_free, runtime_start_tests, runtime_test_failures, runtime_set_test_file_counts, runtime_set_executable, runtime_eval_cell, runtime_free_text, runtime_drain_test, runtime_set_telemetry_console, runtime_set_native_stack_trace } from .bridge;
+import { runtime_new, runtime_free, runtime_start_tests, runtime_test_failures, runtime_set_test_file_counts, runtime_set_executable, runtime_eval_cell, runtime_free_text, runtime_drain_test, runtime_set_telemetry_console, runtime_set_native_stack_trace } from .bridge.qjs;
 import { text_from_c } from .c_bytes;
 import { write_stderr } from .stderr;
 import { Loop } from .async.loop;
@@ -7,10 +7,6 @@ import { install as install_timer } from .global.timer;
 import { eval as eval_module, eval_test as eval_test_module, register_source } from .modules;
 import { telemetry_console_settings, native_stack_trace_enabled, runtime_size_settings } from .config;
 import { host as telemetry_host } from .telemetry.interface;
-// C adapters call these exports after the runtime is constructed.
-import { snapshot_c } from .process_memory;
-import { install_runtime_error } from .errors;
-import { metric_kind } from .telemetry.metrics;
 import { Backend } from std.telemetry;
 
 

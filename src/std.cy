@@ -2,13 +2,6 @@ import { read_file } from std.fs;
 import { join, dirname } from std.path;
 import { exe_path } from std.process;
 import { Runtime } from .runtime;
-import { fs_exists } from .std.fs.native;
-import { valid_method_c } from .std.http.native;
-import { type_code_c, parse_unsigned_c } from .std.ffi.native;
-import { limits_error_c } from .std.http.server_uv;
-import { rewrite_cell_c } from .jupyter.cell;
-import { resolve_package } from .package;
-import { get_env } from .std.process.native;
 
 fn install_one(runtime: &const Runtime, directory: string, name: string, filename: string): i32 {
     const parts: [2]string = [directory.clone(), filename];

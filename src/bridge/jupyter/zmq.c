@@ -1,4 +1,3 @@
-#include "zmq.h"
 #include <zmq.h>
 #include "../runtime_allocator.h"
 #include "crypto.h"

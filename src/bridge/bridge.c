@@ -22,7 +22,7 @@
 #include "global/console.h"
 #include "jupyter/cell.h"
 
-#include "../libs/transpiler/include/hao_transpiler.h"
+#include "../../libs/transpiler/include/hao_transpiler.h"
 void hao_runtime_free(uintptr_t handle);
 
 typedef struct {

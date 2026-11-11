@@ -60,7 +60,7 @@ clang -I "$repo_root/include" -I "$repo_root/.deps/install/include" "$repo_root/
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$fixture_dir/embed-consumer" "$repo_root/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
 clang -I /opt/homebrew/include "$repo_root/test/port/jupyter_wire_test.c" \
-    "$repo_root/src/jupyter/zmq.c" "$repo_root/src/runtime_allocator.c" \
+    "$repo_root/src/bridge/jupyter/zmq.c" "$repo_root/src/bridge/runtime_allocator.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto \
     -o "$fixture_dir/jupyter-wire-test"
 test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'

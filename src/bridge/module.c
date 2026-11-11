@@ -1,11 +1,10 @@
-#include "module.h"
 #include "bridge.h"
 #include "cyna_exports.h"
 #include "js/addon_native.h"
-#include "../libs/transpiler/include/hao_transpiler.h"
+#include "../../libs/transpiler/include/hao_transpiler.h"
 #include "runtime_host.h"
 #include "runtime_allocator.h"
-#include "../include/hao.h"
+#include "../../include/hao.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

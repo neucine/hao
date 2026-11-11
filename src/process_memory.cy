@@ -1,4 +1,4 @@
-extern c("hao_process_memory_native") fn native_snapshot(resident: *c_ullong, footprint: *c_ullong): void;
+import { native_snapshot } from .bridge.host;
 
 pub struct Snapshot {
     pub resident_bytes: u64;
@@ -16,7 +16,7 @@ pub fn snapshot(): Snapshot {
     };
 }
 
-export c("hao_process_memory_snapshot") fn snapshot_c(resident: *c_ullong, footprint: *c_ullong): void {
+pub fn snapshot_c(resident: *c_ullong, footprint: *c_ullong): void {
     const value = snapshot();
     unchecked {
         *resident = value.resident_bytes as c_ullong;

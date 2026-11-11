@@ -1,4 +1,4 @@
-import { native_metric, native_span_start, native_span_trace, native_span_id, native_span_sampled, native_span_pending, native_event_start, native_attribute, native_record_finish, native_span_end } from .telemetry.native;
+import { native_metric, native_span_start, native_span_trace, native_span_id, native_span_sampled, native_span_pending, native_event_start, native_attribute, native_record_finish, native_span_end } from .bridge.telemetry;
 import { Backend, Metric, SpanHandle, SpanKind, SpanStatus, TraceContext, Attribute } from std.telemetry;
 
 

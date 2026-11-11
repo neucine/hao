@@ -1,4 +1,4 @@
-extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
+import { write_fd } from .bridge.host;
 
 pub fn write_stderr(message: string): void {
     const bytes = message.bytes();

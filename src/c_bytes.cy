@@ -1,4 +1,4 @@
-extern c("strlen") fn c_strlen(text: *const c_uchar): c_size_t;
+import { c_strlen } from .bridge.host;
 fn byte_at(pointer: *const c_uchar, index: usize): c_uchar {
     unchecked { return *(pointer + index); }
 }

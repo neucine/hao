@@ -49,6 +49,22 @@ for line in (port / "docs/NATIVE_BOUNDARIES.md").read_text().splitlines():
     c_only[legacy[0]] = destinations[0]
 
 errors = []
+abi_module = port / "src/hao_abi.cy"
+if not abi_module.is_file() or not re.search(r'export c\("hao_', abi_module.read_text()):
+    errors.append("missing central Hao Cyna ABI exports")
+for candidate in (port / "src").rglob("*.cy"):
+    if candidate == abi_module:
+        continue
+    if re.search(r'\bexport\s+c\s*\(', candidate.read_text()):
+        errors.append(f"export outside central Hao ABI: {candidate.relative_to(port)}")
+    if (port / "src/bridge") not in candidate.parents and re.search(
+        r'\bextern\s+c\s*\(', candidate.read_text()
+    ):
+        errors.append(f"native import outside bridge: {candidate.relative_to(port)}")
+for suffix in ("*.c", "*.h"):
+    for candidate in (port / "src").rglob(suffix):
+        if (port / "src/bridge") not in candidate.parents:
+            errors.append(f"native source outside bridge: {candidate.relative_to(port)}")
 for path in sorted(zig_files):
     source_path = Path(path)
     c_path = port / "src" / source_path.with_suffix(".c")

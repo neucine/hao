@@ -1,7 +1,7 @@
 import { Value, parse } from std.json;
 import { copy_bytes } from .c_bytes;
 
-import { execute, RunResult } from .std.process.execute;
+import { execute, RunResult } from .bridge.host;
 
 fn field(value: &const Value, key: string): ?string {
     switch value {
@@ -53,7 +53,7 @@ fn arguments(value: &const Value): ?List<string> {
     return result;
 }
 
-export c("hao_process_run_json") fn run_json(options_pointer: *const c_uchar, options_len: c_size_t, stdout_output: *c_uchar, stderr_output: *c_uchar, capacity: c_size_t, result: *RunResult): c_int {
+pub fn run_json(options_pointer: *const c_uchar, options_len: c_size_t, stdout_output: *c_uchar, stderr_output: *c_uchar, capacity: c_size_t, result: *RunResult): c_int {
     const bytes = copy_bytes(options_pointer, options_len as usize);
     const options = parse(string.from(bytes[..])) catch (code) {
         return 1;

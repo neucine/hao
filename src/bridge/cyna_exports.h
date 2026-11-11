@@ -4,8 +4,7 @@
 #include <stddef.h>
 #include "std/process/execute.h"
 
-/* Implemented by Cyna export c(...) functions in package.cy, fs.cy, and
-   std/process/native.cy. This header is the C side of those ABI boundaries. */
+/* Exported only by hao_abi.cy, which delegates to the Cyna feature modules. */
 int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                         unsigned char *output, size_t capacity);
 size_t hao_addon_name_length(const unsigned char *specifier, const unsigned char *path);

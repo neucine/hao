@@ -10,11 +10,11 @@ pub fn normalized_name(specifier: string, path: string): string {
     return path.clone();
 }
 
-export c("hao_addon_name_length") fn addon_name_length(specifier: *const c_uchar, path: *const c_uchar): c_size_t {
+pub fn addon_name_length(specifier: *const c_uchar, path: *const c_uchar): c_size_t {
     return normalized_name(text_from_c(specifier), text_from_c(path)).len() as c_size_t;
 }
 
-export c("hao_addon_write_name") fn addon_write_name(specifier: *const c_uchar, path: *const c_uchar,
+pub fn addon_write_name(specifier: *const c_uchar, path: *const c_uchar,
     output: *c_uchar, capacity: c_size_t): c_int {
     const name = normalized_name(text_from_c(specifier), text_from_c(path));
     const bytes = name.bytes();

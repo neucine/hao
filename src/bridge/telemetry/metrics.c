@@ -7,7 +7,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/addon.h"
+#include "../../../include/addon.h"
 
 static uint64_t resident_peak_bytes;
 static uint64_t physical_footprint_peak_bytes;

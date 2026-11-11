@@ -34,12 +34,12 @@ stored notebook cells. Shutdown replies echo the requested restart flag.
 Ordinary objects use `std:util.inspect` for their text result.
 Top level `const`, `let`, and class declarations can be redefined in later cells.
 JavaScript execution errors include their stack in the Jupyter error reply.
-The build also produces a Cyna runtime static library with the C API in
+The build also produces a Cyna runtime static library. Its exports are centralized in `src/hao_abi.cy`, with the public C API in
 `include/hao.h`; the consumer example is `test/port/embed_consumer.c`.
 
 `src/runtime.cy` owns the runtime, `src/async/loop.cy` drives Promise jobs and
 libuv turns, and `src/fs.cy` owns
-file access, and `src/bridge.c` and `src/std/fs/native.c` adapt QuickJS values to
+file access, and `src/bridge/bridge.c` and `src/bridge/std/fs/native.c` adapt QuickJS values to
 the Cyna host functions. `readFileSync` uses a 100 MiB limit and reads the
 initially sized content if the file grows during a read.
 
@@ -65,7 +65,7 @@ directory. Set `DOTENV` to require a specific file, or set it to an empty value
 to disable loading. Existing environment values take precedence, and the file
 is limited to 1 MiB.
 
-`src/std/process/native.cy` uses Cyna's process library for `getEnv` and `run`.
+`src/std/process/native.cy` owns the process result and option conversion. The native subprocess adapter supplies bounded binary output and signal status that the pinned Cyna `std.process` output API does not expose.
 The JavaScript API keeps Hao's Promise, `json()`, `text()`, and exit checking
 behavior. Options are limited to 1 MiB, `maxOutputBytes` to 16 MiB, and the
 captured output is checked against that limit after the child exits. The

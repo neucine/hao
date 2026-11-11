@@ -1,5 +1,5 @@
 #include <zmq.h>
-#include "../../src/jupyter/crypto.h"
+#include "../../src/bridge/jupyter/crypto.h"
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>

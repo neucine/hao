@@ -11,7 +11,7 @@ pub fn type_code(name: string): i32 {
     };
 }
 
-export c("hao_ffi_type_code") fn type_code_c(name: *const c_uchar): c_int {
+pub fn type_code_c(name: *const c_uchar): c_int {
     return type_code(text_from_c(name)) as c_int;
 }
 
@@ -39,10 +39,10 @@ pub fn parse_unsigned(text: *const c_uchar, byte_length: usize): ?u64 {
     return value;
 }
 
-export c("hao_ffi_parse_unsigned") fn parse_unsigned_c(text: *const c_uchar,
-    length: c_size_t, output: *u64): c_int {
+pub fn parse_unsigned_c(text: *const c_uchar,
+    length: c_size_t, output: *c_ullong): c_int {
     const value = parse_unsigned(text, length as usize);
     if value is none { return 0; }
-    unchecked { *output = value; }
+    unchecked { *output = value as c_ullong; }
     return 1;
 }

@@ -4,7 +4,7 @@ pub fn limits_error(port: f64, max_connections: f64, timeout_ms: f64): i32 {
     return 0;
 }
 
-export c("hao_http_server_limits_error") fn limits_error_c(port: c_double,
+pub fn limits_error_c(port: c_double,
     max_connections: c_double, timeout_ms: c_double): c_int {
     return limits_error(port as f64, max_connections as f64, timeout_ms as f64) as c_int;
 }

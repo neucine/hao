@@ -1,4 +1,4 @@
-import { test_print_load } from .global.console_native;
+import { test_print_load } from .bridge.qjs;
 import { write_stderr } from .stderr;
 import { args, exe_path } from std.process;
 import { read_file_limited } from .fs;
@@ -10,6 +10,7 @@ import { load_dotenv, telemetry_console_settings, native_stack_trace_enabled, ru
 import { run as run_jupyter } from .jupyter.main;
 import { install as install_jupyter } from .jupyter.install;
 import { string as hao_version } from .version;
+import { abi_async_uv_new } from .hao_abi;
 
 
 fn usage(): void {

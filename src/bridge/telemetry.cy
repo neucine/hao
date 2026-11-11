@@ -1,3 +1,4 @@
+// Native telemetry callbacks and record storage.
 pub extern c("hao_telemetry_metric") fn native_metric(handle: c_size_t, scope: *const c_uchar, scope_len: c_size_t,
     name: *const c_uchar, name_len: c_size_t, kind: c_int, unit: c_int, value: c_llong, set: c_int): void;
 pub extern c("hao_telemetry_span_start") fn native_span_start(handle: c_size_t, parent_trace: c_ullong, parent_span: c_ullong,

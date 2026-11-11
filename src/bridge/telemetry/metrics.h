@@ -2,7 +2,7 @@
 #define HAO_TELEMETRY_METRICS_H
 #include <stddef.h>
 #include <quickjs.h>
-#include "../../include/addon.h"
+#include "../../../include/addon.h"
 #include <stdint.h>
 int hao_metric_text_valid(const unsigned char *text, size_t length, int required);
 unsigned hao_metric_kind(const unsigned char *name);

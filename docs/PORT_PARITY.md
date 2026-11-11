@@ -15,9 +15,9 @@ boundaries in the open list below.
 Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
-under `src/` with a `.cy`, `.c`, or `.ts` extension. `process_memory.zig` now
-has a same stem Cyna module that exports the snapshot ABI while its C companion
-reads platform counters. These exceptions have
+under `src/` with a `.cy` or `.ts` extension. `process_memory.zig` now
+has a same stem Cyna module that assembles the snapshot while its C companion
+in `src/bridge/` reads platform counters. The snapshot export is in `src/hao_abi.cy`. These exceptions have
 intentional implementation locations:
 `python3 test/port/source_inventory.py` checks this inventory against the
 `legacy` Git tree, including the existence of every mapped port location;
@@ -26,15 +26,15 @@ while behavior parity still requires the comparisons below.
 
 | Legacy source | Cyna port location | Reason for layout change |
 | --- | --- | --- |
-| `hao.zig` | `src/runtime.cy`, `src/std.cy`, `src/embed.cy` | Cyna modules and the embedding C ABI replace the Zig root export module. |
-| `js/abi.zig`, `js/mod.zig` | `src/bridge.c`, `src/module.c`, `src/runtime_host.h` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
+| `hao.zig` | `src/runtime.cy`, `src/std.cy`, `src/embed.cy`, `src/hao_abi.cy` | Cyna modules and the embedding C ABI replace the Zig root export module. |
+| `js/abi.zig`, `js/mod.zig` | `src/bridge/bridge.c`, `src/bridge/module.c`, `src/bridge/runtime_host.h` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
 | `link.zig` | `cyna.toml`, `cyna.lib.toml`, `build.sh` | Linking is declared in the Cyna build manifests. |
-| `qjs.zig` | `src/runtime.cy`, `src/bridge.c`, `src/runtime_host.h` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
-| `std/ffi/Library.zig`, `std/ffi/runtime.zig`, `std/ffi/trampoline.zig`, `std/ffi/types.zig` | `src/std/ffi/native.c`, `src/std/ffi/native.ts` | One libffi adapter replaces the Zig library and call trampoline layers. |
-| `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `src/bridge.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
-| `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/telemetry/interface.c`, `src/std/telemetry/native.ts` | Cyna `std.telemetry` supplies the host backend; JavaScript keeps the public trace ring and cursor API. |
+| `qjs.zig` | `src/runtime.cy`, `src/bridge/bridge.c`, `src/bridge/runtime_host.h` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
+| `std/ffi/Library.zig`, `std/ffi/runtime.zig`, `std/ffi/trampoline.zig`, `std/ffi/types.zig` | `src/bridge/std/ffi/native.c`, `src/std/ffi/native.ts` | One libffi adapter replaces the Zig library and call trampoline layers. |
+| `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `src/bridge/bridge.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
+| `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/bridge/telemetry/interface.c`, `src/std/telemetry/native.ts` | Cyna `std.telemetry` supplies the host backend; JavaScript keeps the public trace ring and cursor API. |
 | `telemetry/server.zig` | `src/std/telemetry/console.ts`, `src/telemetry/dashboard.html` | The telemetry console uses the ported HTTP server and existing dashboard. |
-| `transpiler.zig` | `src/bridge.c`, `src/module.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
+| `transpiler.zig` | `src/bridge/bridge.c`, `src/bridge/module.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
 
 The legacy TypeScript standard modules are byte identical in the port except
 `std/http/index.ts`: the Cyna tree separates its HTTP server into
@@ -44,7 +44,7 @@ request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
 A retained 38-case `test/port/http_server_limits_differential.py` compares native server port, connection, timeout, and hostname validation with Zig, including nonfinite and fractional numbers, BigInt, Symbol and object conversion, and embedded NUL in the hostname. The C ABI checks floating point validity before Cyna receives the values; Cyna owns the server limit policy in `std/http/server_uv.cy`.
 
-`std/ffi/native.cy` now owns the 15 descriptor type names and unsigned decimal pointer parsing, exporting both policies to the adjacent libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All same stem C sources now have Cyna companions; this inventory result is separate from behavior parity.
+`std/ffi/native.cy` now owns the 15 descriptor type names and unsigned decimal pointer parsing; `hao_abi.cy` exports both policies to the libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All C sources now live under `src/bridge/`; this layout result is separate from behavior parity.
 
 The 18 legacy `std/**/*.d.ts` declarations and all 12 legacy TypeScript source
 and asset files now have matching port locations. The inventory checks them;
@@ -205,7 +205,7 @@ improvement, with a smoke check.
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
   matched file, symlink, missing path, and directory results. The smoke suite
   covers NUL truncation and the 100 MiB read limit. Cyna `std/fs/native.cy`
-  exports the filesystem C ABI beside its QuickJS adapter; `fs.cy` owns
+  implements the filesystem operations behind exports in `hao_abi.cy`; the QuickJS adapter is under `src/bridge/`. `fs.cy` owns
   bounded reads and diagnostics. The Cyna file reader now
   sizes and reads through one open handle, as Zig does, so a separate `stat`
   call cannot race a subsequent open. It reads the initially sized content
@@ -240,16 +240,16 @@ improvement, with a smoke check.
   `async/uv.cy`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
   serviced turn even when its final handle closes. `Loop.run_until_idle` also
   drains QuickJS jobs between turns.
-  Loop allocation, closure, `run_once`, and `run_nowait` C ABI exports now
-  reside in `async/uv.cy` and call libuv and the shared allocator directly.
-  `async/uv.h` declares them for C callers. The executable, embedding library,
+  Loop allocation, closure, `run_once`, and `run_nowait` are implemented in
+  `async/uv.cy` through `bridge/uv.cy` and the shared allocator. Their C ABI
+  wrappers reside in `hao_abi.cy`, and `bridge/async/uv.h` declares them for C callers. The executable, embedding library,
   and async smoke fixtures passed after removing `async/uv.c` from both builds.
   The remaining Zig `Loop` methods have explicit implementation locations:
   loop allocation, deinitialization, and nonblocking runs are in
   `async/uv.cy`; current-loop ownership is the `HaoRuntime` handle in
-  `src/bridge.c` and `runtime_host.h`; timer start, cancellation, one-shot fire,
-  and close callbacks are in `global/timer.c`; HTTP worker requests use
-  libuv from `std/http/native.c`. Zig's `async/uv.zig` FFI declarations are
+  `src/bridge/bridge.c` and `src/bridge/runtime_host.h`; timer start, cancellation, one-shot fire,
+  and close callbacks are in `src/bridge/global/timer.c`; HTTP worker requests use
+  libuv from `src/bridge/std/http/native.c`. Zig's `async/uv.zig` FFI declarations are
   replaced by the libuv header included at these C boundaries.
   The smoke suite covers timer cancellation,
   callback errors, and a Promise job between two timer callbacks. This checks
@@ -724,9 +724,9 @@ The executable, embedding library, and Jupyter connection check now use root
 manifests `cyna.toml`, `cyna.lib.toml`, and
 `cyna.jupyter-connection.toml`. `build.sh` writes both runtime artifacts
 under `build/`.
-The native QuickJS host adapter now lives at `src/bridge.c`, and the HMAC
+The native QuickJS host adapter now lives at `src/bridge/bridge.c`, and the HMAC
 helper used by Jupyter wire code and its consumers lives at
-`src/jupyter/crypto.h`. Their build and test includes use those canonical
+`src/bridge/jupyter/crypto.h`. Their build and test includes use those canonical
 source locations.
 An additional `std:util` matrix matched 26 option forms, including numeric
 limits, nonnumeric values, and throwing getters. Among 28 further values,
@@ -748,4 +748,4 @@ documented as LG-79 in the Cyna language gaps ledger.
 
 ## Native boundary layout
 
-Imported C functions now have companion headers and Cyna extern modules; the ownership map is in [NATIVE_BOUNDARIES.md](NATIVE_BOUNDARIES.md). The Rust transpiler declares its C exports in `libs/transpiler/include/hao_transpiler.h`. Cyna exported ABI wrappers remain in their feature modules.
+Imported C functions now have companion headers and Cyna extern modules; the ownership map is in [NATIVE_BOUNDARIES.md](NATIVE_BOUNDARIES.md). The Rust transpiler declares its C exports in `libs/transpiler/include/hao_transpiler.h`. All Cyna C ABI exports are wrappers in `src/hao_abi.cy`; their feature modules contain ordinary public Cyna functions. All project C sources and internal headers are under `src/bridge/`.

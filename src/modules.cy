@@ -1,4 +1,4 @@
-import { runtime_eval, runtime_eval_test } from .bridge;
+import { runtime_eval, runtime_eval_test } from .bridge.qjs;
 import { runtime_register } from .`module`;
 
 pub fn eval(handle: c_size_t, source: string, filename: string): i32 {
