@@ -93,7 +93,23 @@ int main(int argc, char **argv) {
     const char *owned_eval = "import { value } from 'demo:owned'; if (value !== 23) throw Error('module copy failed');";
     if (hao_embed_eval(other, (const unsigned char *)owned_eval, strlen(owned_eval),
             (const unsigned char *)"<owned>", 7) != 0) return 121;
+    const char *timer_source =
+        "globalThis.__timerReady = false; setTimeout(() => { globalThis.__timerReady = true; }, 1);";
+    const char *timer_check = "if (!globalThis.__timerReady) throw Error('timer did not fire');";
+    if (hao_embed_eval(runtime, (const unsigned char *)timer_source, strlen(timer_source),
+            (const unsigned char *)"<timers>", 8) != 0 ||
+        hao_embed_eval(other, (const unsigned char *)timer_source, strlen(timer_source),
+            (const unsigned char *)"<timers>", 8) != 0) return 123;
+    if (hao_embed_run_until_idle(other) != 0 ||
+        hao_embed_eval(other, (const unsigned char *)timer_check, strlen(timer_check),
+            (const unsigned char *)"<timers>", 8) != 0 ||
+        hao_embed_run_until_idle(runtime) != 0 ||
+        hao_embed_eval(runtime, (const unsigned char *)timer_check, strlen(timer_check),
+            (const unsigned char *)"<timers>", 8) != 0) return 124;
     if (hao_embed_last_error(other, error, sizeof(error)) != 0) return 17;
+    const char *pending_timer = "setTimeout(() => { throw Error('timer survived free'); }, 100);";
+    if (hao_embed_eval(other, (const unsigned char *)pending_timer, strlen(pending_timer),
+            (const unsigned char *)"<timers>", 8) != 0) return 125;
     hao_embed_free(other);
     HaoRuntimeHandle atomic_runtime = hao_embed_new();
     char *atomic_source = strdup("export const value = 5;");

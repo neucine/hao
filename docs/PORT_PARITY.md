@@ -454,6 +454,12 @@ improvement, with a smoke check.
   names and source buffers after ordinary module registration, and frees a
   package source buffer after registration. Both modules still import and
   evaluate, directly checking the C embedding API's copy contract.
+  The consumer also schedules timers in two live embedded runtimes, drains
+  each runtime independently, and frees one with a pending timer. Both fired
+  timers are observed and the pending timer closes safely during free. Cyna
+  stores timer IDs and handles per runtime; the Zig implementation uses a
+  process-global timer registry. This test covers the Cyna embedding isolation
+  contract rather than claiming identical timer ID allocation across hosts.
   Addon extension recognition and normalized module names now live in
   `js/addon.cy`; the C loader retains dynamic library and QuickJS callbacks.
   The native addon consumer now checks `js_array_length` for ordinary and
