@@ -1,4 +1,5 @@
 export type MetricKind = 'counter' | 'gauge' | 'histogram';
+declare const InternalError: new (message: string) => Error;
 export type MetricDefinition = { scope: string; name: string; kind: MetricKind; unit?: string };
 export type MetricSnapshot = {
   id: number; scope: string; name: string; kind: MetricKind; unit: string;

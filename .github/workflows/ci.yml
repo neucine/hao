@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, cyna-port]
   pull_request:
 
 jobs:
@@ -18,8 +18,8 @@ jobs:
       - name: Check C headers and addon example
         run: |
           cc -Iinclude -c examples/native-addon/native.c -o /tmp/hao-addon-example.o
-          printf '#include "addon.h"\nint main(void) { return JS_ADDON_ABI_VERSION == 1 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o /tmp/hao-addon-header.o -
-          printf '#include "hao.h"\nint main(void) { return HAO_EMBED_ABI_VERSION == 2 ? 0 : 1; }\n' | cc -Iinclude -x c -c -o /tmp/hao-embed-header.o -
+          printf '#include "addon.h"\n_Static_assert(JS_ADDON_ABI_VERSION == 3, "addon ABI version");\n' | cc -Iinclude -x c -c -o /tmp/hao-addon-header.o -
+          printf '#include "hao.h"\n_Static_assert(HAO_EMBED_ABI_VERSION == 5, "embed ABI version");\n' | cc -Iinclude -x c -c -o /tmp/hao-embed-header.o -
       - name: Check build scripts
         run: |
           sh -n cyna/build.sh
