@@ -46,11 +46,22 @@ def main() -> None:
                           "const spec = { get args() { argsReads++; return ['f64']; }, "
                           "get returns() { returnReads++; return 'f64'; } };\n"
                           "const handle = openNative('m', { sqrt: spec }); closeNative(handle);\n"
-                          'console.log("getter reads", argsReads, returnReads);\n')
+                          'console.log("getter reads", argsReads, returnReads);\n'
+                          "const throwingArgs = ['f64'];\n"
+                          "Object.defineProperty(throwingArgs, '0', { get() { throw Error('element boom'); } });\n"
+                          "const argumentCases = [new Array(1), throwingArgs, "
+                          "new Proxy(['f64'], { get(target, key) { "
+                          "if (key === '0') throw Error('proxy element boom'); "
+                          "return Reflect.get(target, key); } })];\n"
+                          'for (let i = 0; i < argumentCases.length; i++) {\n'
+                          "  try { const h = openNative('m', { sqrt: { args: argumentCases[i], returns: 'f64' } }); "
+                          "console.log('argument', i, 'ok'); closeNative(h); }\n"
+                          "  catch (error) { console.log('argument', i, error.name, error.message); }\n"
+                          '}\n')
         expected = run(legacy, script)
         actual = run(cyna, script)
         assert actual == expected, (expected, actual)
-    print(f'FFI descriptors: {len(CASES)} shapes and 3 getter outcomes matched')
+    print(f'FFI descriptors: {len(CASES)} shapes and 6 getter or array outcomes matched')
 
 
 if __name__ == '__main__':

@@ -631,6 +631,11 @@ improvement, with a smoke check.
   getters and counts reads of valid getters. Cyna maps the two thrown getters
   to Zig's descriptor `TypeError` messages and reads each field once, matching
   Zig's observed access pattern.
+  Sparse argument arrays and throwing element getters now report Zig's
+  `invalid argument type`. QuickJS's native array predicate also rejects a
+  Proxy around an array, which JavaScript `Array.isArray` accepts; the FFI
+  adapter exposes that predicate for descriptor validation. The retained
+  fixture compares all three cases against Zig.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for

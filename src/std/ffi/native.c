@@ -363,9 +363,14 @@ static JSValue close_native(JSContext *ctx, JSValueConst this_val, int argc, JSV
     if (library) close_library(library);
     return JS_UNDEFINED;
 }
+static JSValue is_native_array(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    return JS_NewBool(ctx, argc > 0 && JS_IsArray(argv[0]));
+}
 void hao_install_ffi_globals(JSContext *ctx, JSValue global) {
     JS_SetPropertyStr(ctx, global, "__hao_ffi_open", JS_NewCFunction(ctx, open_native, "open", 1));
     JS_SetPropertyStr(ctx, global, "__hao_ffi_bind", JS_NewCFunction(ctx, bind_native, "bind", 4));
     JS_SetPropertyStr(ctx, global, "__hao_ffi_call", JS_NewCFunction(ctx, call_native, "call", 3));
     JS_SetPropertyStr(ctx, global, "__hao_ffi_close", JS_NewCFunction(ctx, close_native, "close", 1));
+    JS_SetPropertyStr(ctx, global, "__hao_ffi_isArray", JS_NewCFunction(ctx, is_native_array, "isArray", 1));
 }
