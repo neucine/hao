@@ -51,6 +51,18 @@ def declarations() -> list[str]:
                   'void f(const void, const void value);'))
     forms.extend(('int x(', 'int x', 'int x(void)', 'unsigned x(',
                   'double x(', 'void x(', 'Foo x(', 'volatile int x('))
+    forms.extend(('void ok(void); int x(', 'void ok(void); unsigned x(',
+                  'typedef struct { int32_t x; } Foo; int x(',
+                  'void ok(void); double x(', 'void broken( ; int x(',
+                  'void broken(void); int x(', 'void ok(void); void x(unsigned',
+                  'void ok(void); void x(int', 'void ok(void); void x(double',
+                  'void x(int', 'void x(unsigned', 'void x(double',
+                  'void x(int a', 'void x(int a);'))
+    forms.extend(('typedef struct { int x; } Foo',
+                  'typedef struct { int x; } Foo;',
+                  'typedef struct { int32_t x; } Foo',
+                  'typedef struct { int32_t x; int y; } Foo',
+                  'void f(void); typedef struct { int x; } Foo'))
     return forms
 
 

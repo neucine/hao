@@ -29,6 +29,25 @@ function stripComments(source: string): string {
   }
   return result;
 }
+function incompletePlatformWidthType(source: string): boolean {
+  let start = 0;
+  let braces = 0;
+  let parens = 0;
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index];
+    if (character === '{') braces++;
+    else if (character === '}') braces--;
+    else if (character === '(') parens++;
+    else if (character === ')') parens--;
+    else if (character === ';' && braces === 0 && parens === 0) start = index + 1;
+  }
+  const tail = source.slice(start);
+  const platformWidth = '(?:short|int|long|unsigned|signed)\\b';
+  return new RegExp(`^\\s*${platformWidth}`).test(tail) ||
+    new RegExp(`(?:\\(|,)\\s*(?:const\\s+)?${platformWidth}`).test(tail) ||
+    /^\s*typedef\s+struct\b/.test(tail) &&
+      new RegExp(`(?:\\{|;)\\s*(?:const\\s+)?${platformWidth}`).test(tail);
+}
 export function parse(declarations: string, opts: any): Prepared {
   if (typeof declarations !== 'string') throw invalidArg('cdecl: declarations must be a string');
   const source = stripComments(declarations);
@@ -38,8 +57,8 @@ export function parse(declarations: string, opts: any): Prepared {
   if (/#|\.\.\.|\(\s*\*\s*[A-Za-z_]\w*\s*\)/.test(source)) {
     throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
   }
-  // Zig rejects a platform-width return type before checking the rest of the declaration.
-  if (/^\s*(?:short|int|long|unsigned|signed)\b/.test(source)) {
+  // Zig rejects a platform-width type before a later missing semicolon.
+  if (incompletePlatformWidthType(source)) {
     throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
   }
   if (source.trim() && !source.trim().endsWith(';')) throw invalidArg('C declaration requires a terminating semicolon', 'SyntaxError');
