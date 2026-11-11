@@ -95,12 +95,6 @@ static void retain_callback_error(HaoRuntime *host, JSContext *ctx) {
         JS_FreeValue(ctx, error);
     }
 }
-static void drain_jobs(HaoRuntime *host) {
-    JSContext *job_context = NULL;
-    int result;
-    while ((result = JS_ExecutePendingJob(host->runtime, &job_context)) > 0) {}
-    if (result < 0) retain_callback_error(host, job_context);
-}
 static size_t receive_body(char *data, size_t size, size_t count, void *opaque) {
     HaoHttpResponse *response = opaque;
     if (size && count > SIZE_MAX / size) return 0;
@@ -321,15 +315,11 @@ static void finish_http(uv_work_t *work, int status) {
     }
     JSValue previous = JS_UNDEFINED;
     if (!JS_IsUndefined(job->trace_context)) {
-        drain_jobs(host);
         previous = telemetry_enter_context(ctx, job->trace_context);
         if (JS_IsException(previous)) retain_callback_error(host, ctx);
     }
     JSValue result = JS_Call(ctx, callback, JS_UNDEFINED, 1, &value);
     if (JS_IsException(result)) retain_callback_error(host, ctx);
-    if (!JS_IsUndefined(previous) && !JS_IsException(previous)) {
-        drain_jobs(host);
-    }
     if (!JS_IsUndefined(previous) && !JS_IsException(previous)) {
         JSValue restored = telemetry_enter_context(ctx, previous);
         if (JS_IsException(restored)) retain_callback_error(host, ctx);

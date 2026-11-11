@@ -183,16 +183,18 @@ improvement, with a smoke check.
   HTTP server, `await trace('parent', async () => { await get(url);
   trace('child', () => {}); })` produced `{"sameTrace":true,"parented":true}`
   on Zig and `{"sameTrace":false,"parented":false}` on Cyna. The port now
-  captures context before the deferred native request and drains its Promise
-  jobs while the worker completion restores that context. The simple fixture
+  captures context before the deferred native request and enters it while the
+  worker completion resolves or rejects its Promise. QuickJS captures that
+  context for each queued continuation, so completion leaves job scheduling to
+  the normal loop drain. The simple fixture
   and a smoke case with two concurrent requests and a rejected request now
   produce parented child spans. Further scheduling combinations remain part
   of the full parity audit.
   A telemetry console probe with two overlapping async traces revealed that
   Cyna's JavaScript timer wrapper restored context before Promise continuation
   jobs ran: both child spans became roots. The native timer now captures the
-  trace context when scheduled, enters it for the callback and queued jobs,
-  and restores it afterward. Both Cyna child spans now reference their own
+  trace context when scheduled and enters it for the callback. QuickJS retains
+  the context for its queued jobs. Both Cyna child spans now reference their own
   parent span and trace ID; the smoke suite checks that relationship. Zig's
   global context nests the second parent under the first in this overlap, so
   Cyna's independent parent traces are retained as the clearer behavior.
