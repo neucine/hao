@@ -486,6 +486,9 @@ improvement, with a smoke check.
   The shared consumer now checks IOPub order for an execution that writes both
   streams and returns a value: busy status, input, stdout, stderr, result, and
   idle status. The same compiled consumer passes against both kernels.
+  The Cyna ZeroMQ sockets now use Zig's 1000 ms linger on close, giving queued
+  shutdown replies and IOPub frames the same delivery window. The existing
+  shared kernel consumer still receives the shutdown reply after this change.
   After two pending Promise failure cases, the shared consumer now runs a
   timer that writes stdout and resolves a cell Promise. Both kernels publish
   the delayed stream before the result, reach idle, and accept later requests.

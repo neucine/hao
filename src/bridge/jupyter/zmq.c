@@ -62,7 +62,7 @@ static int bind_socket(void **out, void *context, int kind, const char *transpor
     if (length <= 0 || (size_t)length >= sizeof(endpoint)) return -1;
     *out = zmq_socket(context, kind);
     if (!*out) return -1;
-    int linger = 0;
+    int linger = 1000;
     if (zmq_setsockopt(*out, ZMQ_LINGER, &linger, sizeof(linger)) < 0) return -1;
     return zmq_bind(*out, endpoint);
 }
