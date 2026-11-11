@@ -566,8 +566,12 @@ improvement, with a smoke check.
   objects and uses Zig's pointer error. Cyna retains typed array backing
   pointers for `ptr` and `buffer`, which the C declaration wrapper needs;
   Zig converts a typed array to zero in the raw `dlopen` path. The smoke suite
-  checks both the shared error cases and an offset typed array view. Additional
-  pointer lifetime combinations remain open.
+  checks both the shared error cases and an offset typed array view. A Cyna
+  ownership probe now obtains a temporary typed array from an argument getter,
+  allocates 500 further buffers while converting later arguments, and calls
+  `memcmp` 100 times with `RUNTIME_GC_THRESHOLD=1`. All results match the
+  retained comparison buffer. This checks the adapter's backing buffer hold;
+  other pointer lifetime combinations remain open.
   A public `std:ffi.c` buffer probe found that Zig rejects `DataView` with
   `RuntimeError invalid_arg`, while Cyna accepted it and left the destination
   unchanged. The Cyna declaration wrapper now rejects `DataView` before the
