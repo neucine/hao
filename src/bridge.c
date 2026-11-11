@@ -50,21 +50,17 @@ int hao_runtime_trace_limit_exceeded(void) {
 }
 
 #include "runtime_host.h"
+#include "std/fs/native.h"
+#include "std/process/native.h"
+#include "std/http/native.h"
+#include "std/http/server_uv.h"
+#include "std/ffi/native.h"
+#include "telemetry/metrics.h"
+#include "js/addon_native.h"
+#include "errors.h"
+#include "global/console.h"
 
 #include "../libs/transpiler/include/hao_transpiler.h"
-extern void hao_install_fs_globals(JSContext *ctx, JSValue global);
-extern void hao_install_process_globals(JSContext *ctx, JSValue global);
-extern void hao_install_http_globals(JSContext *ctx, JSValue global);
-extern void hao_install_http_server_globals(JSContext *ctx, JSValue global);
-extern void hao_http_server_cleanup(JSContext *ctx);
-extern void hao_install_telemetry_globals(JSContext *ctx, JSValue global);
-extern void hao_metric_cleanup(JSContext *ctx);
-extern void hao_install_ffi_globals(JSContext *ctx, JSValue global);
-extern void hao_ffi_cleanup(JSContext *ctx);
-extern JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
-extern void hao_addon_cleanup(JSContext *ctx);
-extern int hao_install_runtime_error(JSContext *ctx);
-extern int hao_test_reporter_ansi(void);
 void hao_runtime_free(uintptr_t handle);
 
 typedef struct {

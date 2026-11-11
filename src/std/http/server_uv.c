@@ -1,3 +1,5 @@
+#include "server_uv.h"
+#include "../../runtime_host.h"
 #include <quickjs.h>
 #include "../../runtime_allocator.h"
 #include <uv.h>
@@ -7,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern uv_loop_t *hao_runtime_loop(JSContext *ctx);
 
 typedef struct HaoServer HaoServer;
 typedef struct HaoClient HaoClient;

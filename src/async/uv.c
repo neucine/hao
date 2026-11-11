@@ -1,3 +1,4 @@
+#include "uv.h"
 #include <uv.h>
 #include "../runtime_allocator.h"
 #include <stdlib.h>

@@ -1,3 +1,4 @@
+#include "native.h"
 #include <quickjs.h>
 #include "../../runtime_allocator.h"
 #include <ffi/ffi.h>

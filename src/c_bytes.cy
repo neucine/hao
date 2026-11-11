@@ -1,12 +1,21 @@
 extern c("strlen") fn c_strlen(text: *const c_uchar): c_size_t;
-extern c("hao_byte_at") fn byte_at(pointer: *const c_uchar, index: c_size_t): c_uchar;
-pub extern c("hao_copy_bytes") fn copy_output(output: *c_uchar, input: *const c_uchar, length: c_size_t): void;
+fn byte_at(pointer: *const c_uchar, index: usize): c_uchar {
+    unchecked { return *(pointer + index); }
+}
+
+pub fn copy_output(output: *c_uchar, input: *const c_uchar, length: c_size_t): void {
+    var index: usize = 0;
+    while index < length as usize {
+        unchecked { *(output + index) = *(input + index); }
+        index = index + 1;
+    }
+}
 
 pub fn copy_bytes(pointer: *const c_uchar, length: usize): List<u8> {
     var bytes: List<u8> = list<u8>();
     var index: usize = 0;
     while index < length {
-        bytes.push(byte_at(pointer, index as c_size_t) as u8);
+        bytes.push(byte_at(pointer, index) as u8);
         index = index + 1;
     }
     return bytes;

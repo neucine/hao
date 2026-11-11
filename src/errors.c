@@ -1,3 +1,4 @@
+#include "errors.h"
 #include <quickjs.h>
 #include "runtime_host.h"
 #include <execinfo.h>

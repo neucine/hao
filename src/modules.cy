@@ -1,5 +1,5 @@
 import { runtime_eval, runtime_eval_test } from .bridge;
-import { runtime_register } from .module_ffi;
+import { runtime_register } from .`module`;
 
 pub fn eval(handle: c_size_t, source: string, filename: string): i32 {
     const source_bytes = source.bytes();

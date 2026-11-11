@@ -1,3 +1,5 @@
+#include "addon_native.h"
+#include "../telemetry/metrics.h"
 #include "../../include/addon.h"
 #include "../runtime_allocator.h"
 #include <quickjs.h>
@@ -26,12 +28,6 @@ typedef struct AddonFrame {
 } AddonFrame;
 
 static AddonLibrary *libraries;
-extern int hao_metric_register(JSContext *, const JsMetricDefinition *, uint32_t *);
-extern int hao_metric_add(JSContext *, uint32_t, double);
-extern int hao_metric_set(JSContext *, uint32_t, double);
-extern int hao_metric_observe(JSContext *, uint32_t, double);
-extern int hao_metric_value(JSContext *, uint32_t, double *);
-
 static bool frame_value(AddonFrame *frame, JsValue handle, JSValueConst *value) {
     if (handle == 0) { *value = JS_UNDEFINED; return true; }
     if (handle <= (size_t)frame->argc) { *value = frame->argv[handle - 1]; return true; }

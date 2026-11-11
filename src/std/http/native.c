@@ -1,3 +1,4 @@
+#include "native.h"
 #include "../../runtime_host.h"
 #include "../../runtime_allocator.h"
 #include <uv.h>
@@ -12,7 +13,6 @@
 #include <strings.h>
 #include <unistd.h>
 
-extern uv_loop_t *hao_runtime_loop(JSContext *ctx);
 
 typedef struct HaoHeader {
     char *name;

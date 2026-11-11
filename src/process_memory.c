@@ -1,3 +1,4 @@
+#include "process_memory.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -5,11 +6,6 @@
 #include <mach/mach.h>
 #include <mach/task_info.h>
 #endif
-
-typedef struct {
-    uint64_t resident_bytes;
-    uint64_t physical_footprint_bytes;
-} HaoProcessMemory;
 
 HaoProcessMemory hao_process_memory_snapshot(void) {
     HaoProcessMemory result = {0};

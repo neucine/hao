@@ -5,7 +5,7 @@ type = "staticlib"
 entry = "src/embed.cy"
 
 [c]
-sources = ["src/bridge.c", "src/c_bytes.c", "src/async/uv.c", "src/errors.c", "src/module.c", "src/runtime_allocator.c", "src/global/console.c", "src/global/timer.c", "src/fs_limit.c", "src/std/fs/native.c", "src/std/process/native.c", "src/std/process/execute.c", "src/std/http/native.c", "src/std/http/server_uv.c", "src/process_memory.c", "src/telemetry/metrics.c", "src/telemetry/interface.c", "src/std/ffi/native.c", "src/js/addon.c", "src/jupyter/zmq.c"]
+sources = ["src/bridge.c", "src/async/uv.c", "src/errors.c", "src/module.c", "src/runtime_allocator.c", "src/global/console.c", "src/global/timer.c", "src/fs_limit.c", "src/std/fs/native.c", "src/std/process/native.c", "src/std/process/execute.c", "src/std/http/native.c", "src/std/http/server_uv.c", "src/process_memory.c", "src/telemetry/metrics.c", "src/telemetry/interface.c", "src/std/ffi/native.c", "src/js/addon.c", "src/jupyter/zmq.c"]
 include_paths = [".deps/install/include", "/opt/homebrew/include"]
 
 [link]

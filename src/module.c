@@ -1,5 +1,7 @@
 #include "module.h"
+#include "bridge.h"
 #include "cyna_exports.h"
+#include "js/addon_native.h"
 #include "../libs/transpiler/include/hao_transpiler.h"
 #include "runtime_host.h"
 #include "runtime_allocator.h"
@@ -9,7 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 
-extern JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
 
 static HaoSourceModule *hao_find_module(HaoRuntime *host, const char *name) {
     for (HaoSourceModule *module = host->modules; module; module = module->next) {
@@ -119,10 +120,6 @@ int hao_runtime_register_native(uintptr_t handle, const char *name, size_t name_
     host->native_modules = module;
     return 0;
 }
-
-extern void hao_embed_clear_error(uintptr_t handle);
-extern void hao_embed_invalid_buffer(uintptr_t handle);
-extern void hao_embed_set_error(uintptr_t handle, const unsigned char *message, size_t length);
 
 int hao_embed_register_native_module(HaoRuntimeHandle handle, const unsigned char *name,
                                      size_t name_len, HaoNativeModuleLoader loader) {

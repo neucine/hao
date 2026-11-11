@@ -1,3 +1,5 @@
+#include "metrics.h"
+#include "../process_memory.h"
 #include <quickjs.h>
 #include <uv.h>
 #include "../runtime_allocator.h"
@@ -7,11 +9,6 @@
 #include <string.h>
 #include "../../include/addon.h"
 
-typedef struct {
-    uint64_t resident_bytes;
-    uint64_t physical_footprint_bytes;
-} HaoProcessMemory;
-extern HaoProcessMemory hao_process_memory_snapshot(void);
 static uint64_t resident_peak_bytes;
 static uint64_t physical_footprint_peak_bytes;
 

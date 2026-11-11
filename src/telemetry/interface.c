@@ -1,13 +1,10 @@
 #include "interface.h"
+#include "metrics.h"
 #include "../runtime_host.h"
 #include "../runtime_allocator.h"
 #include "../../include/addon.h"
 #include <math.h>
 #include <string.h>
-
-extern int hao_metric_register(JSContext *ctx, const JsMetricDefinition *definition, uint32_t *id);
-extern int hao_metric_add(JSContext *ctx, uint32_t id, double delta);
-extern int hao_metric_set(JSContext *ctx, uint32_t id, double value);
 
 enum { METRIC_ADD = 1, METRIC_SET = 2, SPAN_START = 3, SPAN_EVENT = 4, SPAN_END = 5 };
 enum { ATTRIBUTE_BOOL = 0, ATTRIBUTE_INT = 1, ATTRIBUTE_FLOAT = 2, ATTRIBUTE_TEXT = 3 };
