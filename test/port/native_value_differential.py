@@ -46,7 +46,10 @@ def main() -> None:
                     f'console.log(JSON.stringify(inspect({{repr(){{return {value}}},a:1}}, {limit})));'
                 )
         source.write_text("\n".join(lines))
-        assert run(port, source) == run(legacy, source), "util repr matrix differs"
+        expected = run(legacy, source)
+        actual = run(port, source)
+        assert expected[0] == 0 and expected[2] == "" and len(expected[1].splitlines()) == 210, expected
+        assert actual == expected, "util repr matrix differs"
 
         lines = ['import { runNative } from "std:process/native";']
         for limit in OUTPUT_LIMITS:
@@ -56,7 +59,10 @@ def main() -> None:
                 'catch (error) { console.log(error.name + ":" + error.message); }'
             )
         source.write_text("\n".join(lines))
-        assert run(port, source) == run(legacy, source), "process output limit matrix differs"
+        expected = run(legacy, source)
+        actual = run(port, source)
+        assert expected[0] == 0 and expected[2] == "" and len(expected[1].splitlines()) == 25, expected
+        assert actual == expected, "process output limit matrix differs"
     print("Native value differential: 235 cases matched")
 
 
