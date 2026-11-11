@@ -885,6 +885,23 @@ for (const invoke of [() => openNative('m'), () => callNative(0, 'cos'), () => c
 }
 EOF
 test "$("$runtime" "$fixture_dir/ffi-arity.ts")" = "$(printf 'TypeError dlopen requires 2 arguments: library name and descriptor\nTypeError ffi.callNative requires handle, symbol, and args\nTypeError ffi.closeNative requires a handle\nTypeError FFI: invalid library handle')"
+cat > "$fixture_dir/ffi-descriptor-errors.ts" <<'EOF'
+import { openNative } from 'std:ffi/native';
+import { callNative, closeNative } from 'std:ffi/c/native';
+for (const descriptor of [
+  { sqrt: { args: ['invalid'], returns: 'f64' } },
+  { sqrt: { args: ['f64'], returns: 'invalid' } },
+  { sqrt: { returns: 'f64' } },
+  { sqrt: null },
+]) {
+  try { openNative('m', descriptor as any); }
+  catch (error) { console.log(error.name, error.message); }
+}
+for (const call of [() => callNative(12345, 'sqrt', []), () => closeNative(0)]) {
+  try { call(); } catch (error) { console.log(error.name, error.code, error.nativeStack === undefined); }
+}
+EOF
+test "$(RUNTIME_NATIVE_STACK_TRACE=1 "$runtime" "$fixture_dir/ffi-descriptor-errors.ts")" = "$(printf 'TypeError dlopen: invalid argument type\nTypeError dlopen: invalid return type\nTypeError dlopen: descriptor args must be an array\nTypeError dlopen: invalid descriptor\nRuntimeError invalid_arg true\nRuntimeError invalid_arg true')"
 cat > "$fixture_dir/ffi-missing-symbol.ts" <<'EOF'
 import { openNative } from 'std:ffi/native';
 try { openNative('m', { hao_missing_symbol: { args: [], returns: 'void' } }); }

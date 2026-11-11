@@ -7,16 +7,15 @@ export function openNative(name: string, descriptor: Descriptor): number {
   if (!descriptor || typeof descriptor !== 'object' || Array.isArray(descriptor)) {
     throw Error('dlopen: descriptor must be an object');
   }
-  const entries = Object.entries(descriptor);
-  for (const [symbol, spec] of entries) {
-    if (!symbol || !spec || !Array.isArray(spec.args) || spec.args.length > 8 ||
-        spec.args.some(type => !types.has(type) || type === 'void') || !types.has(spec.returns)) {
-      throw Error(`dlopen: invalid descriptor for ${symbol}`);
-    }
-  }
   const handle = globalThis.__hao_ffi_open(name);
   try {
-    for (const [symbol, spec] of entries) globalThis.__hao_ffi_bind(handle, symbol, spec.args, spec.returns);
+    for (const [symbol, spec] of Object.entries(descriptor)) {
+      if (!spec || typeof spec !== 'object') throw new TypeError('dlopen: invalid descriptor');
+      if (!Array.isArray(spec.args)) throw new TypeError('dlopen: descriptor args must be an array');
+      if (!types.has(spec.returns)) throw new TypeError('dlopen: invalid return type');
+      if (spec.args.some(type => !types.has(type))) throw new TypeError('dlopen: invalid argument type');
+      globalThis.__hao_ffi_bind(handle, symbol, spec.args, spec.returns);
+    }
     return handle;
   } catch (error) {
     globalThis.__hao_ffi_close(handle);

@@ -357,6 +357,18 @@ improvement, with a smoke check.
   A shared libc probe matched `cstring` argument byte lengths for accented and
   emoji text, `strcmp` ordering, and nullable `cstring` returns from `getenv`.
   The smoke suite retains these direct FFI conversions.
+  With native stacks enabled, a direct error matrix found that Cyna used a
+  generic `Error` for invalid `std:ffi/native` descriptor arguments and return
+  types, while Zig reports distinct `TypeError` messages. Cyna now validates
+  these fields after opening the library, matching Zig's error order. Direct
+  `std:ffi/c/native` call and close handle errors no longer receive a
+  `nativeStack` that Zig leaves undefined. The smoke suite retains these paths.
+  A malformed function descriptor that is not an object yields Zig's
+  `[uninitialized]` exception value, while Cyna reports a descriptive
+  `TypeError`. Zig also accepts bindings above eight arguments and `void`
+  arguments during open, although its call trampoline has an eight-argument
+  bound; Cyna rejects those unsupported bindings during open. These are
+  deliberate error and bounds improvements, not claims of identical behavior.
   A separate C library probe compared `u64` arguments and returns at 2^53,
   2^63, and `UINT64_MAX` under both runtimes. The observed JavaScript numbers,
   including rounding above 2^53, matched. The Cyna smoke fixture now retains

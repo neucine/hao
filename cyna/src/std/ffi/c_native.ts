@@ -11,6 +11,7 @@ const runtimeErrorCodes = new Set([
   'grad_error', 'io_error', 'cancelled', 'invalid_state',
   'unsupported_lowering', 'internal', 'thread_pool_unavailable',
 ]);
+const runtimeArg = (message: string) => new RuntimeError('invalid_arg', message);
 
 function prepareSpec(name: string, declarations: string, opts: any, operation: string): Prepared {
   if (typeof name !== 'string' || !name) throw invalidArg('cdecl: invalid library name');
@@ -170,16 +171,16 @@ export function openNative(name: string, declarations: string, opts?: any): { ha
 }
 export function callNative(handle: number, symbol: string, args: any[]): unknown {
   const prepared = libraries.get(handle);
-  if (!prepared) throw invalidArg('C: invalid library handle');
+  if (!prepared) throw runtimeArg('C: invalid library handle');
   const fn = prepared.functions.find(item => item.name === symbol);
-  if (!fn) throw invalidArg('C: unknown symbol');
+  if (!fn) throw runtimeArg('C: unknown symbol');
   const policy = prepared.policies?.functions?.[symbol];
   const outIndex = policy?.returns?.out == null ? -1 : fn.params.findIndex(param => param.name === policy.returns.out);
   const buffers = policy?.buffers ?? {};
   const lengths = new Map<string, number>();
   const visible = fn.params.filter(param => param.name !== policy?.returns?.out &&
     !Object.values(buffers).some((buffer: any) => buffer.length === param.name));
-  if (args.length !== visible.length) throw invalidArg('C: wrong number of arguments');
+  if (args.length !== visible.length) throw runtimeArg('C: wrong number of arguments');
   let input = 0;
   const values = new Map<string, any>();
   const staged: { object: any; view: DataView; spec: PodSpec }[] = [];
@@ -196,9 +197,9 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
     const buffer = buffers[param.name];
     if (buffer) {
       const length = backingLength(value) / bytesPerElement(buffer.element);
-      if (!Number.isInteger(length)) throw invalidArg('buffer length is not aligned to its element type');
+      if (!Number.isInteger(length)) throw runtimeArg('buffer length is not aligned to its element type');
       const existing = lengths.get(buffer.length);
-      if (existing !== undefined && existing !== length) throw invalidArg('buffer lengths disagree');
+      if (existing !== undefined && existing !== length) throw runtimeArg('buffer lengths disagree');
       lengths.set(buffer.length, length);
     }
   }
@@ -234,7 +235,7 @@ export function closeNative(handle: number): void {
   try { globalThis.__hao_ffi_close(handle); }
   catch (error) {
     if (error instanceof TypeError && error.message === 'FFI: invalid library handle') {
-      throw invalidArg('C: invalid library handle');
+      throw runtimeArg('C: invalid library handle');
     }
     throw error;
   }
