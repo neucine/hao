@@ -156,9 +156,12 @@ import extra from 'foo:extra';
 console.log(native.foo(), native.add(2, 3), native.pair('a', 'b').join(','), extra.label());
 const first = Object.getOwnPropertyDescriptor(native.pair('a', 'b'), '0');
 console.log(first?.writable, first?.enumerable, first?.configurable);
+const sparse = [];
+sparse.length = 2147483648;
+console.log(native.arrayLength(['a', 'b']), native.arrayLength(sparse));
 EOF
 addon_actual=$("$runtime" "$fixture_dir/addon.ts")
-test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false')"
+test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false\n2 -1')"
 
 mkdir -p "$fixture_dir/node_modules/metric"
 clang -dynamiclib -I "$repo_root/include" "$repo_root/cyna/test/metric_addon.c" -o "$fixture_dir/node_modules/metric/native.dylib"

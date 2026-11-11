@@ -38,10 +38,19 @@ static JsValue label(JsContext* ctx, int argc, const JsValue* argv) {
     return js_string(ctx, "extra");
 }
 
+static JsValue array_length(JsContext* ctx, int argc, const JsValue* argv) {
+    uint32_t length = 0;
+    if (argc < 1 || js_array_length(ctx, argv[0], &length) < 0) {
+        return js_int32(ctx, -1);
+    }
+    return js_float64(ctx, (double)length);
+}
+
 static const JsFunction functions[] = {
     { "foo", foo, 0 },
     { "add", add, 2 },
     { "pair", pair, 2 },
+    { "arrayLength", array_length, 1 },
 };
 
 static const JsFunction extra_functions[] = {

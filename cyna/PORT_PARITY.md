@@ -62,6 +62,9 @@ that adapter.
   consistent with the Zig registry's empty package rejection and its
   length-aware specifiers. Native package registration and lifecycle callbacks
   remain an API parity gap.
+  The native addon consumer now checks `js_array_length` for ordinary and
+  sparse arrays. The Cyna adapter uses the same signed 32 bit conversion as
+  Zig and rejects lengths above `INT32_MAX`.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
   the Zig kernel beyond the current kernel integration test.
   The Cyna wire layer validates the HMAC and discards malformed multipart

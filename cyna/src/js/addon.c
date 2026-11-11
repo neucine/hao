@@ -83,7 +83,16 @@ static int api_is_null(JsContext *ctx, JsValue v) { return JS_IsNull(frame_value
 static int api_is_object(JsContext *ctx, JsValue v) { return JS_IsObject(frame_value(frame_of(ctx), v)); }
 static int api_is_array(JsContext *ctx, JsValue v) { AddonFrame *f = frame_of(ctx); return JS_IsArray(frame_value(f, v)); }
 static int api_is_function(JsContext *ctx, JsValue v) { AddonFrame *f = frame_of(ctx); return JS_IsFunction(f->ctx, frame_value(f, v)); }
-static int api_array_length(JsContext *ctx, JsValue v, uint32_t *out) { AddonFrame *f = frame_of(ctx); JSValue len = JS_GetPropertyStr(f->ctx, frame_value(f, v), "length"); int status = JS_ToUint32(f->ctx, out, len); JS_FreeValue(f->ctx, len); return status; }
+static int api_array_length(JsContext *ctx, JsValue v, uint32_t *out) {
+    AddonFrame *f = frame_of(ctx);
+    JSValue len = JS_GetPropertyStr(f->ctx, frame_value(f, v), "length");
+    int32_t signed_length = 0;
+    int status = JS_ToInt32(f->ctx, &signed_length, len);
+    JS_FreeValue(f->ctx, len);
+    if (status < 0 || signed_length < 0) return -1;
+    *out = (uint32_t)signed_length;
+    return 0;
+}
 static JsValue api_array_get(JsContext *ctx, JsValue v, uint32_t i) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_GetPropertyUint32(f->ctx, frame_value(f, v), i)); }
 static JsValue api_array(JsContext *ctx) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewArray(f->ctx)); }
 static int api_array_set(JsContext *ctx, JsValue v, uint32_t i, JsValue item) { AddonFrame *f = frame_of(ctx); return JS_DefinePropertyValueUint32(f->ctx, frame_value(f, v), i, JS_DupValue(f->ctx, frame_value(f, item)), JS_PROP_HAS_VALUE | JS_PROP_HAS_ENUMERABLE | JS_PROP_ENUMERABLE); }
