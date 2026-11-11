@@ -72,8 +72,10 @@ missing entry files, and relative source files. The smoke suite retains this
 diagnostic matrix. The module loader now sets the same error when an imported
 source is oversized or resolves to a directory; it previously returned with
 an unset QuickJS exception and printed `[uninitialized]`.
-Lexical absolute module path normalization now lives in `module.cy`; the C
-callback retains QuickJS allocation and module registration. The retained
+Lexical absolute module path normalization and relative path assembly now live
+in `module.cy`. File source loading uses the same Cyna bounded filesystem read
+as the rest of the port. The C callback retains the Rust transpiler call,
+QuickJS allocation, and module registration. The retained
 `test/port/module_path_differential.py` compares 11 relative imports with dot
 segments, repeated slashes, and parent traversal against Zig. All match.
 

@@ -17,6 +17,7 @@ import { addon_name_length as impl_addon_name_length } from .js.addon;
 import { addon_write_name as impl_addon_write_name } from .js.addon;
 import { rewrite_cell_c as impl_jupyter_rewrite_cell } from .jupyter.cell;
 import { lexical_absolute_c as impl_module_lexical_absolute } from .`module`;
+import { relative_c as impl_module_relative } from .`module`;
 import { resolve_package as impl_resolve_package } from .package;
 import { snapshot_c as impl_process_memory_snapshot } from .process_memory;
 import { type_code_c as impl_ffi_type_code } from .std.ffi.native;
@@ -93,17 +94,25 @@ export c("hao_addon_name_length") fn abi_addon_name_length(specifier: *const c_u
 }
 
 export c("hao_addon_write_name") fn abi_addon_write_name(specifier: *const c_uchar, path: *const c_uchar,
-    output: *c_uchar, capacity: c_size_t): c_int {
+    output: *c_uchar, capacity: c_size_t
+): c_int {
     return impl_addon_write_name(specifier, path, output, capacity);
 }
 
 export c("hao_jupyter_rewrite_cell") fn abi_jupyter_rewrite_cell(source: *const c_uchar,
-    length: c_size_t, output: *c_uchar, capacity: c_size_t): c_size_t {
+    length: c_size_t, output: *c_uchar, capacity: c_size_t
+): c_size_t {
     return impl_jupyter_rewrite_cell(source, length, output, capacity);
 }
 
 export c("hao_module_lexical_absolute") fn abi_module_lexical_absolute(path: *const c_uchar): ?*c_uchar {
     return impl_module_lexical_absolute(path);
+}
+
+export c("hao_module_relative") fn abi_module_relative(base: *const c_uchar,
+    specifier: *const c_uchar
+): ?*c_uchar {
+    return impl_module_relative(base, specifier);
 }
 
 export c("hao_resolve_package") fn abi_resolve_package(base_pointer: *const c_uchar, specifier_pointer: *const c_uchar, output: *c_uchar, capacity: c_size_t): c_int {
@@ -119,12 +128,14 @@ export c("hao_ffi_type_code") fn abi_ffi_type_code(name: *const c_uchar): c_int 
 }
 
 export c("hao_ffi_parse_unsigned") fn abi_ffi_parse_unsigned(text: *const c_uchar,
-    length: c_size_t, output: *c_ullong): c_int {
+    length: c_size_t, output: *c_ullong
+): c_int {
     return impl_ffi_parse_unsigned(text, length, output);
 }
 
 export c("hao_fs_read_alloc") fn abi_fs_read_alloc(path_pointer: *const c_uchar,
-    path_length: c_size_t, limit: c_size_t): ?*c_uchar {
+    path_length: c_size_t, limit: c_size_t
+): ?*c_uchar {
     return impl_fs_read_alloc(path_pointer, path_length, limit);
 }
 
@@ -149,7 +160,8 @@ export c("hao_http_transport_url") fn abi_http_transport_url(url: *const c_uchar
 }
 
 export c("hao_http_server_limits_error") fn abi_http_server_limits_error(port: c_double,
-    max_connections: c_double, timeout_ms: c_double): c_int {
+    max_connections: c_double, timeout_ms: c_double
+): c_int {
     return impl_http_server_limits_error(port, max_connections, timeout_ms);
 }
 
@@ -166,7 +178,8 @@ export c("hao_metric_kind") fn abi_metric_kind(name: *const c_uchar): c_uint {
 }
 
 export c("hao_metric_definition_valid") fn abi_metric_definition_valid(scope: *const c_uchar,
-    name: *const c_uchar, kind: c_uint, unit: *const c_uchar): c_int {
+    name: *const c_uchar, kind: c_uint, unit: *const c_uchar
+): c_int {
     return impl_metric_definition_valid(scope, name, kind, unit);
 }
 

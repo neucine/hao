@@ -5,7 +5,6 @@
 #include "runtime_host.h"
 #include "runtime_allocator.h"
 #include "../../include/hao.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -290,17 +289,8 @@ char *hao_normalize_module(JSContext *ctx, const char *base,
         hao_free(resolved);
         return normalized;
     }
-    const char *slash = strrchr(base, '/');
-    size_t dir_len = slash ? (size_t)(slash - base) : 1;
-    size_t spec_len = strlen(specifier);
-    char *joined = hao_alloc(dir_len + spec_len + 3);
-    if (!joined) return NULL;
-    if (slash) memcpy(joined, base, dir_len);
-    else joined[0] = '.';
-    joined[dir_len] = '/';
-    memcpy(joined + dir_len + 1, specifier, spec_len + 1);
-    char *resolved = (char *)hao_module_lexical_absolute((const unsigned char *)joined);
-    hao_free(joined);
+    char *resolved = (char *)hao_module_relative((const unsigned char *)base,
+                                                  (const unsigned char *)specifier);
     if (!resolved) {
         JS_ThrowReferenceError(ctx, "Module not found: %s", specifier);
         return NULL;
@@ -340,36 +330,12 @@ JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
         JS_FreeValue(ctx, compiled);
         return result;
     }
-    FILE *file = fopen(name, "rb");
-    if (!file) {
-        JS_ThrowReferenceError(ctx, "Module source not found");
-        return NULL;
-    }
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        JS_ThrowReferenceError(ctx, "Module source not found");
-        return NULL;
-    }
-    long size = ftell(file);
-    if (size < 0 || size > 10 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        JS_ThrowReferenceError(ctx, "Module source not found");
-        return NULL;
-    }
-    char *source = hao_alloc((size_t)size + 1);
+    char *source = (char *)hao_fs_read_alloc((const unsigned char *)name,
+                                             strlen(name), 10 * 1024 * 1024);
     if (!source) {
-        fclose(file);
         JS_ThrowReferenceError(ctx, "Module source not found");
         return NULL;
     }
-    size_t read_count = fread(source, 1, (size_t)size, file);
-    fclose(file);
-    if (read_count != (size_t)size) {
-        hao_free(source);
-        JS_ThrowReferenceError(ctx, "Module source not found");
-        return NULL;
-    }
-    source[size] = 0;
     char *transformed = hao_transpile_types_for_path(source, name);
     hao_free(source);
     if (!transformed) {
