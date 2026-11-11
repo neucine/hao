@@ -42,7 +42,7 @@ The legacy TypeScript standard modules are byte identical in the port except
 The Cyna HTTP client also captures a trace context before deferring its native
 request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
-A retained 27-case `test/port/http_server_limits_differential.py` compares native server port, connection, timeout, and hostname validation with Zig, including nonfinite and fractional numbers and embedded NUL in the hostname. The C ABI checks floating point validity before Cyna receives the values; Cyna owns the server limit policy in `std/http/server_uv.cy`.
+A retained 38-case `test/port/http_server_limits_differential.py` compares native server port, connection, timeout, and hostname validation with Zig, including nonfinite and fractional numbers, BigInt, Symbol and object conversion, and embedded NUL in the hostname. The C ABI checks floating point validity before Cyna receives the values; Cyna owns the server limit policy in `std/http/server_uv.cy`.
 
 `std/ffi/native.cy` now owns the 15 descriptor type names and exports their numeric codes to the adjacent libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All same stem C sources now have Cyna companions; this inventory result is separate from behavior parity.
 
