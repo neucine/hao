@@ -1,4 +1,5 @@
-import { FsError, read_bytes_limited } from std.fs;
+import { FsError, read_bytes_limited, create_dir, exists } from std.fs;
+import { dirname } from std.path;
 
 
 pub fn read_file_limited(path: string, max_bytes: usize): ?string {
@@ -30,4 +31,17 @@ pub fn script_read_error(path: string, limit: usize): i32 {
     };
     const ignored = result;
     return 4;
+}
+
+pub fn make_path(path: string): i32 {
+    const found = exists(path.clone()) catch (code) => false;
+    if found { return 0; }
+    const parent = dirname(path.clone());
+    if parent == path or parent.len() == 0 { return 1; }
+    if make_path(parent) != 0 { return 1; }
+    create_dir(path.clone()) catch (code) {
+        const created = exists(path) catch (other) => false;
+        if not created { return 1; }
+    };
+    return 0;
 }
