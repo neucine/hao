@@ -561,6 +561,10 @@ improvement, with a smoke check.
   A queued `execute_request` followed by `kernel_info_request` also returns the
   execution reply first, then kernel info. Both kernels publish the execution's
   busy, input, result, idle sequence before kernel info's busy and idle states.
+  The same shared consumer now queues a throwing execution followed by kernel
+  info. Both kernels return the error reply first, then kernel info, and publish
+  the error cell's busy, input, error, idle sequence before kernel info's busy
+  and idle states.
   The Cyna ZeroMQ sockets now use Zig's 1000 ms linger on close, giving queued
   shutdown replies and IOPub frames the same delivery window. The existing
   shared kernel consumer still receives the shutdown reply after this change.

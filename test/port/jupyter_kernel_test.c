@@ -264,6 +264,18 @@ int main(int argc, char **argv) {
             if (receive_content(iopub, content, sizeof(content)) < 0 ||
                 !strstr(content, expected_output[i])) status = 122;
         }
+        if (!status && (send_request(shell, "execute_request", "{\"code\":\"throw Error('queued failure')\"}") < 0 ||
+            send_request(shell, "kernel_info_request", "{}") < 0)) status = 123;
+        if (!status && (receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"status\"") || !strstr(content, "\"error\"") ||
+            !strstr(content, "queued failure"))) status = 124;
+        if (!status && (receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"implementation\""))) status = 125;
+        const char *expected_error_output[] = {"busy", "queued failure", "queued failure", "idle", "busy", "idle"};
+        for (int i = 0; !status && i < 6; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0 ||
+                !strstr(content, expected_error_output[i])) status = 126;
+        }
         if (!status && (send_request(control, "shutdown_request", "{") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok") ||
