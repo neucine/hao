@@ -184,6 +184,8 @@ test "$metric_actual" = "$(printf '1 2\n2 counter count')"
 printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name, namespace, runtime.name);\n' > "$fixture_dir/standard.ts"
 standard_actual=$("$runtime" "$fixture_dir/standard.ts")
 test "$standard_actual" = 'hao std: hao'
+printf "console.log(Symbol('x'));\n" > "$fixture_dir/console-symbol.ts"
+test "$("$runtime" "$fixture_dir/console-symbol.ts")" = 'Symbol(x)'
 
 printf "import fs from 'std:fs'; const path = '%s/data.txt'; console.log(fs.existsSync(path)); fs.writeFileSync(path, 'hello'); console.log(fs.existsSync(path), fs.readFileSync(path), fs.statSync(path).size);\n" "$fixture_dir" > "$fixture_dir/filesystem.ts"
 filesystem_actual=$("$runtime" "$fixture_dir/filesystem.ts")

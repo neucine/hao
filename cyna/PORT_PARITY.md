@@ -43,6 +43,12 @@ zero for the console port; Cyna now accepts it too, and the smoke suite retains
 `-00` as a regression case. The compared values now have the same accept or
 reject result.
 
+The console bridge matched Zig for empty calls, primitives, nested objects,
+cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript
+`Symbol`, Zig's inspect conversion writes an empty string, while Cyna writes
+`Symbol(x)`. Cyna keeps the informative representation as an intentional
+improvement, with a smoke check.
+
 ## Open behavior checks
 
 - `RUNTIME_NATIVE_STACK_TRACE` now passes through Cyna `std.config` and makes
