@@ -66,6 +66,13 @@ for suffix in ("*.c", "*.h"):
     for candidate in (port / "src").rglob(suffix):
         if (port / "src/bridge") not in candidate.parents:
             errors.append(f"native source outside bridge: {candidate.relative_to(port)}")
+        elif candidate.parent != port / "src/bridge":
+            errors.append(f"native source must be flat under bridge: {candidate.relative_to(port)}")
+        elif suffix == "*.h" and re.search(
+            r"(?ms)^\s*static\b[^;{}]*\([^;{}]*\)\s*\{",
+            candidate.read_text(),
+        ):
+            errors.append(f"function definition in bridge header: {candidate.relative_to(port)}")
 bridge_sources = {
     candidate.relative_to(port).as_posix()
     for candidate in (port / "src/bridge").rglob("*.c")

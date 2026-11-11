@@ -2,7 +2,7 @@
 #define HAO_CYNA_EXPORTS_H
 
 #include <stddef.h>
-#include "std/process/execute.h"
+#include "support.h"
 
 /* Exported only by hao_abi.cy, which delegates to the Cyna feature modules. */
 int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,

@@ -1,4 +1,4 @@
-#include "../../src/bridge/async/uv.h"
+#include "../../src/bridge/uv_bridge.h"
 #include <stdio.h>
 
 static int fired;

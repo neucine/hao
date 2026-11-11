@@ -70,11 +70,13 @@ clang -I "$repo_root/.deps/install/include" "$repo_root/test/port/async_uv_consu
     -o "$fixture_dir/async-uv-consumer" 2> "$fixture_dir/async-uv-link.log"
 test "$("$fixture_dir/async-uv-consumer")" = 'async loop ok'
 clang -I /opt/homebrew/include "$repo_root/test/port/jupyter_wire_test.c" \
+    "$repo_root/test/port/jupyter_hmac.c" \
     "$repo_root/src/bridge/jupyter.c" "$repo_root/src/bridge/support.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto \
     -o "$fixture_dir/jupyter-wire-test"
 test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'
 clang -I /opt/homebrew/include "$repo_root/test/port/jupyter_kernel_test.c" \
+    "$repo_root/test/port/jupyter_hmac.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto -o "$fixture_dir/jupyter-kernel-test"
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime")" = 'kernel ok'
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime" --shared)" = 'kernel ok'

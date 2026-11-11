@@ -1,4 +1,4 @@
-#include "../../src/bridge/runtime_allocator.h"
+#include "../../src/bridge/support.h"
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>

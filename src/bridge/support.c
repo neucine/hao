@@ -1,7 +1,5 @@
 #define _DARWIN_C_SOURCE 1
-#include "process_memory.h"
-#include "runtime_allocator.h"
-#include "std/process/execute.h"
+#include "support.h"
 #include <errno.h>
 #include <poll.h>
 #include <signal.h>

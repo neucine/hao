@@ -1,7 +1,7 @@
 #include "cyna_exports.h"
-#include "runtime_allocator.h"
-#include "runtime_host.h"
-#include "telemetry/metrics.h"
+#include "runtime.h"
+#include "support.h"
+#include "telemetry.h"
 #include "../../libs/transpiler/include/hao_transpiler.h"
 #include "../../include/hao.h"
 #include <arpa/inet.h>

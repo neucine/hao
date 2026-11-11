@@ -1,8 +1,6 @@
-#include "../../include/addon.h"
-#include "process_memory.h"
-#include "runtime_allocator.h"
-#include "runtime_host.h"
-#include "telemetry/metrics.h"
+#include "runtime.h"
+#include "support.h"
+#include "telemetry.h"
 #include <math.h>
 #include <quickjs.h>
 #include <stdatomic.h>

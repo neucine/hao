@@ -1,13 +1,10 @@
-#ifndef HAO_CYNA_CRYPTO_H
-#define HAO_CYNA_CRYPTO_H
-
+#include "jupyter_hmac.h"
 #include <openssl/evp.h>
 #include <openssl/params.h>
-#include <stddef.h>
 
-static int hao_hmac_sha256(const void *key, size_t key_length,
-                           const void *parts[4], const size_t lengths[4],
-                           unsigned char digest[32]) {
+int jupyter_hmac_sha256(const void *key, size_t key_length,
+                        const void *parts[4], const size_t lengths[4],
+                        unsigned char digest[32]) {
     EVP_MAC *mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
     if (!mac) return -1;
     EVP_MAC_CTX *context = EVP_MAC_CTX_new(mac);
@@ -23,5 +20,3 @@ static int hao_hmac_sha256(const void *key, size_t key_length,
     EVP_MAC_CTX_free(context);
     return status == 1 && digest_length == 32 ? 0 : -1;
 }
-
-#endif

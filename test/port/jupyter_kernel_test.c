@@ -1,5 +1,5 @@
 #include <zmq.h>
-#include "../../src/bridge/jupyter/crypto.h"
+#include "jupyter_hmac.h"
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,7 +13,7 @@ static void sign_request(const char *header, const char *content, char out[65]) 
     const void *parts[4]; size_t lengths[4];
     for (int i = 0; i < 4; i++) { parts[i] = frames[i]; lengths[i] = strlen(frames[i]); }
     unsigned char digest[32];
-    if (hao_hmac_sha256("secret", 6, parts, lengths, digest) != 0) abort();
+    if (jupyter_hmac_sha256("secret", 6, parts, lengths, digest) != 0) abort();
     static const char hex[] = "0123456789abcdef";
     for (int i = 0; i < 32; i++) { out[i * 2] = hex[digest[i] >> 4]; out[i * 2 + 1] = hex[digest[i] & 15]; }
     out[64] = 0;

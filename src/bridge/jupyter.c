@@ -1,5 +1,6 @@
-#include "jupyter/crypto.h"
-#include "runtime_allocator.h"
+#include "support.h"
+#include <openssl/evp.h>
+#include <openssl/params.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,25 @@ typedef struct {
     HaoFrame header, content;
     int incoming_channel;
 } HaoWire;
+
+static int hmac_sha256(const void *key, size_t key_length,
+                       const void *parts[4], const size_t lengths[4],
+                       unsigned char digest[32]) {
+    EVP_MAC *mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    if (!mac) return -1;
+    EVP_MAC_CTX *context = EVP_MAC_CTX_new(mac);
+    EVP_MAC_free(mac);
+    if (!context) return -1;
+    char algorithm[] = "SHA256";
+    OSSL_PARAM params[] = { OSSL_PARAM_utf8_string("digest", algorithm, 0), OSSL_PARAM_END };
+    int status = EVP_MAC_init(context, key, key_length, params);
+    for (size_t i = 0; status == 1 && i < 4; i++)
+        status = EVP_MAC_update(context, parts[i], lengths[i]);
+    size_t digest_length = 0;
+    if (status == 1) status = EVP_MAC_final(context, digest, &digest_length, 32);
+    EVP_MAC_CTX_free(context);
+    return status == 1 && digest_length == 32 ? 0 : -1;
+}
 
 static char *copy_text(const unsigned char *data, size_t length) {
     if ((!data && length) || length > HAO_MAX_FRAME) return NULL;
@@ -134,7 +154,7 @@ static size_t signature(const HaoWire *wire, const HaoFrame frames[4], char out[
     const void *parts[4]; size_t lengths[4];
     for (size_t i = 0; i < 4; i++) { parts[i] = frames[i].data; lengths[i] = frames[i].length; }
     uint8_t digest[32];
-    if (hao_hmac_sha256(wire->key, wire->key_length, parts, lengths, digest) != 0) return SIZE_MAX;
+    if (hmac_sha256(wire->key, wire->key_length, parts, lengths, digest) != 0) return SIZE_MAX;
     static const char hex[] = "0123456789abcdef";
     for (size_t i = 0; i < 32; i++) { out[i * 2] = hex[digest[i] >> 4]; out[i * 2 + 1] = hex[digest[i] & 15]; }
     out[64] = 0;
