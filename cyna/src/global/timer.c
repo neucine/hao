@@ -64,7 +64,7 @@ static void hao_timer_fired(uv_timer_t *handle) {
     if (JS_IsException(result)) {
         hao_retain_timer_error(host, host->context);
     }
-    hao_drain_timer_jobs(host);
+    if (!JS_IsUndefined(timer->trace_context)) hao_drain_timer_jobs(host);
     if (!JS_IsUndefined(previous)) {
         JSValue restored = hao_enter_trace_context(host->context, previous);
         JS_FreeValue(host->context, restored);
@@ -98,7 +98,15 @@ static JSValue hao_set_timeout(JSContext *ctx, JSValueConst this_val,
     timer->trace_context = JS_UNDEFINED;
     JSValue global = JS_GetGlobalObject(ctx);
     JSValue capture = JS_GetPropertyStr(ctx, global, "__hao_telemetry_captureContext");
-    if (JS_IsFunction(ctx, capture)) timer->trace_context = JS_Call(ctx, capture, global, 0, NULL);
+    if (JS_IsFunction(ctx, capture)) {
+        JSValue context = JS_Call(ctx, capture, global, 0, NULL);
+        if (JS_IsObject(context)) {
+            JSValue span = JS_GetPropertyStr(ctx, context, "span");
+            if (!JS_IsNull(span) && !JS_IsUndefined(span)) timer->trace_context = context;
+            else JS_FreeValue(ctx, context);
+            JS_FreeValue(ctx, span);
+        } else JS_FreeValue(ctx, context);
+    }
     JS_FreeValue(ctx, capture);
     JS_FreeValue(ctx, global);
     timer->id = host->next_timer_id++;

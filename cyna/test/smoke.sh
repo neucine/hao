@@ -1415,6 +1415,13 @@ timer_turns_actual=$("$runtime" "$fixture_dir/timer-turns.ts")
 timer_turns_expected=$(printf 'first\njob\nsecond')
 test "$timer_turns_actual" = "$timer_turns_expected"
 
+cat > "$fixture_dir/timer-same-turn.ts" <<'EOF'
+const events: string[] = [];
+setTimeout(() => { events.push('first'); Promise.resolve().then(() => events.push('job')); }, 0);
+setTimeout(() => { events.push('second'); setTimeout(() => console.log(events.join(',')), 0); }, 0);
+EOF
+test "$("$runtime" "$fixture_dir/timer-same-turn.ts")" = 'first,second,job'
+
 cat > "$fixture_dir/timer-error.ts" <<'EOF'
 setTimeout(() => { throw Error('timer exploded'); }, 0);
 setTimeout(() => { console.log('later timer'); }, 20);
