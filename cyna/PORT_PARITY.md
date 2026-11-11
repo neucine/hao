@@ -170,6 +170,10 @@ improvement, with a smoke check.
   policy forms Zig cannot represent in a descriptor report the same
   `RuntimeError` category. More declaration and option combinations remain
   to be compared.
+  `openNative` now returns normalized handle and function policies like Zig,
+  which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
+  a handle object. A shared native library probe returned `HaoBox 37` from
+  both runtimes; the Cyna smoke suite retains the output handle and close path.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.

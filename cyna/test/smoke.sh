@@ -699,7 +699,9 @@ int hao_fail_handle(void **out) { *out = (void *)0x1234; return 5; }
 int hao_fail_with_code(int code) { return code ? -1 : 0; }
 const char *hao_error_message(int code) { return code == 7 ? "status 7" : "other status"; }
 typedef struct HaoBox { int value; } HaoBox;
-HaoBox *hao_box_open(void) { static HaoBox box = { 37 }; return &box; }
+static HaoBox hao_box = { 37 };
+HaoBox *hao_box_open(void) { return &hao_box; }
+int32_t hao_box_open_out(HaoBox **out) { *out = &hao_box; return 0; }
 int hao_box_value(HaoBox *box) { return box->value; }
 void hao_box_close(HaoBox *box) { (void)box; }
 typedef struct { double x; double y; } HaoPoint;
@@ -711,8 +713,11 @@ void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
 cat > "$fixture_dir/ffi-c-prepare.ts" <<'EOF'
-import { prepareNative } from 'std:ffi/c/native';
+import { prepareNative, openNative, closeNative } from 'std:ffi/c/native';
 console.log(JSON.stringify(prepareNative('m', 'double sqrt(double x);')));
+const opened = openNative('m', 'double sqrt(double x);');
+console.log(JSON.stringify({ symbols: opened.symbols, policies: opened.policies }));
+closeNative(opened.handle);
 console.log(JSON.stringify(prepareNative('x',
   'typedef struct Foo Foo; int32_t hao_open(Foo **out);',
   { functions: { hao_open: { returns: { out: 'out' } } } })));
@@ -720,8 +725,9 @@ try { prepareNative('m', 'double sqrt(double x);',
   { functions: { sqrt: { errors: { kind: 'status', ok: 0, code: 'io_error' } } } }); }
 catch (error) { console.log(error.name, error.code, error.message); }
 EOF
-test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s' \
+test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s' \
   '{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
+  '{"symbols":["sqrt"],"policies":{"handles":{},"functions":{}}}' \
   '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
   'RuntimeError internal prepareNative: failed to build descriptor')"
 cat > "$fixture_dir/ffi-c-policy-error.ts" <<'EOF'
@@ -920,14 +926,20 @@ const fallback = cdecl('hao_search_fixture', 'int32_t hao_search_value(void);', 
 console.log(fallback.hao_search_value());
 fallback.close();
 const boxes = cdecl('hao_search_fixture',
-  'typedef struct HaoBox HaoBox; HaoBox *hao_box_open(void); int32_t hao_box_value(HaoBox *box); void hao_box_close(HaoBox *box);', {
+  'typedef struct HaoBox HaoBox; HaoBox *hao_box_open(void); int32_t hao_box_open_out(HaoBox **out); int32_t hao_box_value(HaoBox *box); void hao_box_close(HaoBox *box);', {
     search: { strategy: 'relative-first', paths: [path] },
     handles: { HaoBox: { close: 'hao_box_close' } },
-    functions: { hao_box_open: { returns: { kind: 'handle', type: 'HaoBox' } } },
+    functions: {
+      hao_box_open: { returns: { kind: 'handle', type: 'HaoBox' } },
+      hao_box_open_out: { returns: { out: 'out' } },
+    },
   });
 const box = boxes.hao_box_open();
 console.log(boxes.hao_box_value(box));
 box.close();
+const outBox = boxes.hao_box_open_out();
+console.log(boxes.hao_box_value(outBox));
+outBox.close();
 boxes.close();
 const geometry = cdecl('hao_search_fixture',
   'typedef struct { double x; double y; } HaoPoint; void hao_move_point(HaoPoint *point);', {
@@ -956,9 +968,9 @@ nested.close();
 try { cdecl('hao_search_fixture', '/* never closed'); }
 catch (error) { console.log(error.message); }
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
 mv "$fixture_dir/libhao_search_fixture.dylib" "$fixture_dir/libhao_search_fixture.so"
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 mkdir -p "$fixture_dir/symlink-app" "$fixture_dir/symlink-target"

@@ -22,13 +22,22 @@ export function prepareNative(name: string, declarations: string, opts?: any): {
 } {
   const prepared = prepareSpec(name, declarations, opts);
   const descriptor: Record<string, { args: string[]; returns: string }> = {};
-  const functions: Record<string, any> = {};
   for (const fn of prepared.functions) {
     const policy = prepared.policies?.functions?.[fn.name];
     if (policy?.errors || Object.keys(policy?.buffers ?? {}).length) {
       throw new RuntimeError('internal', 'prepareNative: failed to build descriptor');
     }
     descriptor[fn.name] = { args: fn.params.map(param => param.type), returns: fn.returns };
+  }
+  return { descriptor, policies: publicPolicies(prepared) };
+}
+function publicPolicies(prepared: Prepared): {
+  handles: Record<string, { close?: string }>;
+  functions: Record<string, any>;
+} {
+  const functions: Record<string, any> = {};
+  for (const fn of prepared.functions) {
+    const policy = prepared.policies?.functions?.[fn.name];
     let type = policy?.returns?.kind === 'handle' ? policy.returns.type : undefined;
     if (!type && policy?.returns?.out) {
       const output = fn.params.find(param => param.name === policy.returns.out);
@@ -37,7 +46,7 @@ export function prepareNative(name: string, declarations: string, opts?: any): {
     }
     if (type) functions[fn.name] = { returns: { kind: 'handle', type } };
   }
-  return { descriptor, policies: { handles: prepared.policies?.handles ?? {}, functions } };
+  return { handles: prepared.policies?.handles ?? {}, functions };
 }
 function openWithSearch(name: string, search: any): number {
   const open = (candidate: string): number | null => {
@@ -90,7 +99,7 @@ export function openNative(name: string, declarations: string, opts?: any): { ha
     throw error;
   }
   libraries.set(handle, prepared);
-  return { handle, symbols: prepared.symbols, policies: prepared.policies };
+  return { handle, symbols: prepared.symbols, policies: publicPolicies(prepared) };
 }
 export function callNative(handle: number, symbol: string, args: any[]): unknown {
   const prepared = libraries.get(handle);
