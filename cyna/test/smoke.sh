@@ -440,7 +440,16 @@ for flag in ('1', 'true', 'yes', 'on'):
             with urllib.request.urlopen(base + path, timeout=2) as response:
                 return response.read().decode()
         assert json.loads(get('/api/health')) == {'ok': True}
-        assert any(metric['scope'] == 'fixture' and metric['value'] == 3 for metric in json.loads(get('/api/metrics')))
+        metrics = json.loads(get('/api/metrics'))
+        assert any(metric['scope'] == 'fixture' and metric['value'] == 3 for metric in metrics)
+        memory_names = {metric['name'] for metric in metrics if metric['scope'] == 'runtime.memory'}
+        assert {
+            'allocator_active_bytes', 'allocator_peak_bytes',
+            'allocator_allocated_bytes_total', 'allocator_freed_bytes_total',
+            'allocator_allocation_count', 'allocator_free_count',
+            'resident_bytes', 'physical_footprint_bytes',
+            'resident_peak_bytes', 'physical_footprint_peak_bytes',
+        } <= memory_names
         traces = json.loads(get('/api/traces?since=0&limit=10'))
         assert [record['kind'] for record in traces['records'] if record['name'] == 'fixture-trace'] == ['span_start', 'span_end']
         assert [record['kind'] for record in traces['records'] if record['name'] in ('fixture-event', 'fixture-received')] == ['span_start', 'event', 'span_end']

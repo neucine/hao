@@ -42,6 +42,12 @@ console ports across valid and invalid values. It found that Zig accepts signed
 zero for the console port; Cyna now accepts it too, and the smoke suite retains
 `-00` as a regression case. The compared values now have the same accept or
 reject result.
+  A live console comparison found that `/api/metrics` includes all ten Zig
+  host memory metric names. Cyna also exposes QuickJS metrics supplied by
+  `std.telemetry`; the smoke suite now guards the shared host metric set.
+  `/api/traces` returned matching cursor and record shapes in the sampled
+  requests. Cyna returns 404 for `/tracesXYZ`, whereas Zig's prefix route
+  accepts it; Cyna keeps exact path matching.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript
