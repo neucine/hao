@@ -624,6 +624,21 @@ for (const attributes of [{ value: 'x'.repeat(257) },
 EOF
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-event.ts")" = "$(printf 'span_start,event,span_end GET 42 true\nGET\nrejected\nrejected')"
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-timer.ts")" = 'root child true'
+cat > "$fixture_dir/telemetry-interleave.ts" <<'EOF'
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+await Promise.all(['left', 'right'].map(name => trace(name, async () => {
+  await new Promise(resolve => setTimeout(resolve, name === 'left' ? 8 : 2));
+  trace(`${name}-child`, () => {});
+})));
+const starts = snapshotTraceRecordsNative().records.filter(record => record.kind === 'span_start');
+for (const name of ['left', 'right']) {
+  const parent = starts.find(record => record.name === name)!;
+  const child = starts.find(record => record.name === `${name}-child`)!;
+  console.log(child.parent_span_id === parent.span_id, child.trace_id === parent.trace_id);
+}
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-interleave.ts")" = "$(printf 'true true\ntrue true')"
 cat > "$fixture_dir/telemetry-http.ts" <<'EOF'
 import { serve, get } from 'std:http';
 import { trace } from 'std:telemetry';

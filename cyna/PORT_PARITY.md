@@ -177,6 +177,14 @@ improvement, with a smoke check.
   and a smoke case with two concurrent requests and a rejected request now
   produce parented child spans. Further scheduling combinations remain part
   of the full parity audit.
+  A telemetry console probe with two overlapping async traces revealed that
+  Cyna's JavaScript timer wrapper restored context before Promise continuation
+  jobs ran: both child spans became roots. The native timer now captures the
+  trace context when scheduled, enters it for the callback and queued jobs,
+  and restores it afterward. Both Cyna child spans now reference their own
+  parent span and trace ID; the smoke suite checks that relationship. Zig's
+  global context nests the second parent under the first in this overlap, so
+  Cyna's independent parent traces are retained as the clearer behavior.
 - The shared HTTP server consumer passed under both runtimes for Unicode and
   binary bodies, JSON requests, HEAD, handler and header errors, recovery after
   errors, and eight concurrent POST requests with independent bodies. The

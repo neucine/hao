@@ -7,6 +7,7 @@ struct HaoTimer {
     uv_timer_t handle;
     HaoRuntime *host;
     JSValue callback;
+    JSValue trace_context;
     uint32_t id;
     HaoTimer *next;
 };
@@ -27,22 +28,50 @@ static void hao_timer_closed(uv_handle_t *handle) {
     hao_free(timer);
 }
 
+static JSValue hao_enter_trace_context(JSContext *ctx, JSValueConst context) {
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue enter = JS_GetPropertyStr(ctx, global, "__hao_telemetry_enterContext");
+    JSValue previous = JS_UNDEFINED;
+    if (JS_IsFunction(ctx, enter)) previous = JS_Call(ctx, enter, global, 1, &context);
+    JS_FreeValue(ctx, enter);
+    JS_FreeValue(ctx, global);
+    return previous;
+}
+
+static void hao_retain_timer_error(HaoRuntime *host, JSContext *ctx) {
+    JSValue error = JS_GetException(ctx);
+    if (!host->has_callback_error) {
+        host->callback_error = error;
+        host->has_callback_error = true;
+    } else JS_FreeValue(ctx, error);
+}
+
+static void hao_drain_timer_jobs(HaoRuntime *host) {
+    JSContext *job_ctx = NULL;
+    int result;
+    while ((result = JS_ExecutePendingJob(host->runtime, &job_ctx)) > 0) {}
+    if (result < 0) hao_retain_timer_error(host, job_ctx);
+}
+
 static void hao_timer_fired(uv_timer_t *handle) {
     HaoTimer *timer = handle->data;
     HaoRuntime *host = timer->host;
     hao_unlink_timer(host, timer);
+    JSValue previous = JS_UNDEFINED;
+    if (!JS_IsUndefined(timer->trace_context)) previous = hao_enter_trace_context(host->context, timer->trace_context);
     JSValue result = JS_Call(host->context, timer->callback, JS_UNDEFINED, 0, NULL);
     if (JS_IsException(result)) {
-        JSValue error = JS_GetException(host->context);
-        if (!host->has_callback_error) {
-            host->callback_error = error;
-            host->has_callback_error = true;
-        } else {
-            JS_FreeValue(host->context, error);
-        }
+        hao_retain_timer_error(host, host->context);
     }
+    hao_drain_timer_jobs(host);
+    if (!JS_IsUndefined(previous)) {
+        JSValue restored = hao_enter_trace_context(host->context, previous);
+        JS_FreeValue(host->context, restored);
+    }
+    JS_FreeValue(host->context, previous);
     JS_FreeValue(host->context, result);
     JS_FreeValue(host->context, timer->callback);
+    JS_FreeValue(host->context, timer->trace_context);
     uv_close((uv_handle_t *)handle, hao_timer_closed);
 }
 
@@ -65,6 +94,12 @@ static JSValue hao_set_timeout(JSContext *ctx, JSValueConst this_val,
     timer->host = host;
     timer->handle.data = timer;
     timer->callback = JS_DupValue(ctx, argv[0]);
+    timer->trace_context = JS_UNDEFINED;
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue capture = JS_GetPropertyStr(ctx, global, "__hao_telemetry_captureContext");
+    if (JS_IsFunction(ctx, capture)) timer->trace_context = JS_Call(ctx, capture, global, 0, NULL);
+    JS_FreeValue(ctx, capture);
+    JS_FreeValue(ctx, global);
     timer->id = host->next_timer_id++;
     if (host->next_timer_id == 0 || host->next_timer_id > INT32_MAX) host->next_timer_id = 1;
     timer->next = host->timers;
@@ -72,6 +107,7 @@ static JSValue hao_set_timeout(JSContext *ctx, JSValueConst this_val,
     if (uv_timer_start(&timer->handle, hao_timer_fired, delay == 0 ? 1 : (uint64_t)delay, 0) != 0) {
         hao_unlink_timer(host, timer);
         JS_FreeValue(ctx, timer->callback);
+        JS_FreeValue(ctx, timer->trace_context);
         uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
         return JS_ThrowInternalError(ctx, "Timer scheduling failed");
     }
@@ -91,6 +127,7 @@ static JSValue hao_clear_timeout(JSContext *ctx, JSValueConst this_val,
             hao_unlink_timer(host, timer);
             uv_timer_stop(&timer->handle);
             JS_FreeValue(ctx, timer->callback);
+            JS_FreeValue(ctx, timer->trace_context);
             uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
             break;
         }
@@ -119,6 +156,7 @@ void hao_cleanup_timers(HaoRuntime *host) {
         hao_unlink_timer(host, timer);
         uv_timer_stop(&timer->handle);
         JS_FreeValue(host->context, timer->callback);
+        JS_FreeValue(host->context, timer->trace_context);
         uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
     }
 }

@@ -76,24 +76,6 @@ globalThis.__hao_telemetry_enterContext = (context: Context) => {
   currentSpanId = context.spanId;
   return previous;
 };
-const scheduleTimeout = globalThis.setTimeout;
-globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number) => {
-  if (typeof callback !== 'function') return scheduleTimeout(callback, delay);
-  const parent = currentSpan;
-  const traceId = currentTraceId;
-  const spanId = currentSpanId;
-  if (parent === null && traceId === null && spanId === null)
-    return scheduleTimeout(callback, delay);
-  return scheduleTimeout(() => {
-    const previous = { span: currentSpan, trace: currentTraceId, spanId: currentSpanId };
-    currentSpan = parent;
-    currentTraceId = traceId;
-    currentSpanId = spanId;
-    try { callback(); } finally {
-      currentSpan = previous.span; currentTraceId = previous.trace; currentSpanId = previous.spanId;
-    }
-  }, delay);
-}) as typeof setTimeout;
 const rootSpanId = '0000000000000000';
 function utf8Length(value: string): number {
   let bytes = 0;
