@@ -486,6 +486,15 @@ test('captures a child file', async () => {
 EOF
 capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" 2>&1)
 case "$capture_summary" in *'Tests:'*'2 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
+
+cat > "$fixture_dir/capture-large.ts" <<'EOF'
+import { captureOutput } from 'std:test';
+const captured = await captureOutput(() => {
+  for (let i = 0; i < 1800; i++) console.log('x'.repeat(9999));
+});
+console.log(captured.stdout.length);
+EOF
+test "$("$runtime" "$fixture_dir/capture-large.ts")" = '18000000'
 telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" 2>&1)
 case "$telemetry_summary" in *'Tests:'*'4 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
 cat > "$fixture_dir/telemetry-console.ts" <<'EOF'

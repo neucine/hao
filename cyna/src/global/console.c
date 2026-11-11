@@ -21,11 +21,16 @@ void hao_test_print_load(size_t index, size_t total, const unsigned char *path, 
 
 static int hao_capture_append(char **buffer, size_t *length, size_t *capacity,
                               const char *text, size_t count) {
-    const size_t limit = 16 * 1024 * 1024;
-    if (count > limit - *length) return -1;
+    if (count > SIZE_MAX - *length) return -1;
     if (*length + count > *capacity) {
         size_t next_capacity = *capacity ? *capacity : 256;
-        while (next_capacity < *length + count) next_capacity *= 2;
+        while (next_capacity < *length + count) {
+            if (next_capacity > SIZE_MAX / 2) {
+                next_capacity = *length + count;
+                break;
+            }
+            next_capacity *= 2;
+        }
         char *next = hao_realloc(*buffer, next_capacity);
         if (!next) return -1;
         *buffer = next;
@@ -65,7 +70,7 @@ static JSValue hao_console_write(JSContext *ctx, int argc, JSValueConst *argv, i
             int status = hao_capture_append(buffer, length, capacity, text, text_length);
             JS_FreeCString(ctx, text);
             JS_FreeValue(ctx, formatted);
-            if (status != 0) { JS_FreeValue(ctx, inspect); return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB"); }
+            if (status != 0) { JS_FreeValue(ctx, inspect); return JS_ThrowOutOfMemory(ctx); }
         } else {
             fwrite(text, 1, text_length, stream);
             JS_FreeCString(ctx, text);
@@ -74,7 +79,7 @@ static JSValue hao_console_write(JSContext *ctx, int argc, JSValueConst *argv, i
     }
     JS_FreeValue(ctx, inspect);
     if (capture) {
-        if (hao_capture_append(buffer, length, capacity, "\n", 1) != 0) return JS_ThrowInternalError(ctx, "captured output exceeds 16 MiB");
+        if (hao_capture_append(buffer, length, capacity, "\n", 1) != 0) return JS_ThrowOutOfMemory(ctx);
     } else {
         fputc('\n', stream);
         fflush(stream);
@@ -129,6 +134,10 @@ static JSValue hao_end_capture(JSContext *ctx, JSValueConst this_val, int argc, 
     JSValue result = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, result, "stdout", JS_NewStringLen(ctx, host->capture_stdout, host->capture_stdout_len));
     JS_SetPropertyStr(ctx, result, "stderr", JS_NewStringLen(ctx, host->capture_stderr, host->capture_stderr_len));
+    if (host->capture_stdout_len > SIZE_MAX - host->capture_stderr_len) {
+        JS_FreeValue(ctx, result);
+        return JS_ThrowOutOfMemory(ctx);
+    }
     size_t total = host->capture_stdout_len + host->capture_stderr_len;
     char *combined = hao_alloc(total ? total : 1);
     if (!combined) { JS_FreeValue(ctx, result); return JS_ThrowOutOfMemory(ctx); }

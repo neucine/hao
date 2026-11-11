@@ -76,6 +76,9 @@ whose hook fails during the subsequent run. Complex hook combinations still
 need direct reporter comparisons.
 The failed module glyph now uses Zig's red ANSI style when the reporter is in
 ANSI mode; the smoke suite checks plain and ANSI modes separately.
+Output capture now grows with the captured stream. A shared 18 MB probe
+returned the full 18,000,000 bytes on Zig while Cyna previously threw at its
+16 MiB cap; the smoke suite retains the large capture case.
 A malformed TypeScript test file now exits after Zig's `TranspileFailed` line,
 without a test summary; the smoke suite retains this fatal load path.
 An oversized test file similarly exits with `StreamTooLong` and no summary,
