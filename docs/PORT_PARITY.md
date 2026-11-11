@@ -478,6 +478,10 @@ improvement, with a smoke check.
   The shared kernel consumer now also sends a binary heartbeat containing an
   embedded NUL before the shell requests. Both runtimes echo the exact three
   bytes and continue through the shared execution and shutdown sequence.
+  Zig forwards heartbeat frames without the 1 MiB limit used for Jupyter
+  message frames. The Cyna ZeroMQ adapter now forwards the native heartbeat
+  message directly, preserving arbitrary binary content and length. Its wire
+  consumer checks a 1 MiB plus one byte heartbeat and the exact echoed bytes.
   Notebook cell declaration rewriting now lives in `jupyter/cell.cy`. The bridge allocates a bounded output buffer and retains QuickJS and Rust transpiler integration. The shared kernel consumer checks repeated `let` and `class` declarations across cells.
   Notebook cells now use Zig's `__hao_kernel_cell_<execution_count>.ts`
   filename under the kernel working directory. The shared error probe checks

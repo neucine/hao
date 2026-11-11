@@ -83,6 +83,28 @@ int main(void) {
     for (size_t i = 0; i < 6; i++)
         if (zmq_send(client, frames[i], strlen(frames[i]), i == 5 ? 0 : ZMQ_SNDMORE) < 0) return 22;
     if (hao_jupyter_wire_poll(wire, 1000) != 3) return 23;
+    void *heartbeat = zmq_socket(context, ZMQ_REQ);
+    if (!heartbeat) return 24;
+    zmq_setsockopt(heartbeat, ZMQ_LINGER, &linger, sizeof(linger));
+    int receive_timeout = 1000;
+    zmq_setsockopt(heartbeat, ZMQ_RCVTIMEO, &receive_timeout, sizeof(receive_timeout));
+    snprintf(endpoint, sizeof(endpoint), "ipc://%s:5", ip);
+    if (zmq_connect(heartbeat, endpoint) != 0) return 25;
+    size_t heartbeat_length = 1024 * 1024 + 1;
+    unsigned char *heartbeat_data = malloc(heartbeat_length);
+    if (!heartbeat_data) return 26;
+    memset(heartbeat_data, 0xa5, heartbeat_length);
+    heartbeat_data[0] = 0;
+    heartbeat_data[heartbeat_length - 1] = 0xff;
+    if (zmq_send(heartbeat, heartbeat_data, heartbeat_length, 0) != (int)heartbeat_length) return 27;
+    if (hao_jupyter_wire_poll(wire, 1000) != 1) return 28;
+    unsigned char *echo = malloc(heartbeat_length);
+    if (!echo) return 29;
+    int echo_length = zmq_recv(heartbeat, echo, heartbeat_length, 0);
+    if (echo_length != (int)heartbeat_length || memcmp(echo, heartbeat_data, heartbeat_length) != 0) return 30;
+    free(echo);
+    free(heartbeat_data);
+    zmq_close(heartbeat);
     zmq_close(client); zmq_ctx_term(context); hao_jupyter_wire_close(wire);
     for (int port = 1; port <= 5; port++) {
         snprintf(endpoint, sizeof(endpoint), "%s:%d", ip, port);

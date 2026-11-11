@@ -181,10 +181,14 @@ int hao_jupyter_wire_poll(uintptr_t handle, int timeout_ms) {
     int status = zmq_poll(items, 3, timeout_ms);
     if (status <= 0) return status;
     if (items[0].revents & ZMQ_POLLIN) {
-        HaoFrame frame = {0}; int more = 0;
-        if (read_frame(wire->heartbeat, &frame, &more) < 0) return -2;
-        int sent = zmq_send(wire->heartbeat, frame.data, frame.length, 0);
-        hao_free(frame.data);
+        zmq_msg_t message;
+        if (zmq_msg_init(&message) < 0) return -2;
+        if (zmq_msg_recv(&message, wire->heartbeat, 0) < 0) {
+            zmq_msg_close(&message);
+            return -2;
+        }
+        int sent = zmq_msg_send(&message, wire->heartbeat, 0);
+        zmq_msg_close(&message);
         return sent < 0 ? -2 : HAO_HEARTBEAT;
     }
     if (items[1].revents & ZMQ_POLLIN) {
