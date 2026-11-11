@@ -1392,6 +1392,17 @@ timer_turns_actual=$("$runtime" "$fixture_dir/timer-turns.ts")
 timer_turns_expected=$(printf 'first\njob\nsecond')
 test "$timer_turns_actual" = "$timer_turns_expected"
 
+cat > "$fixture_dir/timer-error.ts" <<'EOF'
+setTimeout(() => { throw Error('timer exploded'); }, 0);
+setTimeout(() => { console.log('later timer'); }, 20);
+EOF
+python3 - "$runtime" "$fixture_dir/timer-error.ts" <<'PY'
+import subprocess, sys
+result = subprocess.run([sys.argv[1], sys.argv[2]], capture_output=True, text=True)
+assert result.returncode == 1 and result.stdout == '', result
+assert result.stderr == f'timer exploded\n    at <anonymous> ({sys.argv[2]}:2:8)\n\n', result
+PY
+
 cat > "$fixture_dir/timer-nested.ts" <<'EOF'
 const events: string[] = [];
 const cancelled = setTimeout(() => events.push('cancelled'), 1);
@@ -1419,11 +1430,11 @@ if "$runtime" "$fixture_dir/timer-failure.ts" > "$fixture_dir/stdout" 2> "$fixtu
     echo 'expected timer callback to exit with an error' >&2
     exit 1
 fi
-grep -q 'Error: timer failed' "$fixture_dir/stderr"
+grep -q '^timer failed$' "$fixture_dir/stderr"
 
 printf 'throw new Error("expected failure");\n' > "$fixture_dir/failure.js"
 if "$runtime" "$fixture_dir/failure.js" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
     echo 'expected failure script to exit with an error' >&2
     exit 1
 fi
-grep -q 'Error: expected failure' "$fixture_dir/stderr"
+grep -q '^expected failure$' "$fixture_dir/stderr"

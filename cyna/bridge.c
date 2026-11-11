@@ -69,16 +69,19 @@ static void hao_print_value(JSContext *ctx, JSValueConst error) {
             hao_free(host->embed_error);
             host->embed_error = hao_strdup(text);
         }
-        fprintf(stderr, "%s\n", text);
-        JS_FreeCString(ctx, text);
     }
-    if (!JS_IsUndefined(stack)) {
-        text = JS_ToCString(ctx, stack);
-        if (text) {
-            fprintf(stderr, "%s\n", text);
-            JS_FreeCString(ctx, text);
-        }
-    }
+    const char *stack_text = JS_IsUndefined(stack) ? NULL : JS_ToCString(ctx, stack);
+    JSValue message = JS_GetPropertyStr(ctx, error, "message");
+    const char *message_text = JS_IsUndefined(message) ? NULL : JS_ToCString(ctx, message);
+    if (stack_text && *stack_text) {
+        if (message_text && !strstr(stack_text, message_text)) fprintf(stderr, "%s\n", message_text);
+        fprintf(stderr, "%s\n", stack_text);
+    } else if (message_text) fprintf(stderr, "%s\n", message_text);
+    else if (text) fprintf(stderr, "%s\n", text);
+    if (message_text) JS_FreeCString(ctx, message_text);
+    JS_FreeValue(ctx, message);
+    if (stack_text) JS_FreeCString(ctx, stack_text);
+    if (text) JS_FreeCString(ctx, text);
     JS_FreeValue(ctx, stack);
 }
 

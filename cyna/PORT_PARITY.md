@@ -151,7 +151,11 @@ improvement, with a smoke check.
   callback errors, and a Promise job between two timer callbacks. This checks
   the timer path. A shared nested timer probe additionally matched cancellation,
   Promise job draining, and scheduling a new timer inside a callback. Other
-  libuv handle types and shutdown ordering still need comparison.
+  libuv handle types and shutdown ordering still need comparison. A callback
+  failure followed by a pending timer now matches Zig's stderr bytes and exits
+  before the second timer fires. The port prints the exception message and
+  stack once; its telemetry timer wrapper avoids adding a frame when no trace
+  context is active. The smoke suite retains this case.
   Notebook Promise waiting now follows Zig's 64 idle turn cutoff and reports
   a libuv run failure. The kernel consumer checks that an unresolved Promise
   yields `Promise did not settle`, then accepts a later request. Its shared

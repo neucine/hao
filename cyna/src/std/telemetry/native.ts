@@ -82,6 +82,8 @@ globalThis.setTimeout = ((callback: (...args: any[]) => void, delay?: number) =>
   const parent = currentSpan;
   const traceId = currentTraceId;
   const spanId = currentSpanId;
+  if (parent === null && traceId === null && spanId === null)
+    return scheduleTimeout(callback, delay);
   return scheduleTimeout(() => {
     const previous = { span: currentSpan, trace: currentTraceId, spanId: currentSpanId };
     currentSpan = parent;
