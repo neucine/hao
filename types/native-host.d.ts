@@ -33,3 +33,7 @@ declare var __hao_test_failed: number;
 declare var __hao_test_filePath: string;
 declare var __hao_test_grep: string;
 declare var __hao_test_run: (...args: any[]) => any;
+declare var __hao_test_report: (text: string) => void;
+declare var __hao_test_file_counts: { loaded: number; failed: number; total: number };
+declare var __hao_test_started_ns: number;
+declare var __hao_telemetry_monotonicNs: () => number;

@@ -36,7 +36,7 @@ assert result.returncode == 1 and result.stdout == '' and result.stderr == 'File
 empty = Path(sys.argv[2]) / 'empty-tests'
 empty.mkdir()
 result = subprocess.run([sys.argv[1], 'test', str(empty)], capture_output=True, text=True)
-assert result.returncode == 0 and '0 loaded, 0 failed, 0 total' in result.stdout, result
+assert result.returncode == 0 and result.stdout == '' and '0 loaded, 0 failed, 0 total' in result.stderr, result
 dotenv = Path(sys.argv[2]) / 'oversize.env'
 dotenv.write_bytes(b'#' * (1024 * 1024 + 1))
 import os
@@ -380,13 +380,13 @@ server.close();
 EOF
 test "$("$runtime" "$fixture_dir/http-in-process.ts")" = '/one POST true'
 
-test_summary=$("$runtime" test "$repo_root/test/e2e/test" | tail -1)
-test "$test_summary" = '31 passed, 0 failed, 7 skipped'
+test_summary=$("$runtime" test "$repo_root/test/e2e/test" 2>&1)
+case "$test_summary" in *'Tests:'*'31 passed, 0 failed, 7 skipped'*) ;; *) exit 1 ;; esac
 cat > "$fixture_dir/explicit.ts" <<'EOF'
 import { test, expect } from 'std:test';
 test('explicit file', () => expect(2 + 2).toBe(4));
 EOF
-test "$("$runtime" test "$fixture_dir/explicit.ts" | tail -1)" = '1 passed, 0 failed, 0 skipped'
+test "$("$runtime" test "$fixture_dir/explicit.ts" 2>&1 | sed -n 's/.*Tests:.*\(1 passed, 0 failed, 0 skipped\).*/\1/p')" = '1 passed, 0 failed, 0 skipped'
 cat > "$fixture_dir/z-order.test.ts" <<'EOF'
 import { test } from 'std:test';
 test('z order', () => {});
@@ -395,16 +395,16 @@ cat > "$fixture_dir/a-order.test.ts" <<'EOF'
 import { test } from 'std:test';
 test('a order', () => {});
 EOF
-order_actual=$("$runtime" test "$fixture_dir/z-order.test.ts" "$fixture_dir/a-order.test.ts" | sed -n '/^PASS /p')
-order_expected=$(printf 'PASS a order\nPASS z order')
+order_actual=$(RUNTIME_TEST_REPORTER=plain "$runtime" test "$fixture_dir/z-order.test.ts" "$fixture_dir/a-order.test.ts" 2>&1 | sed -n 's/.*✓ \(.*\) (.*/\1/p')
+order_expected=$(printf 'a order\nz order')
 test "$order_actual" = "$order_expected"
 python3 - "$runtime" "$repo_root/test/e2e/runtime/hello.test.ts" <<'PY'
 import os, subprocess, sys
 result = subprocess.run([sys.argv[1], 'test', sys.argv[2]], env=dict(os.environ, RUNTIME_TEST_REPORTER='ansi'),
                         capture_output=True, text=True, check=True)
-assert '\x1b[32mPASS\x1b[0m' in result.stdout
-assert 'Time: ' in result.stdout
-assert result.stdout.rstrip().endswith('1 passed, 0 failed, 0 skipped')
+assert '\x1b[32m✓\x1b[0m' in result.stderr
+assert 'Time:' in result.stderr
+assert '1 passed, 0 failed, 0 skipped' in result.stderr
 PY
 cat > "$fixture_dir/expected-failure.test.ts" <<'EOF'
 import { test, expect } from 'std:test';
@@ -414,7 +414,7 @@ if "$runtime" test "$fixture_dir/expected-failure.test.ts" > "$fixture_dir/test-
     echo 'expected a failing test to exit with an error' >&2
     exit 1
 fi
-grep -q '0 passed, 1 failed, 0 skipped' "$fixture_dir/test-output"
+grep -q '0 passed, 1 failed, 0 skipped' "$fixture_dir/stderr"
 cat > "$fixture_dir/hook-failure.test.ts" <<'EOF'
 import { describe, test, beforeAll, beforeEach, afterEach, afterAll } from 'std:test';
 describe('blocked', () => {
@@ -436,7 +436,7 @@ EOF
 if "$runtime" test "$fixture_dir/hook-failure.test.ts" > "$fixture_dir/hook-output" 2> "$fixture_dir/hook-stderr"; then
     exit 1
 fi
-grep -q '0 passed, 2 failed, 1 skipped' "$fixture_dir/hook-output"
+grep -q '0 passed, 2 failed, 1 skipped' "$fixture_dir/hook-stderr"
 grep -q 'outer cleanup' "$fixture_dir/hook-output"
 if grep -q 'inner cleanup\|body should not run' "$fixture_dir/hook-output"; then
     exit 1
@@ -464,10 +464,10 @@ test('captures a child file', async () => {
   expect(result.stderr).toBe('child warning\n');
 });
 EOF
-capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" | tail -1)
-test "$capture_summary" = '2 passed, 0 failed, 0 skipped'
-telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" | tail -1)
-test "$telemetry_summary" = '4 passed, 0 failed, 0 skipped'
+capture_summary=$("$runtime" test "$fixture_dir/capture.test.ts" 2>&1)
+case "$capture_summary" in *'Tests:'*'2 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
+telemetry_summary=$("$runtime" test "$repo_root/test/e2e/telemetry/metrics.test.ts" 2>&1)
+case "$telemetry_summary" in *'Tests:'*'4 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
 cat > "$fixture_dir/telemetry-console.ts" <<'EOF'
 import { counter, trace } from 'std:telemetry';
 import { startRootTraceNative, addTraceEventNative, endTraceNative } from 'std:telemetry/native';
@@ -670,10 +670,10 @@ if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixtu
     echo 'expected zero trace capacity to fail' >&2
     exit 1
 fi
-ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" | tail -1)
-test "$ffi_summary" = '7 passed, 0 failed, 0 skipped'
-error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" | tail -1)
-test "$error_summary" = '2 passed, 0 failed, 0 skipped'
+ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" 2>&1)
+case "$ffi_summary" in *'Tests:'*'7 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
+error_summary=$("$runtime" test "$repo_root/test/e2e/runtime/errors.test.ts" 2>&1)
+case "$error_summary" in *'Tests:'*'2 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
 cat > "$fixture_dir/broken.test.ts" <<'EOF'
 import { describe, test, beforeEach } from 'std:test';
 describe('partially loaded', () => {
@@ -693,14 +693,14 @@ if load_result=$("$runtime" test "$fixture_dir/broken.test.ts" "$fixture_dir/aft
     exit 1
 fi
 case "$load_result" in
-    *'Test Files: 1 loaded, 1 failed, 2 total'*'2 passed, 0 failed, 0 skipped'*) ;;
+    *'1 loaded, 1 failed, 2 total'*'2 passed, 0 failed, 0 skipped'*) ;;
     *) echo "$load_result" >&2; exit 1 ;;
 esac
 cat > "$fixture_dir/grep-suite.test.ts" <<'EOF'
 import { describe, test } from 'std:test';
 describe('needle suite', () => test('plain case', () => { throw Error('suite name must not match grep'); }));
 EOF
-grep_result=$("$runtime" test --grep needle "$fixture_dir/grep-suite.test.ts")
+grep_result=$("$runtime" test --grep needle "$fixture_dir/grep-suite.test.ts" 2>&1)
 case "$grep_result" in
     *'0 passed, 0 failed, 1 skipped'*) ;;
     *) echo "$grep_result" >&2; exit 1 ;;

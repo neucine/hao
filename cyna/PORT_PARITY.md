@@ -64,8 +64,12 @@ now match. An empty test directory now runs successfully with zero tests, as
 Zig does. Missing and oversized script files now report Zig's `FileNotFound`
 and `StreamTooLong` messages on stderr. Zig accepts an extra argument after
 `jupyter install`; Cyna retains strict argument validation for that command.
-The empty directory report still differs in stream and formatting: Zig writes
-its test summary to stderr, while Cyna writes a plain summary to stdout.
+The test reporter now writes its file counts, case results, suite indentation,
+skip reasons, and summary to stderr in Zig's layout. A direct plain reporter
+probe with passing and skipped cases, plus a failing case probe, matched Zig's
+output structure; measured durations naturally differed. The smoke suite also
+checks the empty directory summary on stderr. File load failures and complex
+hook combinations still need direct reporter comparisons.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript

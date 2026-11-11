@@ -10,6 +10,7 @@ import { string as hao_version } from .version;
 
 extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
 extern c("hao_fs_script_read_error") fn script_read_error(path: *const c_uchar, length: c_size_t, limit: c_size_t): c_int;
+extern c("hao_test_print_load") fn test_print_load(index: c_size_t, total: c_size_t, path: *const c_uchar, length: c_size_t): void;
 
 fn write_stderr(message: string): void {
     const bytes = message.bytes();
@@ -113,10 +114,13 @@ fn main(): i32 {
             return 1;
         }
         if is_test {
+            if host.eval("globalThis.__hao_test_started_ns = __hao_telemetry_monotonicNs();",
+                "<hao-test-timing>") != 0 { return 1; }
             if host.eval("import 'std:test';", "<hao-test-setup>") != 0 { return 1; }
             var files_loaded: usize = 0;
             var file_failures: usize = 0;
             const files_total = test_files.len();
+            write_stderr($"Found {files_total} test file(s)\n");
             const executable = exe_path() catch (code) {
                 println("Unable to find Hao executable");
                 return 1;
@@ -124,7 +128,12 @@ fn main(): i32 {
             if host.set_executable_path(executable) != 0 {
                 return 1;
             }
+            var file_index: usize = 0;
             for path in test_files {
+                file_index = file_index + 1;
+                const path_bytes = path.bytes();
+                test_print_load(file_index as c_size_t, files_total as c_size_t,
+                    path_bytes.ptr as! *const c_uchar, path_bytes.len() as c_size_t);
                 if run_file(&host, path.clone(), true) != 0 or host.drain_jobs() < 0 {
                     file_failures = file_failures + 1;
                     if host.discard_test_file(path.clone()) != 0 { return 1; }
@@ -132,7 +141,7 @@ fn main(): i32 {
                     files_loaded = files_loaded + 1;
                 }
             }
-            println($"Test Files: {files_loaded} loaded, {file_failures} failed, {files_total} total");
+            if host.set_test_file_counts(files_loaded, file_failures, files_total) != 0 { return 1; }
             if host.start_tests(grep) != 0 {
                 return 1;
             }

@@ -3,6 +3,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+
+int hao_test_reporter_ansi(void) {
+    const char *mode = getenv("RUNTIME_TEST_REPORTER");
+    return !mode || strcasecmp(mode, "plain") != 0;
+}
+
+void hao_test_print_load(size_t index, size_t total, const unsigned char *path, size_t length) {
+    if (hao_test_reporter_ansi()) fputs("\x1b[36m→\x1b[0m", stderr);
+    else fputs("→", stderr);
+    fprintf(stderr, " Load [%zu/%zu] ", index, total);
+    fwrite(path, 1, length, stderr);
+    fputc('\n', stderr);
+    fflush(stderr);
+}
 
 static int hao_capture_append(char **buffer, size_t *length, size_t *capacity,
                               const char *text, size_t count) {
@@ -77,6 +92,18 @@ static JSValue hao_console_error(JSContext *ctx, JSValueConst this_val, int argc
     return hao_console_write(ctx, argc, argv, 2);
 }
 
+static JSValue hao_test_report(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)this_val;
+    if (argc < 1) return JS_UNDEFINED;
+    size_t length = 0;
+    const char *text = JS_ToCStringLen(ctx, &length, argv[0]);
+    if (!text) return JS_EXCEPTION;
+    fwrite(text, 1, length, stderr);
+    fflush(stderr);
+    JS_FreeCString(ctx, text);
+    return JS_UNDEFINED;
+}
+
 static JSValue hao_begin_capture(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     HaoRuntime *host = JS_GetContextOpaque(ctx);
@@ -120,6 +147,7 @@ void hao_install_console_globals(JSContext *ctx, JSValue global) {
     JS_SetPropertyStr(ctx, global, "console", console);
     JS_SetPropertyStr(ctx, global, "__hao_test_beginCapture", JS_NewCFunction(ctx, hao_begin_capture, "beginCapture", 1));
     JS_SetPropertyStr(ctx, global, "__hao_test_endCapture", JS_NewCFunction(ctx, hao_end_capture, "endCapture", 0));
+    JS_SetPropertyStr(ctx, global, "__hao_test_report", JS_NewCFunction(ctx, hao_test_report, "report", 1));
 }
 
 int hao_global_install_console(uintptr_t handle) {
