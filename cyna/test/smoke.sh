@@ -811,6 +811,16 @@ RuntimeError invalid_arg prepareNative: invalid options: InvalidArgument
 {"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}
 EOF
 )"
+cat > "$fixture_dir/ffi-c-options-purity.ts" <<'EOF'
+import { prepareNative } from 'std:ffi/c/native';
+for (const frozen of [false, true]) {
+  const search = { strategy: 'runtime-default', paths: [3] };
+  if (frozen) { Object.freeze(search.paths); Object.freeze(search); }
+  const result = prepareNative('m', 'double sqrt(double x);', { search });
+  console.log(Object.keys(result.descriptor).join(','), typeof search.paths[0], search.paths[0]);
+}
+EOF
+test "$("$runtime" "$fixture_dir/ffi-c-options-purity.ts")" = "$(printf 'sqrt number 3\nsqrt number 3')"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
 const library = openNative('m', 'double sqrt(double x);');

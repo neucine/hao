@@ -36,7 +36,6 @@ export function parse(declarations: string, opts: any): Prepared {
     if (search.paths != null && !Array.isArray(search.paths)) {
       throw invalidArg('invalid C library search paths');
     }
-    if (Array.isArray(search.paths)) search.paths = search.paths.map((path: unknown) => String(path));
   }
   const functions: FunctionSpec[] = [];
   const typeReferences: string[] = [];

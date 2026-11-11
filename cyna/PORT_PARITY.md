@@ -199,9 +199,10 @@ improvement, with a smoke check.
   Policy probes now match Zig's public errors for unknown function options,
   invalid output parameters, unknown buffer parameters, non-size buffer
   lengths, and invalid search strategies. Zig converts numeric search paths to
-  strings; Cyna now does the same. The Zig reference exits with a segmentation
-  fault for unknown handle policies and invalid close symbols in isolated
-  probes, while Cyna returns an error. Those cases cannot use an identical
+  strings for opening a library; Cyna now does the same without modifying the
+  caller's options, including frozen objects. The Zig reference exits with a
+  segmentation fault for unknown handle policies and invalid close symbols
+  in isolated probes, while Cyna returns an error. Those cases cannot use an identical
   error comparison until the Zig reference behavior is repaired.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into

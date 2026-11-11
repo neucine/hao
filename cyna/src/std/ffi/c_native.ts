@@ -105,10 +105,11 @@ function openWithSearch(name: string, search: any): number {
     throw invalidArg('library unavailable');
   }
   const strategy = search.strategy ?? 'runtime-default';
-  const paths: string[] = search.paths ?? [];
+  const paths: unknown[] = search.paths ?? [];
   const basenames = [`lib${name}.dylib`, `lib${name}.so`];
   const fromPaths = (): number | null => {
-    for (const path of paths) {
+    for (const pathValue of paths) {
+      const path = String(pathValue);
       for (const basename of basenames) {
         const handle = open(`${path.replace(/\/$/, '')}/${basename}`);
         if (handle !== null) return handle;
