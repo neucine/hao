@@ -644,6 +644,11 @@ improvement, with a smoke check.
   Cyna; Zig's fixed trampoline does not support that call either. The retained
   descriptor comparison now covers 22 shapes and seven getter, array, or call
   outcomes.
+  A retained 14-case `std:ffi/native` call matrix now compares invalid handles,
+  symbol conversion, missing symbols, argument array shape, argument counts,
+  and a throwing numeric conversion. The native adapter now validates in Zig's
+  order and reports the same public errors. Run
+  `python3 test/port/ffi_call_differential.py <legacy-binary> <cyna-binary>`.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for

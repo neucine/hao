@@ -250,16 +250,29 @@ static bool unsigned_arg(JSContext *ctx, JSValueConst input, uint64_t *out) {
 static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     int64_t id = 0;
-    if (argc < 3 || JS_ToInt64(ctx, &id, argv[0]) != 0 || !JS_IsString(argv[1]) || !JS_IsArray(argv[2]))
-        return JS_ThrowTypeError(ctx, "FFI: invalid call arguments");
+    if (argc < 3) return JS_ThrowTypeError(ctx, "ffi.callNative requires handle, symbol, and args");
+    if (JS_ToInt64(ctx, &id, argv[0]) != 0 || id <= 0) {
+        if (JS_HasException(ctx)) {
+            JSValue error = JS_GetException(ctx);
+            JS_FreeValue(ctx, error);
+        }
+        return JS_ThrowTypeError(ctx, "FFI: invalid library handle");
+    }
     HaoLibrary *library = find_library(ctx, id);
     if (!library) return JS_ThrowTypeError(ctx, "FFI: invalid library handle");
     if (library->closed) return JS_ThrowTypeError(ctx, "FFI: library has been closed");
     const char *name = JS_ToCString(ctx, argv[1]);
-    if (!name) return JS_EXCEPTION;
+    if (!name) {
+        if (JS_HasException(ctx)) {
+            JSValue error = JS_GetException(ctx);
+            JS_FreeValue(ctx, error);
+        }
+        return JS_ThrowTypeError(ctx, "FFI: symbol name must be a string");
+    }
     HaoBinding *binding = find_binding(library, name);
     JS_FreeCString(ctx, name);
     if (!binding) return JS_ThrowTypeError(ctx, "FFI: unknown symbol");
+    if (!JS_IsArray(argv[2])) return JS_ThrowTypeError(ctx, "FFI: arguments must be an array");
     JSValue count_value = JS_GetPropertyStr(ctx, argv[2], "length");
     uint32_t count = 0;
     JS_ToUint32(ctx, &count, count_value);
