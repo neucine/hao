@@ -290,6 +290,12 @@ improvement, with a smoke check.
   matched after isolating it from Zig's recursive POD crash. These checks
   cover the listed declaration and policy cases, while native call combinations
   outside those fixtures remain open.
+  A shared native call sweep of the smoke fixtures found one additional safe
+  mismatch: the default status policy message was `C: native call failed` in
+  Zig and `<symbol> failed` in Cyna. Cyna now uses Zig's default. The sweep also
+  reproduced the documented Zig mixed integer/float rejection, float return
+  bug, negative unsigned conversion, and policy validation crash. The other
+  native fixtures in that sweep matched exit status, stdout, and stderr.
   A declaration matrix found a duplicate function error mismatch. Both
   `prepareNative` and `openNative` now report Zig's
   `declaration lowering failed: DuplicateFunctionName` message for this case.

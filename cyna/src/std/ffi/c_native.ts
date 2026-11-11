@@ -210,7 +210,7 @@ export function callNative(handle: number, symbol: string, args: any[]): unknown
   if (errors?.kind === 'status' && raw !== (errors.ok ?? 0) ||
       errors?.kind === 'null' && (raw === null || raw === 0) ||
       errors?.kind === 'sentinel' && raw === errors.value) {
-    let message = typeof errors.message === 'string' ? errors.message : `${symbol} failed`;
+    let message = typeof errors.message === 'string' ? errors.message : 'C: native call failed';
     if (errors.message && typeof errors.message === 'object') {
       const source = errors.message;
       const helper = prepared.functions.find(item => item.name === source.from);

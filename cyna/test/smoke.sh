@@ -1257,9 +1257,9 @@ nested.close();
 try { cdecl('hao_search_fixture', '/* never closed'); }
 catch (error) { console.log(error.message); }
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nopenNative: unsupported or invalid C declarations: SyntaxError')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nC: native call failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nopenNative: unsupported or invalid C declarations: SyntaxError')"
 mv "$fixture_dir/libhao_search_fixture.dylib" "$fixture_dir/libhao_search_fixture.so"
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nopenNative: unsupported or invalid C declarations: SyntaxError')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nC: native call failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nopenNative: unsupported or invalid C declarations: SyntaxError')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 mkdir -p "$fixture_dir/symlink-app" "$fixture_dir/symlink-target"
