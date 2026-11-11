@@ -353,9 +353,10 @@ improvement, with a smoke check.
   concurrent probe exercises multiple live connections while each handler
   awaits a timer. The same consumer now closes the server from an active
   handler, verifies that the client disconnects, then waits for the handler's
-  pending timer to settle. The consumer now also holds an incomplete POST
-  request open while the handler closes the server; both runtimes close that
-  socket without a response and exit successfully with the same output order.
+  pending timer to settle. The consumer now holds an incomplete POST body and
+  a second socket with incomplete headers while the handler closes the server;
+  both runtimes close both sockets without a response and exit with the same
+  output order. Ten repeated runs passed under each binary.
   Raw socket probes under both runtimes matched rejection statuses
   for missing Host, duplicate Content-Length, chunked transfer encoding,
   Expect, oversized body declaration, and oversized headers. Both served only
