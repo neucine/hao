@@ -71,6 +71,11 @@ reject result.
   missing script, and bare `test`. The trace record limit only applies when
   the telemetry console is enabled, matching Zig's ring allocation. The
   focused CLI fixture retains these error order and diagnostic checks.
+  The same loader now reports Zig's `FileNotFound`, `FileReadFailed`, and
+  `StreamTooLong` errors on stderr when an explicit `DOTENV` file is missing,
+  is a directory, or exceeds 1 MiB. Direct probes of those paths, a valid
+  file, and disabled loading matched both binaries for `--version` and a
+  missing script.
   A live console comparison found that `/api/metrics` includes all ten Zig
   host memory metric names. Cyna also exposes QuickJS metrics supplied by
   `std.telemetry`; the smoke suite now guards the shared host metric set.

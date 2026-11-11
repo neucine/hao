@@ -1,5 +1,6 @@
 import { args, exe_path } from std.process;
 import { read_file_limited } from .fs;
+import { script_read_error } from .fs_limit;
 import { Runtime } from .runtime;
 import { install } from .std;
 import { collect, sort } from .std.test_files;
@@ -9,7 +10,6 @@ import { install as install_jupyter } from .jupyter.install;
 import { string as hao_version } from .version;
 
 extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
-extern c("hao_fs_script_read_error") fn script_read_error(path: *const c_uchar, length: c_size_t, limit: c_size_t): c_int;
 extern c("hao_test_print_load") fn test_print_load(index: c_size_t, total: c_size_t, path: *const c_uchar, length: c_size_t): void;
 extern c("hao_runtime_size_settings_valid") fn size_settings_valid(): c_int;
 extern c("hao_runtime_trace_limit_exceeded") fn trace_limit_exceeded(): c_int;
@@ -50,8 +50,17 @@ fn run_file(host: &const Runtime, path: string, test_file: bool): i32 {
 }
 
 fn main(): i32 {
-    if load_dotenv() != 0 {
-        println("Unable to load dotenv file");
+    const dotenv_status = load_dotenv();
+    if dotenv_status != 0 {
+        if dotenv_status == 2 {
+            write_stderr("error: FileNotFound\n");
+        } else if dotenv_status == 3 {
+            write_stderr("error: StreamTooLong\n");
+        } else if dotenv_status == 4 {
+            write_stderr("error: NameTooLong\n");
+        } else {
+            write_stderr("error: FileReadFailed\n");
+        }
         return 1;
     }
     // Zig loads and validates configuration before dispatching even --version.

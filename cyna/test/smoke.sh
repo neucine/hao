@@ -42,7 +42,7 @@ dotenv.write_bytes(b'#' * (1024 * 1024 + 1))
 import os
 result = subprocess.run([sys.argv[1], str(Path(sys.argv[2]) / 'main.ts')],
     env={**os.environ, 'DOTENV': str(dotenv)}, capture_output=True, text=True)
-assert result.returncode == 1 and 'Unable to load dotenv file' in result.stdout, result
+assert result.returncode == 1 and result.stdout == '' and result.stderr == 'error: StreamTooLong\n', result
 PY
 cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
 clang -I "$repo_root/include" -I "$repo_root/cyna/.deps/install/include" "$repo_root/cyna/test/embed_consumer.c" \

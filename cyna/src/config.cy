@@ -3,6 +3,8 @@ import { read_file_limited } from .fs;
 import { env_get, env_set } from std.process;
 import { parse_bool, parse_positive_usize, ConfigError } from std.config;
 
+import { script_read_error } from .fs_limit;
+
 pub struct TelemetryConsoleSettings {
     pub enabled: bool;
     pub port: u16;
@@ -176,7 +178,7 @@ pub fn load_dotenv(): i32 {
     }
     const content = read_file_limited(path, 1024 * 1024);
     if content is none {
-        return 1;
+        return dotenv_file_error(path.clone());
     }
     const bytes = content.bytes();
     var start: usize = 0;
@@ -191,4 +193,11 @@ pub fn load_dotenv(): i32 {
         index = index + 1;
     }
     return 0;
+}
+
+fn dotenv_file_error(path: string): i32 {
+    const bytes = path.bytes();
+    const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
+        (1024 * 1024) as c_size_t);
+    return 2 + reason as i32;
 }
