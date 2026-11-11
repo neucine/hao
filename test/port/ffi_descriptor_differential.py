@@ -80,16 +80,27 @@ def main() -> None:
                           "  ['symbol first', Array(9).fill('i32'), [Symbol('x'), ...Array(8).fill(1)]],\n"
                           "  ['throw first', Array(9).fill('i32'), "
                           "[{ valueOf() { throw Error('bad'); } }, ...Array(8).fill(1)]],\n"
-                          "  ['wrong count', Array(9).fill('i32'), Array(8).fill(1)]]) {\n"
+                          "  ['wrong count', Array(9).fill('i32'), Array(8).fill(1)],\n"
+                          "  ['void ninth', [...Array(8).fill('i32'), 'void'], Array(9).fill(1)],\n"
+                          "  ['symbol ninth', Array(9).fill('i32'), [...Array(8).fill(1), Symbol('x')]],\n"
+                          "  ['throw ninth', Array(9).fill('i32'), "
+                          "[...Array(8).fill(1), { valueOf() { throw Error('late'); } }]]]) {\n"
                           "  const h = openNative('m', { sqrt: { args: types, returns: 'f64' } });\n"
                           "  try { callNative(h, 'sqrt', args); }\n"
                           "  catch (error) { console.log(label, error.name, error.message); }\n"
                           "  closeNative(h);\n"
-                          "}\n")
+                          "}\n"
+                          "const lateArgs = Array(9).fill(1);\n"
+                          "Object.defineProperty(lateArgs, '8', { get() { throw Error('ninth getter'); } });\n"
+                          "const lateHandle = openNative('m', { sqrt: { args: Array(9).fill('i32'), returns: 'f64' } });\n"
+                          "try { callNative(lateHandle, 'sqrt', lateArgs); }\n"
+                          "catch (error) { console.log('ninth getter', error.name, error.message); }\n"
+                          "closeNative(lateHandle);\n"
+                          )
         expected = run(legacy, script)
         actual = run(cyna, script)
         assert actual == expected, (expected, actual)
-    print(f'FFI descriptors: {len(CASES)} shapes and 15 getter, array, or call outcomes matched')
+    print(f'FFI descriptors: {len(CASES)} shapes and 19 getter, array, or call outcomes matched')
 
 
 if __name__ == '__main__':

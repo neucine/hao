@@ -675,9 +675,10 @@ improvement, with a smoke check.
   using its `mixed int/float arguments are not yet supported` error, even for
   uniform types. Cyna now reports the same public error for 9 and 10 argument
   calls. Cyna also converts the arguments before reporting that limit, so a
-  `void` type, `Symbol`, or throwing `valueOf` at the first position wins, as
-  in Zig. The retained descriptor comparison covers 22 shapes and fifteen
-  getter, array, or call outcomes.
+  `void` type, `Symbol`, or throwing `valueOf` wins, as in Zig. The same holds
+  at the ninth position, including a throwing array getter. The retained
+  descriptor comparison covers 22 shapes and nineteen getter, array, or call
+  outcomes.
   A retained 14-case `std:ffi/native` call matrix now compares invalid handles,
   symbol conversion, missing symbols, argument array shape, argument counts,
   and a throwing numeric conversion. The native adapter now validates in Zig's
