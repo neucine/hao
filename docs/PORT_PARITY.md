@@ -237,6 +237,10 @@ improvement, with a smoke check.
   children that exceed a 1024 byte output limit, and TERM, KILL, and INT
   child terminations. Both runtimes report the output failure promptly and
   return a signal with no exit code for the three terminations.
+  Four child output byte sequences now cover invalid UTF-8, embedded NUL,
+  valid UTF-8, and an encoded surrogate. The retained fixture checks the
+  expected JavaScript code points as well as Zig/Cyna equality: invalid bytes
+  become replacement characters, and output after NUL is truncated.
   `getEnvNative` now reports Zig's variable name `TypeError` for a `Symbol` or
   throwing `toString`, rather than exposing the JavaScript conversion error.
 

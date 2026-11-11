@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compare process option conversion and independent output limits."""
 from pathlib import Path
+import json
 import subprocess
 import sys
 import tempfile
@@ -81,6 +82,13 @@ for (const signal of ['TERM', 'KILL', 'INT']) {
   } catch (error) { console.log(signal, error.name, error.message); }
 }
 '''
+BYTES = r'''import { run } from 'std:process';
+for (const format of ['\\377\\200A', 'A\\000B', '\\303\\251', '\\355\\240\\200']) {
+  const result = await run({ cmd: '/bin/sh', args: ['-c', `printf '${format}'`], check: false });
+  console.log(JSON.stringify([format, result.stdout.length,
+    Array.from(result.stdout).map(character => character.codePointAt(0))]));
+}
+'''
 
 
 def run(binary: str, root: Path, source: str) -> tuple[int, bytes, bytes]:
@@ -96,12 +104,18 @@ def main() -> None:
     cyna = str(Path(sys.argv[2]).resolve())
     with tempfile.TemporaryDirectory(prefix='hao-process-diff-') as directory:
         root = Path(directory)
-        for index, source in enumerate((COMMANDS, ARGS, ARRAYS, LIMITS, OVERFLOW, SIGNALS)):
+        for index, source in enumerate((COMMANDS, ARGS, ARRAYS, LIMITS, OVERFLOW, SIGNALS, BYTES)):
             expected = run(legacy, root / f'legacy-{index}', source)
             actual = run(cyna, root / f'cyna-{index}', source)
             assert actual == expected, (index, expected, actual)
+            if source is BYTES:
+                lines = expected[1].splitlines()
+                assert expected[0] == 0 and len(lines) == 4, expected
+                assert [[65533, 65533, 65], [65], [233], [55296]] == [
+                    json.loads(line)[2] for line in lines
+                ], lines
     print('process differential: 21 commands, 34 argument forms, 9 output limits, '
-          '2 overflows, and 3 signals matched')
+          '2 overflows, 3 signals, and 4 binary outputs matched')
 
 
 if __name__ == '__main__':
