@@ -139,7 +139,9 @@ that adapter.
   the correct `f32` result is an intentional improvement over Zig's bug.
   Zig rejects a C function declaration with no final semicolon. Cyna's parser
   previously accepted `double sqrt(double x)`; it now rejects that form, and
-  the smoke suite checks the rejected and accepted variants.
+  the smoke suite checks the rejected and accepted variants. Function pointer
+  parameters now use Zig's `UnsupportedFeature` classification instead of a
+  generic invalid declaration error; the native stack smoke fixture checks it.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.
