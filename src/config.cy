@@ -3,7 +3,7 @@ import { read_file_limited } from .fs;
 import { env_get, env_set } from std.process;
 import { parse_bool, parse_positive_usize, ConfigError } from std.config;
 
-import { script_read_error } from .fs_limit;
+import { script_read_error } from .fs;
 
 pub struct RuntimeSizeSettings {
     pub stack_size: usize;
@@ -244,9 +244,7 @@ pub fn load_dotenv(): i32 {
 }
 
 fn dotenv_file_error(path: string): i32 {
-    const bytes = path.bytes();
-    const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
-        (1024 * 1024) as c_size_t);
+    const reason = script_read_error(path, 1024 * 1024);
     if reason == 4 { return 5; }
     return 2 + reason as i32;
 }

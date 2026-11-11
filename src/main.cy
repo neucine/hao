@@ -2,7 +2,7 @@ import { test_print_load } from .global.console_native;
 import { write_stderr } from .stderr;
 import { args, exe_path } from std.process;
 import { read_file_limited } from .fs;
-import { script_read_error } from .fs_limit;
+import { script_read_error } from .fs;
 import { Runtime } from .runtime;
 import { install } from .std;
 import { collect, sort } from .std.test_files;
@@ -22,9 +22,7 @@ fn run_file(host: &const Runtime, path: string, test_file: bool): i32 {
         if test_file { return host.eval_test(content, path); }
         return host.eval(content, path);
     }
-    const bytes = path.bytes();
-    const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
-        10 * 1024 * 1024);
+    const reason = script_read_error(path, 10 * 1024 * 1024);
     if reason == 2 {
         write_stderr("NameTooLong\n");
     } else if reason == 1 {

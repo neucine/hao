@@ -206,7 +206,7 @@ improvement, with a smoke check.
   path or data `TypeError`. Cyna now consumes the conversion exception and
   reports Zig's error for Symbols and throwing `toString` methods.
   A path component of 256 bytes made the pinned Cyna `std.fs.exists` return a
-  typed error through Hao’s exported Cyna function. Cyna source revision `e16127d` fixes the LLVM result conversion and provides `std.fs.read_bytes_limited`. Hao now uses both `std.fs.exists` and bounded reads in Cyna. The filesystem differential covers 84 path operations and 23 write values; the unchanged legacy suite passes 67 cases with 7 skips. The Jupyter connection reader uses Cyna `std.fs.read_bytes_limited_exact` to reject growth after the initially measured bytes.
+  typed error through Hao’s exported Cyna function. Cyna source revision `e16127d` fixes the LLVM result conversion and provides `std.fs.read_bytes_limited`. Hao now uses both `std.fs.exists` and bounded reads in Cyna. The filesystem differential covers 84 path operations and 23 write values; the unchanged legacy suite passes 67 cases with 7 skips. The Jupyter connection reader uses Cyna `std.fs.read_bytes_limited_exact` to reject growth after the initially measured bytes. `fs.cy` also classifies failed script reads; `fs_limit.c/.h/.cy` are removed. The CLI diagnostics fixtures cover missing files, directories, and oversized input.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,

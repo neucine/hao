@@ -1,6 +1,6 @@
 import { Value, parse as parse_json, encode } from std.json;
 import { Runtime } from .runtime;
-import { script_read_error } from .fs_limit;
+import { script_read_error } from .fs;
 import { install } from .std;
 import { Connection, parse as parse_connection } from .jupyter.connection;
 import { Wire } from .jupyter.wire;
@@ -244,9 +244,7 @@ fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, co
 pub fn run(path: string): i32 {
     const connection = parse_connection(path);
     if connection is parsed { return run_connection(&parsed); }
-    const bytes = path.bytes();
-    const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
-        (64 * 1024) as c_size_t);
+    const reason = script_read_error(path, 64 * 1024);
     if reason == 0 { return -1; } // FileNotFound
     if reason == 1 { return -2; } // StreamTooLong
     if reason == 2 { return -3; } // NameTooLong

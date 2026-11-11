@@ -5,4 +5,4 @@ type = "exe"
 entry = "src/jupyter/connection_check.cy"
 
 [c]
-sources = ["src/fs_limit.c", "src/runtime_allocator.c"]
+sources = ["src/runtime_allocator.c"]
