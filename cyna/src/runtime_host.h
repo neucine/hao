@@ -21,6 +21,15 @@ typedef struct HaoNativeModule {
     struct HaoNativeModule *next;
 } HaoNativeModule;
 
+typedef struct HaoPackageCallbacks {
+    char *name;
+    int (*install)(uintptr_t runtime, void *userdata);
+    void (*deinit)(uintptr_t runtime, void *userdata);
+    void *userdata;
+    struct HaoPackageCallbacks *prev;
+    struct HaoPackageCallbacks *next;
+} HaoPackageCallbacks;
+
 typedef struct HaoTimer HaoTimer;
 typedef struct HaoTelemetryItem HaoTelemetryItem;
 typedef struct HaoNativeSpan HaoNativeSpan;
@@ -43,6 +52,8 @@ typedef struct HaoRuntime {
     HaoTimer *timers;
     HaoSourceModule *modules;
     HaoNativeModule *native_modules;
+    HaoPackageCallbacks *packages;
+    HaoPackageCallbacks *last_package;
     bool capture_active;
     int capture_target;
     char *capture_stdout;
@@ -65,5 +76,7 @@ void hao_cleanup_timers(HaoRuntime *host);
 char *hao_normalize_module(JSContext *ctx, const char *base, const char *specifier, void *opaque);
 JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque);
 void hao_module_cleanup(HaoRuntime *host);
+int hao_package_install(HaoRuntime *host);
+void hao_package_cleanup(HaoRuntime *host);
 
 #endif

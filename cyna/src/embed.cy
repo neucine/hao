@@ -19,7 +19,7 @@ fn text(pointer: *const c_uchar, length: c_size_t): string {
 }
 
 export c("hao_embed_abi_version") fn embed_abi_version(): c_uint {
-    return 3 as c_uint;
+    return 4 as c_uint;
 }
 
 // Internal embedding probe for the Cyna telemetry backend integration test.

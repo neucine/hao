@@ -140,6 +140,61 @@ int hao_embed_register_native_module(HaoRuntimeHandle handle, const unsigned cha
     return 1;
 }
 
+int hao_embed_register_package_callbacks(HaoRuntimeHandle handle, const unsigned char *name,
+                                         size_t name_len, HaoPackageInstall install,
+                                         HaoPackageDeinit deinit, void *userdata) {
+    if (!handle) return 1;
+    if (!name && name_len) {
+        hao_embed_invalid_buffer(handle);
+        return 1;
+    }
+    hao_embed_clear_error(handle);
+    HaoRuntime *host = (HaoRuntime *)handle;
+    bool valid = name_len && name_len != SIZE_MAX && !memchr(name, 0, name_len);
+    for (HaoPackageCallbacks *it = host->packages; valid && it; it = it->next) {
+        if (strlen(it->name) == name_len && memcmp(it->name, name, name_len) == 0) valid = false;
+    }
+    HaoPackageCallbacks *entry = valid ? hao_calloc(1, sizeof(*entry)) : NULL;
+    if (entry) entry->name = hao_strndup((const char *)name, name_len);
+    if (!entry || !entry->name) {
+        if (entry) { hao_free(entry->name); hao_free(entry); }
+        static const unsigned char failure[] = "Package registration failed";
+        hao_embed_set_error(handle, failure, sizeof(failure) - 1);
+        return 1;
+    }
+    entry->install = install;
+    entry->deinit = deinit;
+    entry->userdata = userdata;
+    entry->prev = host->last_package;
+    if (host->last_package) host->last_package->next = entry;
+    else host->packages = entry;
+    host->last_package = entry;
+    return 0;
+}
+
+int hao_package_install(HaoRuntime *host) {
+    for (HaoPackageCallbacks *entry = host->packages; entry; entry = entry->next) {
+        if (entry->install && entry->install((uintptr_t)host, entry->userdata) != 0) {
+            static const unsigned char failure[] = "Package installation failed";
+            hao_embed_set_error((uintptr_t)host, failure, sizeof(failure) - 1);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void hao_package_cleanup(HaoRuntime *host) {
+    HaoPackageCallbacks *entry = host->last_package;
+    while (entry) {
+        HaoPackageCallbacks *previous = entry->prev;
+        if (entry->deinit) entry->deinit((uintptr_t)host, entry->userdata);
+        hao_free(entry->name);
+        hao_free(entry);
+        entry = previous;
+    }
+    host->packages = host->last_package = NULL;
+}
+
 char *hao_normalize_module(JSContext *ctx, const char *base,
                                    const char *specifier, void *opaque) {
     HaoRuntime *host = opaque;

@@ -11,6 +11,12 @@ QuickJS context and the requested module name and returns a `JSModuleDef *`.
 It is called when the module is imported. Its function pointer must remain
 valid until the runtime is freed. Source and native modules share one name
 space, so duplicate specifiers are rejected.
+`hao_embed_register_package_callbacks` registers lifecycle callbacks by
+package name. Install callbacks run in registration order before every module
+evaluation. If one returns a nonzero value, evaluation stops and
+`hao_embed_last_error` reports the installation failure. Deinit callbacks run
+once in reverse registration order when the runtime is freed. The callback
+function pointers and userdata must remain valid for the runtime lifetime.
 
 `hao_embed_install_std` installs the standard modules from the directory
 produced by `sh cyna/build.sh` (`cyna/build/modules`). Hosts that do not use

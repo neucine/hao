@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define HAO_EMBED_ABI_VERSION 3
+#define HAO_EMBED_ABI_VERSION 4
 
 #ifdef __cplusplus
 extern "C" {
@@ -13,6 +13,8 @@ extern "C" {
 /* A runtime handle is owned by the caller and must be freed once. */
 typedef uintptr_t HaoRuntimeHandle;
 typedef void *(*HaoNativeModuleLoader)(void *context, const char *module_name);
+typedef int (*HaoPackageInstall)(HaoRuntimeHandle runtime, void *userdata);
+typedef void (*HaoPackageDeinit)(HaoRuntimeHandle runtime, void *userdata);
 
 /* Check this before calling the runtime from a separately built host. */
 uint32_t hao_embed_abi_version(void);
@@ -32,6 +34,12 @@ int hao_embed_register_module(HaoRuntimeHandle runtime, const unsigned char *spe
 int hao_embed_register_native_module(HaoRuntimeHandle runtime,
                                      const unsigned char *specifier, size_t specifier_len,
                                      HaoNativeModuleLoader loader);
+/* Install runs before every evaluation. Deinit runs once when the runtime is
+   freed, in reverse registration order. Names are copied on registration. */
+int hao_embed_register_package_callbacks(HaoRuntimeHandle runtime,
+                                         const unsigned char *name, size_t name_len,
+                                         HaoPackageInstall install,
+                                         HaoPackageDeinit deinit, void *userdata);
 int hao_embed_run_until_idle(HaoRuntimeHandle runtime);
 
 /* Last operation error. Returns the full byte length, excluding

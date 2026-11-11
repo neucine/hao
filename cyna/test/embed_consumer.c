@@ -19,6 +19,23 @@ static void *load_native_module(void *opaque, const char *name) {
     return module;
 }
 
+static char package_order[16];
+static size_t package_order_len;
+static int install_package(HaoRuntimeHandle runtime, void *userdata) {
+    (void)runtime;
+    package_order[package_order_len++] = *(char *)userdata;
+    return 0;
+}
+static int fail_install_package(HaoRuntimeHandle runtime, void *userdata) {
+    (void)runtime;
+    (void)userdata;
+    return 1;
+}
+static void deinit_package(HaoRuntimeHandle runtime, void *userdata) {
+    (void)runtime;
+    package_order[package_order_len++] = (char)(*(char *)userdata + ('a' - 'A'));
+}
+
 static void *emit_worker_metric(void *opaque) {
     HaoRuntimeHandle runtime = *(HaoRuntimeHandle *)opaque;
     hao_telemetry_metric(runtime, (const unsigned char *)"cyna.worker", 11,
@@ -65,6 +82,34 @@ int main(int argc, char **argv) {
             (const unsigned char *)"<native>", 8) != 0) return 29;
     if (hao_embed_last_error(other, error, sizeof(error)) != 0) return 17;
     hao_embed_free(other);
+    HaoRuntimeHandle package_runtime = hao_embed_new();
+    char alpha = 'A', beta = 'B';
+    if (!package_runtime ||
+        hao_embed_register_package_callbacks(package_runtime, (const unsigned char *)"alpha", 5,
+            install_package, deinit_package, &alpha) != 0 ||
+        hao_embed_register_package_callbacks(package_runtime, (const unsigned char *)"beta", 4,
+            install_package, deinit_package, &beta) != 0) return 33;
+    if (hao_embed_register_package_callbacks(package_runtime, (const unsigned char *)"alpha", 5,
+            install_package, deinit_package, &alpha) == 0) return 34;
+    if (hao_embed_eval(package_runtime, (const unsigned char *)"", 0,
+            (const unsigned char *)"<packages>", 10) != 0) return 35;
+    if (package_order_len != 2 || memcmp(package_order, "AB", 2)) return 36;
+    if (hao_embed_eval(package_runtime, (const unsigned char *)"", 0,
+            (const unsigned char *)"<packages-2>", 12) != 0) return 38;
+    if (package_order_len != 4 || memcmp(package_order, "ABAB", 4)) return 39;
+    hao_embed_free(package_runtime);
+    if (package_order_len != 6 || memcmp(package_order, "ABABba", 6)) return 37;
+    HaoRuntimeHandle failing_runtime = hao_embed_new();
+    char gamma = 'C';
+    if (!failing_runtime ||
+        hao_embed_register_package_callbacks(failing_runtime, (const unsigned char *)"gamma", 5,
+            fail_install_package, deinit_package, &gamma) != 0) return 40;
+    if (hao_embed_eval(failing_runtime, (const unsigned char *)"", 0,
+            (const unsigned char *)"<failure>", 9) == 0) return 41;
+    if (!hao_embed_last_error(failing_runtime, error, sizeof(error)) ||
+        strcmp((const char *)error, "Package installation failed")) return 42;
+    hao_embed_free(failing_runtime);
+    if (package_order_len != 7 || package_order[6] != 'c') return 43;
     if (hao_embed_eval(runtime, NULL, 0, (const unsigned char *)"<empty>", 7) != 0) return 11;
     if (hao_embed_last_error(runtime, error, sizeof(error)) != 0) return 13;
     const char *bad_source = "throw new Error('embed failure')";

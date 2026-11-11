@@ -214,6 +214,7 @@ void hao_runtime_free(uintptr_t handle) {
     hao_http_server_cleanup(host->context);
     hao_ffi_cleanup(host->context);
     hao_addon_cleanup(host->context);
+    hao_package_cleanup(host);
     hao_metric_cleanup(host->context);
     hao_telemetry_cleanup(host);
     hao_cleanup_timers(host);
@@ -239,6 +240,7 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
                      const char *filename, size_t filename_len) {
     HaoRuntime *host = (HaoRuntime *)handle;
     if (filename_len == SIZE_MAX || source_len == SIZE_MAX) return 1;
+    if (hao_package_install(host) != 0) return 1;
     char *name = hao_alloc(filename_len + 1);
     if (!name) return 1;
     memcpy(name, filename, filename_len);
