@@ -39,6 +39,13 @@ try:
             f'{{"request":{value}}}', {'Content-Type': 'application/json'}), range(8)))
     for index, (status, _, body) in enumerate(results):
         assert status == 200 and f'"request":{index}'.encode() in body
+    try:
+        request('GET', '/stop')
+        raise AssertionError('closing the server should close its active client')
+    except http.client.RemoteDisconnected:
+        pass
+    assert server.wait(timeout=3) == 0
+    assert server.stdout.read() == 'stop entered\nstop settled\n'
     print('HTTP server behavior checks passed')
 finally:
     server.terminate()

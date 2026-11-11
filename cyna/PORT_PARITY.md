@@ -181,7 +181,10 @@ improvement, with a smoke check.
   binary bodies, JSON requests, HEAD, handler and header errors, recovery after
   errors, and eight concurrent POST requests with independent bodies. The
   concurrent probe exercises multiple live connections while each handler
-  awaits a timer; it does not cover every protocol framing or shutdown case.
+  awaits a timer. The same consumer now closes the server from an active
+  handler, verifies that the client disconnects, then waits for the handler's
+  pending timer to settle. Zig and Cyna both exit successfully with the same
+  output order. Other protocol framing and shutdown cases remain open.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes
