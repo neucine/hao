@@ -373,6 +373,10 @@ improvement, with a smoke check.
   HTTP versions, and four header sets, then compares full response bytes. All
   588 responses match. This covers these framing combinations, not incomplete
   requests or shutdown races.
+  A retained `test/port/http_server_incomplete_differential.py` compares six
+  partial and delayed requests under a 60 ms connection deadline. Both servers
+  close incomplete headers and bodies without a response, and both answer
+  completed requests after a short second write. All six byte outcomes match.
   A raw response comparison also matched every byte for GET and HEAD success,
   HTTP/1.0 success, missing Host, Expect rejection, handler failure, and an
   empty JSON POST failure. The shared server consumer retains exact response
