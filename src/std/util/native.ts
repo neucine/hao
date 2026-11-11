@@ -75,6 +75,7 @@ export function inspect(value: unknown, options?: InspectOptions): string {
       const reprMethod = item.repr;
       if (typeof reprMethod === "function") {
         const repr = item.repr.call(item, { mode: "text" });
+        if (repr === null || repr === undefined) return truncate(String(repr));
         const data = repr && typeof repr === "object" ? repr.data : repr;
         if (data !== null && data !== undefined && typeof data !== "symbol") return truncate(String(data));
       }

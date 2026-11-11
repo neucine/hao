@@ -637,3 +637,10 @@ The executable, embedding library, and Jupyter connection check now use root
 manifests `cyna.toml`, `cyna.lib.toml`, and
 `cyna.jupyter-connection.toml`. `build.sh` writes both runtime artifacts
 under `build/`.
+An additional `std:util` matrix matched 26 option forms, including numeric
+limits, nonnumeric values, and throwing getters. Among 28 further values,
+`repr()` returning `null` was a mismatch; a focused probe also found
+`undefined`. Zig renders these direct return values as text, while object
+results whose `data` is null or undefined fall back to ordinary inspection.
+The TypeScript adapter now follows that distinction, and the smoke suite
+retains all three outcomes.

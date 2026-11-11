@@ -316,8 +316,12 @@ console.log('arraylike', inspect({ dtype: 'x', shape: [1], toString() { throw Er
 console.log(inspect({ get repr() { throw Error('bad getter'); }, a: 1 }));
 console.log(inspect({ get a() { throw Error('bad field'); } }));
 console.log(inspect(new Proxy({ a: 1 }, { ownKeys() { throw Error('bad keys'); } })));
+console.log(JSON.stringify(inspect({ repr() { return null; }, a: 1 })));
+console.log(JSON.stringify(inspect({ repr() { return undefined; }, a: 1 })));
+console.log(JSON.stringify(inspect({ repr() { return { data: null }; }, a: 1 })));
 EOF
-test "$("$runtime" "$fixture_dir/util-errors.ts")" = "$(printf '{ repr: [Function: repr], a: 1 }\narraylike \n{ repr: , a: 1 }\n{ a:  }\n{ }')"
+util_errors_expected=$(printf '%s\n' '{ repr: [Function: repr], a: 1 }' 'arraylike ' '{ repr: , a: 1 }' '{ a:  }' '{ }' '"null"' '"undefined"' '"{ repr: [Function: repr], a: 1 }"')
+test "$("$runtime" "$fixture_dir/util-errors.ts")" = "$util_errors_expected"
 cat > "$fixture_dir/util-unicode.ts" <<'EOF'
 import { inspect } from 'std:util';
 console.log(inspect('é', { maxStringLength: 1 }));
