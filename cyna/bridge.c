@@ -674,13 +674,14 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
     if (!input || !name) { hao_free(input); hao_free(name); return NULL; }
     memcpy(input, source, source_len); input[source_len] = 0;
     memcpy(name, filename, filename_len); name[filename_len] = 0;
-    if (name[0] == '<') {
-        char cwd[4096];
-        if (!getcwd(cwd, sizeof(cwd))) { hao_free(input); hao_free(name); return NULL; }
-        size_t needed = strlen(cwd) + filename_len + 10;
+    if (name[0] != '/') {
+        char *cwd = getcwd(NULL, 0);
+        if (!cwd) { hao_free(input); hao_free(name); return NULL; }
+        size_t needed = strlen(cwd) + filename_len + 2;
         char *absolute = hao_alloc(needed);
-        if (!absolute) { hao_free(input); hao_free(name); return NULL; }
-        snprintf(absolute, needed, "%s/.%s.ts", cwd, name);
+        if (!absolute) { free(cwd); hao_free(input); hao_free(name); return NULL; }
+        snprintf(absolute, needed, "%s/%s", cwd, name);
+        free(cwd);
         hao_free(name);
         name = absolute;
     }

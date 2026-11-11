@@ -362,6 +362,11 @@ improvement, with a smoke check.
   The shared kernel consumer now also sends a binary heartbeat containing an
   embedded NUL before the shell requests. Both runtimes echo the exact three
   bytes and continue through the shared execution and shutdown sequence.
+  Notebook cells now use Zig's `__hao_kernel_cell_<execution_count>.ts`
+  filename under the kernel working directory. The shared error probe checks
+  that both runtimes report this filename in a cell stack. The Cyna bridge
+  resolves relative cell filenames before transpilation and evaluation, so
+  relative module imports continue to use the cell directory.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
   A direct `std:ffi/native` fixture passed under both runtimes: opening libc,

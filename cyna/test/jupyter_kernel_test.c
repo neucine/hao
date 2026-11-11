@@ -168,6 +168,7 @@ int main(int argc, char **argv) {
             receive_content(shell, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "error") ||
             !strstr(content, "shared failure") ||
+            !strstr(content, "__hao_kernel_cell_5.ts") ||
             !has_execution_count(content, 5))) status = 82;
         int error_seen = 0;
         idle_seen = 0;

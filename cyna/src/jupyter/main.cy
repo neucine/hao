@@ -196,7 +196,7 @@ fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, co
         const input = $"\{\"code\":{escaped_code},\"execution_count\":{count}\}";
         if wire.send(4, "execute_input", input) != 0 { return 1; }
     }
-    const filename = $"<hao-jupyter-cell-{serial}>";
+    const filename = $"__hao_kernel_cell_{count}.ts";
     const packet_text = runtime.eval_cell(code, filename);
     if packet_text is none { return 1; }
     const packet = parse_json(packet_text) catch (error) { return 1; };
