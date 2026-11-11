@@ -1,13 +1,3 @@
-declare global {
-  var __hao_http_serveNative: (options: any, callback: (id: number, chunk: Uint8Array | null) => void) => { id: number; port: number };
-  var __hao_http_stopServerNative: (id: number) => void;
-  var __hao_http_pauseClientNative: (id: number) => void;
-  var __hao_http_respondNative: (id: number, bytes: Uint8Array) => void;
-  var __hao_http_encodeTextNative: (text: string) => Uint8Array;
-  var __hao_http_decodeTextNative: (bytes: Uint8Array) => string;
-  var __hao_http_unrefServerNative: (id: number) => void;
-}
-
 const {
   serveNative, stopServerNative, pauseClientNative, respondNative, encodeTextNative, decodeTextNative,
 } = {

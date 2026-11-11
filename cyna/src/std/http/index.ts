@@ -1,10 +1,6 @@
 import { requestNative } from "std:http/native";
 import { serve } from "std:http/server";
 
-declare global {
-  var __hao_telemetry_captureContext: (() => unknown) | undefined;
-}
-
 type HeaderValue = string | string[];
 type HeadersRecord = Record<string, HeaderValue>;
 
