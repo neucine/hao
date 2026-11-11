@@ -730,6 +730,21 @@ test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s
   '{"symbols":["sqrt"],"policies":{"handles":{},"functions":{}}}' \
   '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
   'RuntimeError internal prepareNative: failed to build descriptor')"
+cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
+import { openNative, callNative, closeNative } from 'std:ffi/c/native';
+const library = openNative('m', 'double sqrt(double x);');
+for (const [symbol, args] of [['missing', [4]], ['sqrt', []]]) {
+  try { callNative(library.handle, symbol, args); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
+closeNative(library.handle);
+try { callNative(library.handle, 'sqrt', [4]); }
+catch (error) { console.log(error.name, error.code, error.message); }
+EOF
+test "$("$runtime" "$fixture_dir/ffi-c-call-errors.ts")" = "$(printf '%s\n%s\n%s' \
+  'RuntimeError invalid_arg C: unknown symbol' \
+  'RuntimeError invalid_arg C: wrong number of arguments' \
+  'RuntimeError invalid_arg C: invalid library handle')"
 cat > "$fixture_dir/ffi-c-policy-error.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';

@@ -103,16 +103,16 @@ export function openNative(name: string, declarations: string, opts?: any): { ha
 }
 export function callNative(handle: number, symbol: string, args: any[]): unknown {
   const prepared = libraries.get(handle);
-  if (!prepared) throw invalidArg('FFI: invalid library handle');
+  if (!prepared) throw invalidArg('C: invalid library handle');
   const fn = prepared.functions.find(item => item.name === symbol);
-  if (!fn) throw invalidArg('FFI: unknown symbol');
+  if (!fn) throw invalidArg('C: unknown symbol');
   const policy = prepared.policies?.functions?.[symbol];
   const outIndex = policy?.returns?.out == null ? -1 : fn.params.findIndex(param => param.name === policy.returns.out);
   const buffers = policy?.buffers ?? {};
   const lengths = new Map<string, number>();
   const visible = fn.params.filter(param => param.name !== policy?.returns?.out &&
     !Object.values(buffers).some((buffer: any) => buffer.length === param.name));
-  if (args.length !== visible.length) throw invalidArg('FFI: wrong number of arguments');
+  if (args.length !== visible.length) throw invalidArg('C: wrong number of arguments');
   let input = 0;
   const values = new Map<string, any>();
   const staged: { object: any; view: DataView; spec: PodSpec }[] = [];

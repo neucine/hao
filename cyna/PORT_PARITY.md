@@ -174,6 +174,9 @@ improvement, with a smoke check.
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from
   both runtimes; the Cyna smoke suite retains the output handle and close path.
+  Direct `callNative` failures for an unknown symbol, wrong argument count,
+  and a closed library now match Zig's `RuntimeError` name, `invalid_arg` code,
+  and `C:` message prefix. A direct Zig/Cyna fixture produced identical lines.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.
