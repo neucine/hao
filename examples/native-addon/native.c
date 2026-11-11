@@ -46,11 +46,27 @@ static JsValue array_length(JsContext* ctx, int argc, const JsValue* argv) {
     return js_float64(ctx, (double)length);
 }
 
+static JsValue invalid_handle_probe(JsContext* ctx, int argc, const JsValue* argv) {
+    (void)argc;
+    (void)argv;
+    const JsValue invalid = (JsValue)-1;
+    double number = 0;
+    uint32_t length = 0;
+    int truth = 0;
+    int result = 0;
+    if (js_to_float64(ctx, invalid, &number) < 0) result |= 1;
+    if (js_to_bool(ctx, invalid, &truth) < 0) result |= 2;
+    if (js_array_length(ctx, invalid, &length) < 0) result |= 4;
+    if (!js_is_undefined(ctx, invalid)) result |= 8;
+    return js_int32(ctx, result);
+}
+
 static const JsFunction functions[] = {
     { "foo", foo, 0 },
     { "add", add, 2 },
     { "pair", pair, 2 },
     { "arrayLength", array_length, 1 },
+    { "invalidHandleProbe", invalid_handle_probe, 0 },
 };
 
 static const JsFunction extra_functions[] = {

@@ -2,6 +2,7 @@
 #include "../runtime_allocator.h"
 #include <quickjs.h>
 #include <dlfcn.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,11 +32,13 @@ extern int hao_metric_set(JSContext *, uint32_t, double);
 extern int hao_metric_observe(JSContext *, uint32_t, double);
 extern int hao_metric_value(JSContext *, uint32_t, double *);
 
-static JSValueConst frame_value(AddonFrame *frame, JsValue handle) {
-    if (handle == 0) return JS_UNDEFINED;
-    if (handle <= (size_t)frame->argc) return frame->argv[handle - 1];
+static bool frame_value(AddonFrame *frame, JsValue handle, JSValueConst *value) {
+    if (handle == 0) { *value = JS_UNDEFINED; return true; }
+    if (handle <= (size_t)frame->argc) { *value = frame->argv[handle - 1]; return true; }
     size_t index = handle - (size_t)frame->argc - 1;
-    return index < frame->count ? frame->owned[index] : JS_UNDEFINED;
+    if (index >= frame->count) return false;
+    *value = frame->owned[index];
+    return true;
 }
 
 static JsValue frame_push(AddonFrame *frame, JSValue value) {
@@ -57,12 +60,14 @@ static JsValue api_bool(JsContext *ctx, int v) { AddonFrame *f = frame_of(ctx); 
 static JsValue api_int(JsContext *ctx, int32_t v) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewInt32(f->ctx, v)); }
 static JsValue api_float(JsContext *ctx, double v) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewFloat64(f->ctx, v)); }
 static JsValue api_string(JsContext *ctx, const char *v) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewString(f->ctx, v)); }
-static int api_to_bool(JsContext *ctx, JsValue v, int *out) { int result = JS_ToBool(frame_of(ctx)->ctx, frame_value(frame_of(ctx), v)); if (result < 0) return -1; *out = result; return 0; }
-static int api_to_int(JsContext *ctx, JsValue v, int32_t *out) { AddonFrame *f = frame_of(ctx); return JS_ToInt32(f->ctx, out, frame_value(f, v)); }
-static int api_to_float(JsContext *ctx, JsValue v, double *out) { AddonFrame *f = frame_of(ctx); return JS_ToFloat64(f->ctx, out, frame_value(f, v)); }
+static int api_to_bool(JsContext *ctx, JsValue v, int *out) { AddonFrame *f = frame_of(ctx); JSValueConst value; if (!frame_value(f, v, &value)) return -1; int result = JS_ToBool(f->ctx, value); if (result < 0) return -1; *out = result; return 0; }
+static int api_to_int(JsContext *ctx, JsValue v, int32_t *out) { AddonFrame *f = frame_of(ctx); JSValueConst value; if (!frame_value(f, v, &value)) return -1; return JS_ToInt32(f->ctx, out, value); }
+static int api_to_float(JsContext *ctx, JsValue v, double *out) { AddonFrame *f = frame_of(ctx); JSValueConst value; if (!frame_value(f, v, &value)) return -1; return JS_ToFloat64(f->ctx, out, value); }
 static const char *api_to_string(JsContext *ctx, JsValue v) {
     AddonFrame *f = frame_of(ctx);
-    const char *text = JS_ToCString(f->ctx, frame_value(f, v));
+    JSValueConst value;
+    if (!frame_value(f, v, &value)) return NULL;
+    const char *text = JS_ToCString(f->ctx, value);
     if (!text) return NULL;
     char *copy = hao_strdup(text);
     JS_FreeCString(f->ctx, text);
@@ -76,16 +81,18 @@ static const char *api_to_string(JsContext *ctx, JsValue v) {
 static JsValue api_type_error(JsContext *ctx, const char *message) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_ThrowTypeError(f->ctx, "%s", message)); }
 static JsValue api_error(JsContext *ctx, const char *message) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_ThrowInternalError(f->ctx, "%s", message)); }
 static JsValue api_object(JsContext *ctx) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewObject(f->ctx)); }
-static int api_set(JsContext *ctx, JsValue object, const char *key, JsValue value) { AddonFrame *f = frame_of(ctx); return JS_DefinePropertyValueStr(f->ctx, frame_value(f, object), key, JS_DupValue(f->ctx, frame_value(f, value)), JS_PROP_HAS_VALUE | JS_PROP_HAS_ENUMERABLE | JS_PROP_ENUMERABLE); }
-static JsValue api_get(JsContext *ctx, JsValue object, const char *key) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_GetPropertyStr(f->ctx, frame_value(f, object), key)); }
-static int api_is_undefined(JsContext *ctx, JsValue v) { return JS_IsUndefined(frame_value(frame_of(ctx), v)); }
-static int api_is_null(JsContext *ctx, JsValue v) { return JS_IsNull(frame_value(frame_of(ctx), v)); }
-static int api_is_object(JsContext *ctx, JsValue v) { return JS_IsObject(frame_value(frame_of(ctx), v)); }
-static int api_is_array(JsContext *ctx, JsValue v) { AddonFrame *f = frame_of(ctx); return JS_IsArray(frame_value(f, v)); }
-static int api_is_function(JsContext *ctx, JsValue v) { AddonFrame *f = frame_of(ctx); return JS_IsFunction(f->ctx, frame_value(f, v)); }
+static int api_set(JsContext *ctx, JsValue object, const char *key, JsValue value) { AddonFrame *f = frame_of(ctx); JSValueConst target, item; if (!frame_value(f, object, &target) || !frame_value(f, value, &item)) return -1; return JS_DefinePropertyValueStr(f->ctx, target, key, JS_DupValue(f->ctx, item), JS_PROP_HAS_VALUE | JS_PROP_HAS_ENUMERABLE | JS_PROP_ENUMERABLE); }
+static JsValue api_get(JsContext *ctx, JsValue object, const char *key) { AddonFrame *f = frame_of(ctx); JSValueConst target; if (!frame_value(f, object, &target)) return frame_push(f, JS_ThrowInternalError(f->ctx, "invalid object handle")); return frame_push(f, JS_GetPropertyStr(f->ctx, target, key)); }
+static int api_is_undefined(JsContext *ctx, JsValue v) { JSValueConst value; return frame_value(frame_of(ctx), v, &value) && JS_IsUndefined(value); }
+static int api_is_null(JsContext *ctx, JsValue v) { JSValueConst value; return frame_value(frame_of(ctx), v, &value) && JS_IsNull(value); }
+static int api_is_object(JsContext *ctx, JsValue v) { JSValueConst value; return frame_value(frame_of(ctx), v, &value) && JS_IsObject(value); }
+static int api_is_array(JsContext *ctx, JsValue v) { AddonFrame *f = frame_of(ctx); JSValueConst value; return frame_value(f, v, &value) && JS_IsArray(value); }
+static int api_is_function(JsContext *ctx, JsValue v) { AddonFrame *f = frame_of(ctx); JSValueConst value; return frame_value(f, v, &value) && JS_IsFunction(f->ctx, value); }
 static int api_array_length(JsContext *ctx, JsValue v, uint32_t *out) {
     AddonFrame *f = frame_of(ctx);
-    JSValue len = JS_GetPropertyStr(f->ctx, frame_value(f, v), "length");
+    JSValueConst array;
+    if (!frame_value(f, v, &array)) return -1;
+    JSValue len = JS_GetPropertyStr(f->ctx, array, "length");
     int32_t signed_length = 0;
     int status = JS_ToInt32(f->ctx, &signed_length, len);
     JS_FreeValue(f->ctx, len);
@@ -93,9 +100,9 @@ static int api_array_length(JsContext *ctx, JsValue v, uint32_t *out) {
     *out = (uint32_t)signed_length;
     return 0;
 }
-static JsValue api_array_get(JsContext *ctx, JsValue v, uint32_t i) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_GetPropertyUint32(f->ctx, frame_value(f, v), i)); }
+static JsValue api_array_get(JsContext *ctx, JsValue v, uint32_t i) { AddonFrame *f = frame_of(ctx); JSValueConst array; if (!frame_value(f, v, &array)) return frame_push(f, JS_ThrowInternalError(f->ctx, "invalid array handle")); return frame_push(f, JS_GetPropertyUint32(f->ctx, array, i)); }
 static JsValue api_array(JsContext *ctx) { AddonFrame *f = frame_of(ctx); return frame_push(f, JS_NewArray(f->ctx)); }
-static int api_array_set(JsContext *ctx, JsValue v, uint32_t i, JsValue item) { AddonFrame *f = frame_of(ctx); return JS_DefinePropertyValueUint32(f->ctx, frame_value(f, v), i, JS_DupValue(f->ctx, frame_value(f, item)), JS_PROP_HAS_VALUE | JS_PROP_HAS_ENUMERABLE | JS_PROP_ENUMERABLE); }
+static int api_array_set(JsContext *ctx, JsValue v, uint32_t i, JsValue item) { AddonFrame *f = frame_of(ctx); JSValueConst array, value; if (!frame_value(f, v, &array) || !frame_value(f, item, &value)) return -1; return JS_DefinePropertyValueUint32(f->ctx, array, i, JS_DupValue(f->ctx, value), JS_PROP_HAS_VALUE | JS_PROP_HAS_ENUMERABLE | JS_PROP_ENUMERABLE); }
 static int api_metric_register(JsContext *ctx, const JsMetricDefinition *d, uint32_t *id) { return hao_metric_register(frame_of(ctx)->ctx, d, id); }
 static int api_metric_add(JsContext *ctx, uint32_t id, double value) { return hao_metric_add(frame_of(ctx)->ctx, id, value); }
 static int api_metric_set(JsContext *ctx, uint32_t id, double value) { return hao_metric_set(frame_of(ctx)->ctx, id, value); }
@@ -130,7 +137,9 @@ static JSValue call_addon(JSContext *ctx, JSValueConst this_value, int argc,
     for (int i = 0; i < argc; i++) handles[i] = (size_t)i + 1;
     JsValue returned = function->callback(&addon_ctx, argc, handles);
     hao_free(handles);
-    JSValue result = JS_DupValue(ctx, frame_value(&frame, returned));
+    JSValueConst returned_value;
+    JSValue result = frame_value(&frame, returned, &returned_value) ?
+        JS_DupValue(ctx, returned_value) : JS_EXCEPTION;
     for (size_t i = 0; i < frame.count; i++) JS_FreeValue(ctx, frame.owned[i]);
     for (size_t i = 0; i < frame.string_count; i++) hao_free(frame.strings[i]);
     hao_free(frame.owned); hao_free(frame.strings);

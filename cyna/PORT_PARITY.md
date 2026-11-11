@@ -65,6 +65,10 @@ that adapter.
   The native addon consumer now checks `js_array_length` for ordinary and
   sparse arrays. The Cyna adapter uses the same signed 32 bit conversion as
   Zig and rejects lengths above `INT32_MAX`.
+  Addon value lookup now distinguishes invalid handles from the valid zero
+  handle, which represents `undefined`. A shared C addon probe returns `15`
+  under both the Zig and Cyna runtimes for invalid conversion and predicate
+  checks.
 - Compare Jupyter request, stream, display, history, and shutdown behavior with
   the Zig kernel beyond the current kernel integration test.
   The Cyna wire layer validates the HMAC and discards malformed multipart

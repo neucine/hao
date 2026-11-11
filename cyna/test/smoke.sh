@@ -159,9 +159,10 @@ console.log(first?.writable, first?.enumerable, first?.configurable);
 const sparse = [];
 sparse.length = 2147483648;
 console.log(native.arrayLength(['a', 'b']), native.arrayLength(sparse));
+console.log(native.invalidHandleProbe());
 EOF
 addon_actual=$("$runtime" "$fixture_dir/addon.ts")
-test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false\n2 -1')"
+test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false\n2 -1\n15')"
 
 mkdir -p "$fixture_dir/node_modules/metric"
 clang -dynamiclib -I "$repo_root/include" "$repo_root/cyna/test/metric_addon.c" -o "$fixture_dir/node_modules/metric/native.dylib"
