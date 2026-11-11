@@ -22,7 +22,11 @@ fn parse_console_enabled(raw: string): bool ! ConfigError {
 
 fn parse_port(raw: string): u16 ! ConfigError {
     var digits = raw.clone();
+    var negative = false;
     if digits.starts_with("+") {
+        digits = digits.slice(1, digits.len());
+    } else if digits.starts_with("-") {
+        negative = true;
         digits = digits.slice(1, digits.len());
     }
     const bytes = digits.bytes();
@@ -37,6 +41,9 @@ fn parse_port(raw: string): u16 ! ConfigError {
     }
     if all_zero {
         return 0;
+    }
+    if negative {
+        throw ConfigError.invalid_value;
     }
     const value = try parse_positive_usize(digits);
     if value > 65535 {

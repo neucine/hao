@@ -107,6 +107,7 @@ test "$configured_actual" = "$expected"
 test "$(RUNTIME_TELEMETRY_CONSOLE=OFF "$runtime" "$fixture_dir/main.ts")" = "$expected"
 test "$(RUNTIME_QJS_STACK_SIZE=+16777216 "$runtime" "$fixture_dir/main.ts")" = "$expected"
 test "$(RUNTIME_TELEMETRY_CONSOLE=0 RUNTIME_TELEMETRY_CONSOLE_PORT=+0 "$runtime" "$fixture_dir/main.ts")" = "$expected"
+test "$(RUNTIME_TELEMETRY_CONSOLE=0 RUNTIME_TELEMETRY_CONSOLE_PORT=-00 "$runtime" "$fixture_dir/main.ts")" = "$expected"
 test "$(RUNTIME_TELEMETRY_CONSOLE=0 RUNTIME_TELEMETRY_CONSOLE_PORT=+1 "$runtime" "$fixture_dir/main.ts")" = "$expected"
 if RUNTIME_QJS_STACK_SIZE=invalid "$runtime" "$fixture_dir/main.ts" > "$fixture_dir/config.stdout" 2> "$fixture_dir/config.stderr"; then
     exit 1

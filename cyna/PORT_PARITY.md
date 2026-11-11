@@ -35,6 +35,14 @@ The Cyna HTTP client also captures a trace context before deferring its native
 request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
 
+The Cyna configuration path uses `std.config` for Boolean and positive integer
+parsing. A direct Zig/Cyna acceptance comparison covered stack size, GC
+threshold, libuv pool size, trace capacity, native stack traces, and telemetry
+console ports across valid and invalid values. It found that Zig accepts signed
+zero for the console port; Cyna now accepts it too, and the smoke suite retains
+`-00` as a regression case. The compared values now have the same accept or
+reject result.
+
 ## Open behavior checks
 
 - `RUNTIME_NATIVE_STACK_TRACE` now passes through Cyna `std.config` and makes
