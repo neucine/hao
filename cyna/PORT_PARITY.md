@@ -74,6 +74,8 @@ them. Cyna now retains those registrations and reports the failed module and
 exception message on stderr. The smoke suite checks a partially loaded suite
 whose hook fails during the subsequent run. Complex hook combinations still
 need direct reporter comparisons.
+A malformed TypeScript test file now exits after Zig's `TranspileFailed` line,
+without a test summary; the smoke suite retains this fatal load path.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript

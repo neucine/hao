@@ -135,7 +135,9 @@ fn main(): i32 {
                 const path_bytes = path.bytes();
                 test_print_load(file_index as c_size_t, files_total as c_size_t,
                     path_bytes.ptr as! *const c_uchar, path_bytes.len() as c_size_t);
-                if run_file(&host, path.clone(), true) != 0 or host.drain_test_jobs(path.clone()) < 0 {
+                const load_status = run_file(&host, path.clone(), true);
+                if load_status == 2 { return 1; }
+                if load_status != 0 or host.drain_test_jobs(path.clone()) < 0 {
                     file_failures = file_failures + 1;
                 } else {
                     files_loaded = files_loaded + 1;

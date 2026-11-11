@@ -268,12 +268,12 @@ static int hao_runtime_eval_impl(uintptr_t handle, const char *source, size_t so
         if (error) {
             hao_free(host->embed_error);
             host->embed_error = hao_strdup(error);
-            if (test_file) fprintf(stderr, "✕ module %s\n  %s\n", name, error);
+            if (test_file) fprintf(stderr, "TranspileFailed\n");
             else fprintf(stderr, "%s\n", error);
             hao_transpiler_free(error);
         }
         hao_free(name);
-        return 1;
+        return test_file ? 2 : 1;
     }
     JSValue result = JS_Eval(host->context, transformed, strlen(transformed), name, JS_EVAL_TYPE_MODULE);
     hao_transpiler_free(transformed);

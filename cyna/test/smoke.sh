@@ -696,6 +696,16 @@ case "$load_result" in
     *'✕ module '*'broken.test.ts'*'load failed'*'1 loaded, 1 failed, 2 total'*'2 passed, 1 failed, 0 skipped'*) ;;
     *) echo "$load_result" >&2; exit 1 ;;
 esac
+cat > "$fixture_dir/syntax-error.test.ts" <<'EOF'
+import { test } from 'std:test';
+test('must not register', () => {});
+const = ;
+EOF
+if "$runtime" test "$fixture_dir/syntax-error.test.ts" > "$fixture_dir/syntax-stdout" 2> "$fixture_dir/syntax-stderr"; then
+    exit 1
+fi
+test ! -s "$fixture_dir/syntax-stdout"
+test "$(tail -1 "$fixture_dir/syntax-stderr")" = 'TranspileFailed'
 cat > "$fixture_dir/grep-suite.test.ts" <<'EOF'
 import { describe, test } from 'std:test';
 describe('needle suite', () => test('plain case', () => { throw Error('suite name must not match grep'); }));
