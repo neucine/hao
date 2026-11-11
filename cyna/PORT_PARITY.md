@@ -55,13 +55,15 @@ that adapter.
   of the full parity audit.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
-  Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port currently
-  exposes a C embedding ABI for source modules. Its consumer verifies two runtime
+  Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes
+  a C embedding ABI for source and native modules. Its consumer verifies two runtime
   lifetimes, error replacement, buffer validation, and source registration.
   Registration now rejects empty and NUL-containing specifiers explicitly,
   consistent with the Zig registry's empty package rejection and its
-  length-aware specifiers. Native package registration and lifecycle callbacks
-  remain an API parity gap.
+  length-aware specifiers. A host callback can now create a native QuickJS
+  module under a registered specifier; the consumer imports one and checks
+  duplicate rejection. Package install and deinit callbacks remain an API
+  parity gap.
   The native addon consumer now checks `js_array_length` for ordinary and
   sparse arrays. The Cyna adapter uses the same signed 32 bit conversion as
   Zig and rejects lengths above `INT32_MAX`.

@@ -38,7 +38,7 @@ result = subprocess.run([sys.argv[1], str(Path(sys.argv[2]) / 'main.ts')],
 assert result.returncode == 1 and 'Unable to load dotenv file' in result.stdout, result
 PY
 cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
-clang -I "$repo_root/include" "$repo_root/cyna/test/embed_consumer.c" \
+clang -I "$repo_root/include" -I "$repo_root/cyna/.deps/install/include" "$repo_root/cyna/test/embed_consumer.c" \
     "$repo_root/cyna/embed/build/libhao-cyna-embed.a" \
     -L "$cyna_dir/targets/aarch64-apple-darwin/lib" -lcyna_std -lcyna \
     -L "$repo_root/cyna/.deps/install/lib" -lquickjs -luv \

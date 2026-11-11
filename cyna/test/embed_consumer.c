@@ -1,4 +1,5 @@
 #include "hao.h"
+#include <quickjs.h>
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
@@ -6,6 +7,17 @@
 extern int hao_embed_telemetry_probe(HaoRuntimeHandle runtime);
 extern void hao_telemetry_metric(uintptr_t handle, const unsigned char *scope, size_t scope_len,
     const unsigned char *name, size_t name_len, int kind, int unit, int64_t value, int set);
+
+static int init_native_module(JSContext *context, JSModuleDef *module) {
+    return JS_SetModuleExport(context, module, "answer", JS_NewInt32(context, 17));
+}
+
+static void *load_native_module(void *opaque, const char *name) {
+    JSContext *context = opaque;
+    JSModuleDef *module = JS_NewCModule(context, name, init_native_module);
+    if (module) JS_AddModuleExport(context, module, "answer");
+    return module;
+}
 
 static void *emit_worker_metric(void *opaque) {
     HaoRuntimeHandle runtime = *(HaoRuntimeHandle *)opaque;
@@ -38,6 +50,19 @@ int main(int argc, char **argv) {
     const char *other_source = "export const answer = 7;";
     if (hao_embed_register_module(other, (const unsigned char *)"demo:answer", 11,
             (const unsigned char *)other_source, strlen(other_source)) != 0) return 10;
+    if (hao_embed_register_native_module(other, (const unsigned char *)"demo:native", 11,
+            load_native_module) != 0) return 27;
+    if (hao_embed_register_native_module(other, (const unsigned char *)"demo:native", 11,
+            load_native_module) == 0) return 28;
+    if (hao_embed_register_native_module(other, (const unsigned char *)"demo:missing", 12,
+            NULL) == 0) return 30;
+    if (hao_embed_register_module(other, (const unsigned char *)"demo:native", 11,
+            (const unsigned char *)"", 0) == 0) return 31;
+    if (hao_embed_register_native_module(other, (const unsigned char *)"demo:answer", 11,
+            load_native_module) == 0) return 32;
+    const char *native_source = "import { answer } from 'demo:native'; if (answer !== 17) throw Error('native module mismatch');";
+    if (hao_embed_eval(other, (const unsigned char *)native_source, strlen(native_source),
+            (const unsigned char *)"<native>", 8) != 0) return 29;
     if (hao_embed_last_error(other, error, sizeof(error)) != 0) return 17;
     hao_embed_free(other);
     if (hao_embed_eval(runtime, NULL, 0, (const unsigned char *)"<empty>", 7) != 0) return 11;

@@ -5,6 +5,12 @@ interface in `include/hao.h`. Create a runtime with `hao_embed_new`, register
 source modules with `hao_embed_register_module`, evaluate a module with
 `hao_embed_eval`, drain pending Promise and native work with
 `hao_embed_run_until_idle`, and release the handle with `hao_embed_free`.
+For a host supplied QuickJS module, call `hao_embed_register_native_module`
+with a specifier and a loader callback. The loader receives the runtime's
+QuickJS context and the requested module name and returns a `JSModuleDef *`.
+It is called when the module is imported. Its function pointer must remain
+valid until the runtime is freed. Source and native modules share one name
+space, so duplicate specifiers are rejected.
 
 `hao_embed_install_std` installs the standard modules from the directory
 produced by `sh cyna/build.sh` (`cyna/build/modules`). Hosts that do not use
@@ -14,7 +20,8 @@ produced by `sh cyna/build.sh` (`cyna/build/modules`). Hosts that do not use
 Each successful `hao_embed_new` call owns an independent module registry and
 must be paired with one `hao_embed_free` call. Source and module names are
 copied before registration returns. A null byte pointer is accepted only with
-a zero length. Calls return zero on success. After a failed operation,
+a zero length. Module specifiers must be nonempty and contain no NUL byte.
+Calls return zero on success. After a failed operation,
 `hao_embed_last_error` returns the full error length and copies a terminated
 message into a caller-owned buffer. The next successful operation clears it.
 Runtime errors are also written to stderr.

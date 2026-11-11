@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define HAO_EMBED_ABI_VERSION 2
+#define HAO_EMBED_ABI_VERSION 3
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,6 +12,7 @@ extern "C" {
 
 /* A runtime handle is owned by the caller and must be freed once. */
 typedef uintptr_t HaoRuntimeHandle;
+typedef void *(*HaoNativeModuleLoader)(void *context, const char *module_name);
 
 /* Check this before calling the runtime from a separately built host. */
 uint32_t hao_embed_abi_version(void);
@@ -26,6 +27,11 @@ int hao_embed_eval(HaoRuntimeHandle runtime, const unsigned char *source,
                    size_t source_len, const unsigned char *filename, size_t filename_len);
 int hao_embed_register_module(HaoRuntimeHandle runtime, const unsigned char *specifier,
                               size_t specifier_len, const unsigned char *source, size_t source_len);
+/* The callback receives the runtime's QuickJS context and creates a native
+   module for module_name. The callback must remain valid until runtime free. */
+int hao_embed_register_native_module(HaoRuntimeHandle runtime,
+                                     const unsigned char *specifier, size_t specifier_len,
+                                     HaoNativeModuleLoader loader);
 int hao_embed_run_until_idle(HaoRuntimeHandle runtime);
 
 /* Last operation error. Returns the full byte length, excluding

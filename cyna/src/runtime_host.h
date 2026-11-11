@@ -15,6 +15,12 @@ typedef struct HaoSourceModule {
     struct HaoSourceModule *next;
 } HaoSourceModule;
 
+typedef struct HaoNativeModule {
+    char *name;
+    void *(*load)(void *context, const char *module_name);
+    struct HaoNativeModule *next;
+} HaoNativeModule;
+
 typedef struct HaoTimer HaoTimer;
 typedef struct HaoTelemetryItem HaoTelemetryItem;
 typedef struct HaoNativeSpan HaoNativeSpan;
@@ -36,6 +42,7 @@ typedef struct HaoRuntime {
     uint32_t next_timer_id;
     HaoTimer *timers;
     HaoSourceModule *modules;
+    HaoNativeModule *native_modules;
     bool capture_active;
     int capture_target;
     char *capture_stdout;

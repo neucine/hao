@@ -1,5 +1,6 @@
 #include "runtime_host.h"
 #include "runtime_allocator.h"
+#include "../../include/hao.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +15,13 @@ extern int hao_resolve_package(const unsigned char *base, const unsigned char *s
 
 static HaoSourceModule *hao_find_module(HaoRuntime *host, const char *name) {
     for (HaoSourceModule *module = host->modules; module; module = module->next) {
+        if (strcmp(module->name, name) == 0) return module;
+    }
+    return NULL;
+}
+
+static HaoNativeModule *hao_find_native_module(HaoRuntime *host, const char *name) {
+    for (HaoNativeModule *module = host->native_modules; module; module = module->next) {
         if (strcmp(module->name, name) == 0) return module;
     }
     return NULL;
@@ -84,7 +92,7 @@ int hao_runtime_register(uintptr_t handle, const char *name, size_t name_len,
     memcpy(module->source, source, source_len);
     module->source[source_len] = 0;
     module->source_len = source_len;
-    if (hao_find_module(host, module->name)) {
+    if (hao_find_module(host, module->name) || hao_find_native_module(host, module->name)) {
         hao_free(module->name);
         hao_free(module->source);
         hao_free(module);
@@ -95,10 +103,47 @@ int hao_runtime_register(uintptr_t handle, const char *name, size_t name_len,
     return 0;
 }
 
+int hao_runtime_register_native(uintptr_t handle, const char *name, size_t name_len,
+                                void *(*load)(void *, const char *)) {
+    HaoRuntime *host = (HaoRuntime *)handle;
+    if (!name_len || name_len == SIZE_MAX || !load || memchr(name, 0, name_len)) return 1;
+    HaoNativeModule *module = hao_calloc(1, sizeof(*module));
+    if (!module) return 1;
+    module->name = hao_strndup(name, name_len);
+    if (!module->name || hao_find_module(host, module->name) ||
+        hao_find_native_module(host, module->name)) {
+        hao_free(module->name);
+        hao_free(module);
+        return 1;
+    }
+    module->load = load;
+    module->next = host->native_modules;
+    host->native_modules = module;
+    return 0;
+}
+
+extern void hao_embed_clear_error(uintptr_t handle);
+extern void hao_embed_invalid_buffer(uintptr_t handle);
+extern void hao_embed_set_error(uintptr_t handle, const unsigned char *message, size_t length);
+
+int hao_embed_register_native_module(HaoRuntimeHandle handle, const unsigned char *name,
+                                     size_t name_len, HaoNativeModuleLoader loader) {
+    if (!handle) return 1;
+    if (!name && name_len) {
+        hao_embed_invalid_buffer(handle);
+        return 1;
+    }
+    hao_embed_clear_error(handle);
+    if (hao_runtime_register_native(handle, (const char *)name, name_len, loader) == 0) return 0;
+    static const unsigned char failure[] = "Native module registration failed";
+    hao_embed_set_error(handle, failure, sizeof(failure) - 1);
+    return 1;
+}
+
 char *hao_normalize_module(JSContext *ctx, const char *base,
                                    const char *specifier, void *opaque) {
     HaoRuntime *host = opaque;
-    if (hao_find_module(host, specifier)) {
+    if (hao_find_module(host, specifier) || hao_find_native_module(host, specifier)) {
         size_t len = strlen(specifier);
         char *normalized = js_malloc(ctx, len + 1);
         if (normalized) memcpy(normalized, specifier, len + 1);
@@ -157,6 +202,8 @@ char *hao_normalize_module(JSContext *ctx, const char *base,
 JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
     if (strncmp(name, "addon:", 6) == 0) return hao_load_addon(ctx, name);
     HaoRuntime *host = opaque;
+    HaoNativeModule *native = hao_find_native_module(host, name);
+    if (native) return native->load(ctx, name);
     HaoSourceModule *module = hao_find_module(host, name);
     if (module) {
         size_t name_len = strlen(name);
@@ -231,5 +278,12 @@ void hao_module_cleanup(HaoRuntime *host) {
         hao_free(module->source);
         hao_free(module);
         module = next;
+    }
+    HaoNativeModule *native = host->native_modules;
+    while (native) {
+        HaoNativeModule *next = native->next;
+        hao_free(native->name);
+        hao_free(native);
+        native = next;
     }
 }
