@@ -143,26 +143,7 @@ fn supported_entry(path: string, package_type: ?string): bool {
     return false;
 }
 
-fn has_parent_segment(path: string): bool {
-    const bytes = path.bytes();
-    var start: usize = 0;
-    var index: usize = 0;
-    while index <= bytes.len() {
-        if index == bytes.len() or bytes[index] == 47 {
-            if index - start == 2 and bytes[start] == 46 and bytes[start + 1] == 46 {
-                return true;
-            }
-            start = index + 1;
-        }
-        index = index + 1;
-    }
-    return false;
-}
-
 fn find_entry(root: string, entry: string, package_type: ?string): Resolution {
-    if has_parent_segment(entry) {
-        return failed(-1);
-    }
     var relative = entry.clone();
     if entry.starts_with("./") {
         relative = entry.slice(2, entry.len());

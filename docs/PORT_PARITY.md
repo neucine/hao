@@ -619,3 +619,10 @@ second timer 2 ms later. Zig printed the second timer in 17 of 40 runs;
 Cyna printed it in 40 of 40. At 20 ms the existing smoke case verifies both
 exit before the second timer. The 2 ms observation depends on scheduling and
 does not establish a deterministic behavior difference.
+The package entry probe also found that Zig resolves `../outside.ts` when it
+exists beside the package directory. Cyna had rejected every parent segment;
+the extra restriction was removed to preserve legacy package behavior. Nine
+parent segment spellings now match in a direct comparison, and the retained
+package diagnostic fixture covers a successful parent export. An 18 case
+`std:fs` probe covering missing files, directories, symbols, null values, and
+embedded NULs also matched Zig without a port change.

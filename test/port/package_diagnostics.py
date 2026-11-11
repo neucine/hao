@@ -48,6 +48,16 @@ with tempfile.TemporaryDirectory(prefix="hao-package-diagnostics-") as directory
     result = subprocess.run([runtime, source], capture_output=True, text=True)
     assert result.returncode == 0 and result.stdout == "42\n" and result.stderr == "", result
 
+    outside = modules / "outside.ts"
+    outside.write_text("export const value = 42;\n")
+    parent_export = modules / "parent-export"
+    parent_export.mkdir()
+    (parent_export / "package.json").write_text(json.dumps({"exports": "../outside.ts"}))
+    parent_source = root / "parent-export.ts"
+    parent_source.write_text('import { value } from "parent-export"; console.log(value);\n')
+    result = subprocess.run([runtime, parent_source], capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout == "42\n" and result.stderr == "", result
+
     (absolute / "package.json").write_text(json.dumps({"type": "module", "exports": "//index.ts"}))
     result = subprocess.run([runtime, source], capture_output=True, text=True)
     assert result.returncode == 0 and result.stdout == "42\n" and result.stderr == "", result
