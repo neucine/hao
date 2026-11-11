@@ -538,6 +538,9 @@ improvement, with a smoke check.
   response. Both kernels return two shell replies and publish busy, idle, busy,
   idle in order. This checks one concurrent shell scheduling case; other
   interleavings remain unverified.
+  A queued `execute_request` followed by `kernel_info_request` also returns the
+  execution reply first, then kernel info. Both kernels publish the execution's
+  busy, input, result, idle sequence before kernel info's busy and idle states.
   The Cyna ZeroMQ sockets now use Zig's 1000 ms linger on close, giving queued
   shutdown replies and IOPub frames the same delivery window. The existing
   shared kernel consumer still receives the shutdown reply after this change.

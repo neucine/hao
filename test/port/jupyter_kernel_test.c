@@ -253,6 +253,17 @@ int main(int argc, char **argv) {
                 !strstr(content, "execution_state") ||
                 !strstr(content, expected_states[i])) status = 118;
         }
+        if (!status && (send_request(shell, "execute_request", "{\"code\":\"2 + 3\"}") < 0 ||
+            send_request(shell, "kernel_info_request", "{}") < 0)) status = 119;
+        if (!status && (receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"status\"") || !strstr(content, "\"ok\""))) status = 120;
+        if (!status && (receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"implementation\""))) status = 121;
+        const char *expected_output[] = {"busy", "2 + 3", "text/plain", "idle", "busy", "idle"};
+        for (int i = 0; !status && i < 6; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0 ||
+                !strstr(content, expected_output[i])) status = 122;
+        }
         if (!status && (send_request(control, "shutdown_request", "{") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok") ||
