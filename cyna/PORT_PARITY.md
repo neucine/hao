@@ -177,6 +177,11 @@ improvement, with a smoke check.
   Direct `callNative` failures for an unknown symbol, wrong argument count,
   and a closed library now match Zig's `RuntimeError` name, `invalid_arg` code,
   and `C:` message prefix. A direct Zig/Cyna fixture produced identical lines.
+  Native argument conversion now preserves a pending JavaScript exception
+  instead of replacing it with `FFI: invalid argument value`. A shared probe
+  matched both runtimes for a `Symbol` passed to `f64` and `u64`, and an object
+  whose numeric conversion throws. The unsigned fallback now tries a string
+  conversion after a failed signed conversion, as Zig does.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.

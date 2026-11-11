@@ -225,7 +225,6 @@ static bool unsigned_arg(JSContext *ctx, JSValueConst input, uint64_t *out) {
     }
     JSValue error = JS_GetException(ctx);
     JS_FreeValue(ctx, error);
-    if (!JS_IsBigInt(input)) return false;
     size_t length = 0;
     const char *text = JS_ToCStringLen(ctx, &length, input);
     if (!text) return false;
@@ -331,7 +330,8 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
             JS_SetPropertyStr(ctx, pair, "out", JS_NewInt64(ctx, (int64_t)out_pointer));
             result = pair;
         }
-    } else result = JS_ThrowTypeError(ctx, "FFI: invalid argument value");
+    } else result = JS_HasException(ctx) ? JS_EXCEPTION :
+        JS_ThrowTypeError(ctx, "FFI: invalid argument value");
     for (size_t i = 0; i < held_count; i++) {
         if (held_strings[i]) JS_FreeCString(ctx, held_strings[i]);
         JS_FreeValue(ctx, held_buffers[i]);

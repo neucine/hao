@@ -745,6 +745,23 @@ test "$("$runtime" "$fixture_dir/ffi-c-call-errors.ts")" = "$(printf '%s\n%s\n%s
   'RuntimeError invalid_arg C: unknown symbol' \
   'RuntimeError invalid_arg C: wrong number of arguments' \
   'RuntimeError invalid_arg C: invalid library handle')"
+cat > "$fixture_dir/ffi-c-conversion-errors.ts" <<'EOF'
+import { openNative, callNative, closeNative } from 'std:ffi/c/native';
+import { getEnv } from 'std:process';
+const floating = openNative('m', 'double sqrt(double x);');
+for (const value of [Symbol('x'), { valueOf() { throw Error('bad conversion') } }]) {
+  try { callNative(floating.handle, 'sqrt', [value]); }
+  catch (error) { console.log(error.name, error.message); }
+}
+closeNative(floating.handle);
+const path = `${getEnv('HAO_FFI_TEST_PATH')}/libhao_search_fixture.dylib`;
+const integer = openNative(path, 'uint64_t hao_echo_u64(uint64_t value);');
+try { callNative(integer.handle, 'hao_echo_u64', [Symbol('x')]); }
+catch (error) { console.log(error.name, error.message); }
+closeNative(integer.handle);
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-c-conversion-errors.ts")" = \
+  "$(printf 'TypeError cannot convert symbol to number\nError bad conversion\nTypeError cannot convert symbol to string')"
 cat > "$fixture_dir/ffi-c-policy-error.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
