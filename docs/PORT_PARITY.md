@@ -102,6 +102,7 @@ now match. An empty test directory now runs successfully with zero tests, as
 Zig does. Missing and oversized script files now report Zig's `FileNotFound`
 and `StreamTooLong` messages on stderr. Both runtimes accept trailing arguments
 after `jupyter install`.
+A seven-path differential test now checks explicit `.test.ts` directories, regular files, file and directory symlinks, broken and missing explicit paths, and a directory containing a broken symlink. `python3 test/port/test_discovery.py <legacy-binary> <cyna-binary>` matched Zig after normalizing measured durations. This retains the directory and symlink discovery behavior in `src/std/test_files.cy`.
 The test reporter now writes its file counts, case results, suite indentation,
 skip reasons, and summary to stderr in Zig's layout. A direct plain reporter
 probe with passing and skipped cases, plus a failing case probe, matched Zig's
