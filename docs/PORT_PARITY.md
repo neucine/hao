@@ -610,3 +610,6 @@ An additional path probe matched repeated leading slashes and trailing slashes
 on files and directories. The package resolver now checks the unnormalized
 path with `access(2)`, as Zig does, before returning the normalized module
 path. The retained checks cover both previously divergent forms.
+An additional 234 run manifest matrix matched Zig and Cyna for root and
+subpath imports using string, object, null, array, and numeric values in
+`exports` or `main`, with absent, `module`, and `commonjs` package types.
