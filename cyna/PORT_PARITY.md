@@ -275,6 +275,15 @@ improvement, with a smoke check.
   policy forms Zig cannot represent in a descriptor report the same
   `RuntimeError` category. More declaration and option combinations remain
   to be compared.
+  A shared `prepareNative` matrix covering search options, status policy,
+  inferred handle output, and buffer policy produced identical stdout on both
+  runtimes. A broader shared fixture matched through recursive POD declaration
+  preparation, then Zig exited with status 139 while Cyna reported
+  `RuntimeError invalid_arg C: unsupported POD struct layout for runtime
+  marshaling`. A reduced case confirmed both runtimes open and close the
+  recursive declaration successfully; Zig crashes on `callNative` with
+  `{ f: {} }`, while Cyna returns that structured error and exits normally.
+  The Cyna behavior avoids a host crash; its smoke suite covers this path.
   A declaration matrix found a duplicate function error mismatch. Both
   `prepareNative` and `openNative` now report Zig's
   `declaration lowering failed: DuplicateFunctionName` message for this case.
