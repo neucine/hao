@@ -1,4 +1,4 @@
-"""Check that every legacy Zig source has a Cyna port location."""
+"""Check legacy Zig source and TypeScript declaration coverage."""
 
 from pathlib import Path
 import re
@@ -15,6 +15,7 @@ source = subprocess.check_output(
     text=True,
 )
 zig_files = {path.removeprefix("src/") for path in source.splitlines() if path.endswith(".zig")}
+declaration_files = {path.removeprefix("src/") for path in source.splitlines() if path.endswith(".d.ts")}
 if not zig_files:
     raise SystemExit(f"no Zig source files found in {reference}")
 
@@ -49,6 +50,11 @@ for path in sorted(zig_files):
 
 for path in sorted(exceptions.keys() - zig_files):
     errors.append(f"stale port mapping: src/{path}")
+for path in sorted(declaration_files):
+    if not (port / "src" / path).is_file():
+        errors.append(f"missing declaration: src/{path}")
+if not (port / "src" / "tsconfig.json").is_file():
+    errors.append("missing TypeScript source configuration: src/tsconfig.json")
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions")
+print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(declaration_files)} TypeScript declarations")

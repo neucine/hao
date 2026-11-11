@@ -42,6 +42,11 @@ The legacy TypeScript standard modules are byte identical in the port except
 The Cyna HTTP client also captures a trace context before deferring its native
 request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
+The 18 legacy `std/**/*.d.ts` declarations and the source `tsconfig.json` now
+have matching port locations. The inventory check includes those declarations;
+TypeScript 5.9.3 checks the port's modules and declarations with the port's
+`src/tsconfig.json`. The port config adds its separate HTTP server module and
+telemetry paths, while the HTTP sources declare their QuickJS globals.
 
 The package loader now carries resolution failure categories across the Cyna
 boundary. A shared fixture matched Zig's stderr and exit status for missing

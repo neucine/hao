@@ -3,6 +3,9 @@
 Parity review against the Zig `legacy` branch is in progress. The source tree
 now follows the legacy subsystem layout where Cyna imports permit it. A passing
 existing test suite is not a complete parity audit.
+The port retains the legacy TypeScript declarations under `src/std/`.
+Run `npx --yes --package typescript@5.9.3 tsc --project cyna/src/tsconfig.json`
+to check the public module types and their implementations.
 
 This is the Cyna implementation for Apple Silicon macOS. It runs JavaScript
 and TypeScript modules, resolves relative file imports and ESM package entries,
