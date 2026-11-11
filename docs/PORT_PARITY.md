@@ -84,6 +84,7 @@ reject result.
   is a directory, or exceeds 1 MiB. Direct probes of those paths, a valid
   file, and disabled loading matched both binaries for `--version` and a
   missing script.
+  A retained `test/port/dotenv_differential.py` now compares 467 seeded value and key forms through the public `std:process.getEnv` API. It covers whitespace, quoting, comments, Unicode, CRLF, exports, malformed keys, and embedded NUL bytes; all outcomes matched the legacy executable. A separate 172-case Boolean environment sweep also matched for telemetry console and native stack trace settings.
   A 23 form dotenv matrix matched Zig for quoted and unquoted values, comments,
   whitespace, CRLF, exports, duplicate keys, and malformed lines after Cyna
   began rejecting embedded NUL bytes in names and values with Zig's
