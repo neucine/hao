@@ -15,7 +15,9 @@ boundaries in the open list below.
 Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
-under `src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
+under `src/` with a `.cy`, `.c`, or `.ts` extension. `process_memory.zig` now
+has a same stem Cyna module that exports the snapshot ABI while its C companion
+reads platform counters. These exceptions have
 intentional implementation locations:
 `python3 test/port/source_inventory.py` checks this inventory against the
 `legacy` Git tree, including the existence of every mapped port location;

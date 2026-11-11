@@ -168,10 +168,11 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     JSMemoryUsage usage;
     JS_ComputeMemoryUsage(JS_GetRuntime(ctx), &usage);
     HaoAllocatorStats allocator = hao_allocator_stats();
-    HaoProcessMemory process = hao_process_memory_snapshot();
-    if (process.resident_bytes > resident_peak_bytes) resident_peak_bytes = process.resident_bytes;
-    if (process.physical_footprint_bytes > physical_footprint_peak_bytes)
-        physical_footprint_peak_bytes = process.physical_footprint_bytes;
+    uint64_t resident_bytes = 0, physical_footprint_bytes = 0;
+    hao_process_memory_snapshot(&resident_bytes, &physical_footprint_bytes);
+    if (resident_bytes > resident_peak_bytes) resident_peak_bytes = resident_bytes;
+    if (physical_footprint_bytes > physical_footprint_peak_bytes)
+        physical_footprint_peak_bytes = physical_footprint_bytes;
     JSValue result = JS_NewObject(ctx);
     if (JS_IsException(result)) return result;
 #define GAUGE(name, value) JS_SetPropertyStr(ctx, result, name, JS_NewFloat64(ctx, (double)(value)))
@@ -204,8 +205,8 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     GAUGE("allocator_freed_bytes_total", allocator.freed_size);
     GAUGE("allocator_allocation_count", allocator.allocation_count);
     GAUGE("allocator_free_count", allocator.free_count);
-    GAUGE("resident_bytes", process.resident_bytes);
-    GAUGE("physical_footprint_bytes", process.physical_footprint_bytes);
+    GAUGE("resident_bytes", resident_bytes);
+    GAUGE("physical_footprint_bytes", physical_footprint_bytes);
     GAUGE("resident_peak_bytes", resident_peak_bytes);
     GAUGE("physical_footprint_peak_bytes", physical_footprint_peak_bytes);
 #undef GAUGE

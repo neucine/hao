@@ -7,9 +7,10 @@ Imported C functions have a C implementation, a header declaring its native sign
 Rust owns TypeScript transpilation in `libs/transpiler`. Its exported C signatures are declared in `libs/transpiler/include/hao_transpiler.h`; `bridge.c` and `module.c` include that header. The bridge performs host runtime and QuickJS integration. It receives validated runtime sizes from `config.cy`; it does not parse startup size settings or own the transpiler implementation.
 
 The Cyna `write` declaration in `stderr.cy` binds the platform C library directly; it has no project C implementation. The native host and QuickJS adapters expose their C to C entry points through adjacent headers, including async loop, filesystem, process, HTTP, FFI, telemetry metrics, addons, errors, and process memory. Their private QuickJS and libuv implementation details remain inside the C files.
+Process memory snapshots are assembled in `process_memory.cy` and exported to the metrics adapter; `process_memory.c/.h` contain the platform ABI reads and their C declarations.
 The async loop C ABI exports live in `async/uv.cy`. The module imports libuv's loop operations and the shared allocator directly. `async/uv.h` declares the exported signatures for C callers; no project C source implements these functions.
 
-Eight legacy Zig files currently map to a same stem C source without a Cyna
+Seven legacy Zig files currently map to a same stem C source without a Cyna
 source file. These are explicit native boundaries, not proof of behavioral
 parity. The source inventory requires every C only mapping in this table.
 
@@ -17,7 +18,6 @@ parity. The source inventory requires every C only mapping in this table.
 | --- | --- | --- |
 | `errors.zig` | `src/errors.c` | QuickJS error registration and native stack capture use QuickJS and platform backtrace callbacks. |
 | `js/addon.zig` | `src/js/addon.c` | Native addon entry points exchange QuickJS values and C ABI handles. |
-| `process_memory.zig` | `src/process_memory.c` | Mach task information and Linux process counters require platform ABI access; the metrics adapter consumes the C snapshot. |
 | `std/ffi/native.zig` | `src/std/ffi/native.c` | libffi call layouts, dynamic symbols, and QuickJS values meet in one native adapter. |
 | `std/fs/native.zig` | `src/std/fs/native.c` | QuickJS values are converted here; bounded file operations are implemented in `src/fs.cy`. |
 | `std/http/native.zig` | `src/std/http/native.c` | libcurl callbacks and QuickJS response values share native state. |
@@ -33,6 +33,6 @@ The current build contains 17 project C sources (4,566 lines). Hao now builds pi
 | `bridge.c`, `module.c`, `errors.c`, `global/console.c`, `global/timer.c`, `js/addon.c` | QuickJS runtime, module loader, callbacks, errors, and addon ABI | C API integration choice; no Cyna impossibility established |
 | `std/fs/native.c`, `std/process/native.c`, `telemetry/interface.c`, `telemetry/metrics.c` | QuickJS adapters for standard modules and telemetry | C API integration choice; no Cyna impossibility established |
 | `std/ffi/native.c`, `std/http/native.c`, `std/http/server_uv.c`, `jupyter/zmq.c` | libffi, libcurl, libuv, and ZeroMQ calls and callbacks | Native library integration choice; no Cyna impossibility established |
-| `std/process/execute.c`, `process_memory.c`, `runtime_allocator.c` | POSIX subprocess and memory accounting, host memory counters, and allocator shared with C libraries | Host implementation choice; no Cyna impossibility established |
+| `std/process/execute.c`, `process_memory.c`, `runtime_allocator.c` | POSIX subprocess and memory accounting, platform memory reads, and allocator shared with C libraries | Host implementation choice; no Cyna impossibility established |
 
 The removed `c_bytes.c` only wrapped pointer reads and `memcpy`. `c_bytes.cy` now performs those operations in an audited `unchecked` block. This passed the executable and static library builds, the port smoke suite, and 235 Zig/Cyna native value comparisons. Other C files need a behavior and API review before moving their implementations; this table is an ownership inventory, not a claim that Cyna cannot express their work.
