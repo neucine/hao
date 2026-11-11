@@ -14,7 +14,7 @@ directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
 Run the retained public comparisons together with
 `python3 test/port/run_differentials.py <legacy-binary> <cyna-binary>`.
-All 21 differential programs passed against the current local binaries. They
+All 22 differential programs passed against the current local binaries. They
 cover the cases recorded below; they do not establish behavior for every
 possible input or every source boundary.
 Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
@@ -58,6 +58,9 @@ and TypeScript configuration described above. The Cyna utility inspector truncat
 an embedded NUL before formatting, matching Zig's QuickJS C string conversion;
 the retained console differential checks plain, nested, array, `repr`, custom
 `toString`, property name, and function name values.
+A retained 108-case `test/port/util_inspect_differential.py` compares sparse
+arrays, unusual object keys, functions, dates, errors, `repr` values, and
+inspection limits across Zig and Cyna. All outputs match.
 TypeScript 5.9.3 checks the port's modules and declarations with the port's
 `src/tsconfig.json`. The port config adds its separate HTTP server module and
 telemetry paths and uses the shared QuickJS host declarations.
@@ -172,10 +175,8 @@ and finally outer `afterAll`. The smoke suite retains this ordering and the
 one passed, two failed reporter totals.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
-cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript
-`Symbol`, Zig's inspect conversion writes an empty string, while Cyna writes
-`Symbol(x)`. Cyna keeps the informative representation as an intentional
-improvement, with a smoke check.
+cycles, and Error values in a direct stdout/stderr comparison. Direct and
+nested `Symbol` values also use Zig's empty inspection text, with smoke checks.
 
 ## Open behavior checks
 
