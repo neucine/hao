@@ -34,6 +34,11 @@ fetch_source libuv \
     https://dist.libuv.org/dist/v1.51.0/libuv-v1.51.0.tar.gz \
     5f0557b90b1106de71951a3c3931de5e0430d78da1d9a10287ebc7a3f78ef8eb
 
+if ! grep -q 'JS_SetJobContextHooks' "$deps/quickjs/quickjs.h"; then
+    patch -d "$deps/quickjs" -p1 < "$repo_root/cyna/patches/quickjs-job-context.patch"
+    rm -f "$install/lib/libquickjs.a"
+fi
+
 if [ ! -f "$install/lib/libquickjs.a" ]; then
     mkdir -p "$deps/quickjs-objects"
     for source in quickjs libregexp libunicode dtoa; do

@@ -46,14 +46,6 @@ static void hao_retain_timer_error(HaoRuntime *host, JSContext *ctx) {
     } else JS_FreeValue(ctx, error);
 }
 
-static void hao_drain_timer_jobs(HaoRuntime *host) {
-    JSContext *job_ctx = NULL;
-    int result;
-    while ((result = JS_ExecutePendingJob(host->runtime, &job_ctx)) > 0) {}
-    if (result < 0) hao_retain_timer_error(host, job_ctx);
-    if (host->has_callback_error || host->has_rejection) uv_stop(host->loop);
-}
-
 static void hao_timer_fired(uv_timer_t *handle) {
     HaoTimer *timer = handle->data;
     HaoRuntime *host = timer->host;
@@ -64,7 +56,7 @@ static void hao_timer_fired(uv_timer_t *handle) {
     if (JS_IsException(result)) {
         hao_retain_timer_error(host, host->context);
     }
-    if (!JS_IsUndefined(timer->trace_context)) hao_drain_timer_jobs(host);
+    if (host->has_callback_error || host->has_rejection) uv_stop(host->loop);
     if (!JS_IsUndefined(previous)) {
         JSValue restored = hao_enter_trace_context(host->context, previous);
         JS_FreeValue(host->context, restored);

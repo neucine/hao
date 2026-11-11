@@ -163,12 +163,12 @@ improvement, with a smoke check.
   libuv turn when job draining records a rejection or callback error. A shared
   rejection fixture exits before the later timer and matches Zig's stdout and
   stderr bytes; the smoke suite retains it.
-  A same-turn probe found that draining Promise jobs inside every timer
-  callback reordered ordinary timers from Zig's `first,second,job` to
-  `first,job,second`. Native timers now drain inside the callback only when a
-  trace span is active. Ordinary timers use the loop's between-turn drain and
-  match Zig's order; the smoke suite retains this sequence. Trace-bearing
-  timers still drain under their captured span to preserve child parentage.
+  A same-turn probe found that draining Promise jobs inside a timer callback
+  reordered timers from Zig's `first,second,job` to `first,job,second` when a
+  trace span was active. A tracked patch to QuickJS now captures trace context
+  on job enqueue and restores it while that job executes. Timer callbacks no
+  longer drain jobs themselves. Both ordinary and traced same-turn probes
+  match Zig's order, while the interleaved trace probe retains child parentage.
   Notebook Promise waiting now follows Zig's 64 idle turn cutoff and reports
   a libuv run failure. The kernel consumer checks that an unresolved Promise
   yields `Promise did not settle`, then accepts a later request. Its shared

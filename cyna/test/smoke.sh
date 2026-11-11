@@ -1422,6 +1422,16 @@ setTimeout(() => { events.push('second'); setTimeout(() => console.log(events.jo
 EOF
 test "$("$runtime" "$fixture_dir/timer-same-turn.ts")" = 'first,second,job'
 
+cat > "$fixture_dir/timer-traced-same-turn.ts" <<'EOF'
+import { trace } from 'std:telemetry';
+const events: string[] = [];
+trace('root', () => {
+  setTimeout(() => { events.push('first'); Promise.resolve().then(() => events.push('job')); }, 0);
+  setTimeout(() => { events.push('second'); setTimeout(() => console.log(events.join(',')), 0); }, 0);
+});
+EOF
+test "$("$runtime" "$fixture_dir/timer-traced-same-turn.ts")" = 'first,second,job'
+
 cat > "$fixture_dir/timer-error.ts" <<'EOF'
 setTimeout(() => { throw Error('timer exploded'); }, 0);
 setTimeout(() => { console.log('later timer'); }, 20);

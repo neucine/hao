@@ -47,6 +47,69 @@ extern int hao_install_runtime_error(JSContext *ctx);
 extern int hao_test_reporter_ansi(void);
 void hao_runtime_free(uintptr_t handle);
 
+typedef struct {
+    JSValue captured;
+    JSValue previous;
+} HaoJobTrace;
+
+static JSValue hao_trace_call(JSContext *ctx, const char *name,
+                              int argc, JSValueConst *argv) {
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue function = JS_GetPropertyStr(ctx, global, name);
+    JSValue result = JS_UNDEFINED;
+    if (JS_IsFunction(ctx, function)) result = JS_Call(ctx, function, global, argc, argv);
+    JS_FreeValue(ctx, function);
+    JS_FreeValue(ctx, global);
+    return result;
+}
+
+static void *hao_job_trace_capture(JSContext *ctx, void *opaque) {
+    (void)opaque;
+    JSValue context = hao_trace_call(ctx, "__hao_telemetry_captureContext", 0, NULL);
+    if (!JS_IsObject(context)) {
+        JS_FreeValue(ctx, context);
+        return NULL;
+    }
+    JSValue span = JS_GetPropertyStr(ctx, context, "span");
+    bool active = !JS_IsNull(span) && !JS_IsUndefined(span);
+    JS_FreeValue(ctx, span);
+    if (!active) {
+        JS_FreeValue(ctx, context);
+        return NULL;
+    }
+    HaoJobTrace *trace = malloc(sizeof(*trace));
+    if (!trace) {
+        JS_FreeValue(ctx, context);
+        return NULL;
+    }
+    trace->captured = context;
+    trace->previous = JS_UNDEFINED;
+    return trace;
+}
+
+static void hao_job_trace_enter(JSContext *ctx, void *job_context, void *opaque) {
+    (void)opaque;
+    HaoJobTrace *trace = job_context;
+    trace->previous = hao_trace_call(ctx, "__hao_telemetry_enterContext", 1, &trace->captured);
+}
+
+static void hao_job_trace_leave(JSContext *ctx, void *job_context, void *opaque) {
+    (void)opaque;
+    HaoJobTrace *trace = job_context;
+    if (JS_IsObject(trace->previous)) {
+        JSValue restored = hao_trace_call(ctx, "__hao_telemetry_enterContext", 1, &trace->previous);
+        JS_FreeValue(ctx, restored);
+    }
+}
+
+static void hao_job_trace_release(JSRuntime *rt, void *job_context, void *opaque) {
+    (void)opaque;
+    HaoJobTrace *trace = job_context;
+    JS_FreeValueRT(rt, trace->captured);
+    JS_FreeValueRT(rt, trace->previous);
+    free(trace);
+}
+
 void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t port) {
     HaoRuntime *host = (HaoRuntime *)handle;
     host->telemetry_trace_enabled = enabled != 0;
@@ -180,6 +243,8 @@ uintptr_t hao_runtime_new(void) {
     JS_SetMaxStackSize(host->runtime, stack_size);
     if (gc_present) JS_SetGCThreshold(host->runtime, gc_threshold);
     JS_SetHostPromiseRejectionTracker(host->runtime, hao_on_rejection, host);
+    JS_SetJobContextHooks(host->runtime, hao_job_trace_capture, hao_job_trace_enter,
+                          hao_job_trace_leave, hao_job_trace_release, host);
     host->context = JS_NewContext(host->runtime);
     if (!host->context) {
         JS_FreeRuntime(host->runtime);
