@@ -662,6 +662,9 @@ limits, nonnumeric values, and throwing getters. Among 28 further values,
 results whose `data` is null or undefined fall back to ordinary inspection.
 The TypeScript adapter now follows that distinction, and the smoke suite
 retains all three outcomes.
+The retained `test/port/native_value_differential.py` compares another 210
+`repr()` return and string limit combinations plus 25 `process.runNative`
+output limit values. All 235 results match Zig with the current Cyna build.
 Package root probes found that a regular file named `node_modules/x` makes
 the pinned Cyna build crash while Zig reports `Package manifest not found`.
 The package resolver now uses its bounded `access(2)` helper for root,
