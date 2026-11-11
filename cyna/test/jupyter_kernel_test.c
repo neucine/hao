@@ -154,6 +154,16 @@ int main(int argc, char **argv) {
             if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
         }
         if (!status && (!error_seen || !idle_seen)) status = 84;
+        if (!status && (send_request(shell, "execute_request",
+            "{\"code\":\"new Promise(() => {})\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "Promise did not settle"))) status = 93;
+        idle_seen = 0;
+        for (int i = 0; !status && i < 8 && !idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 94; break; }
+            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+        }
+        if (!status && !idle_seen) status = 95;
         if (!status && (send_request(control, "shutdown_request", "{\"restart\":false}") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok"))) status = 73;
@@ -329,6 +339,10 @@ int main(int argc, char **argv) {
         if (strstr(content, "\"text/plain\":\"23\"")) saw_delayed_23 = 1;
     }
     if (!status && !saw_delayed_23) status = 26;
+    if (!status && (send_request(shell, "execute_request", "{\"code\":\"new Promise(() => {})\"}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"status\":\"error\"") ||
+        !strstr(content, "Promise did not settle"))) status = 92;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"Promise.reject(new Error('async broken'))\"}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"error\""))) status = 27;

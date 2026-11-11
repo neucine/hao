@@ -500,6 +500,7 @@ static JSValue hao_cell_await(JSContext *ctx, HaoRuntime *host, JSValueConst pro
     } else {
         JS_FreeValue(ctx, setup);
         bool completed = false;
+        int idle_rounds = 0;
         for (int i = 0; i < 10000; i++) {
             JSValue settled = JS_GetPropertyStr(ctx, state, "settled");
             int ready = JS_ToBool(ctx, settled);
@@ -515,15 +516,31 @@ static JSValue hao_cell_await(JSContext *ctx, HaoRuntime *host, JSValueConst pro
                 break;
             }
             JSContext *job_ctx = NULL;
-            if (JS_ExecutePendingJob(host->runtime, &job_ctx) < 0) {
+            int ran_jobs = JS_ExecutePendingJob(host->runtime, &job_ctx);
+            if (ran_jobs < 0) {
                 JSValue error = JS_GetException(job_ctx);
                 JS_Throw(ctx, error);
                 outcome = JS_EXCEPTION;
                 completed = true;
                 break;
             }
-            hao_async_uv_run_nowait(host->loop);
-            usleep(1000);
+            int ran_io = hao_async_uv_run_nowait(host->loop);
+            if (ran_io < 0) {
+                JS_ThrowInternalError(ctx, "libuv run failed");
+                outcome = JS_EXCEPTION;
+                completed = true;
+                break;
+            }
+            if (ran_jobs == 0 && ran_io == 0) {
+                if (++idle_rounds >= 64) {
+                    JS_ThrowInternalError(ctx, "Promise did not settle");
+                    outcome = JS_EXCEPTION;
+                    completed = true;
+                    break;
+                }
+            } else {
+                idle_rounds = 0;
+            }
         }
         if (!completed) {
             JS_ThrowInternalError(ctx, "Promise did not settle");

@@ -78,6 +78,10 @@ improvement, with a smoke check.
   callback errors, and a Promise job between two timer callbacks. This checks
   the timer path; other libuv handle types and shutdown ordering still need
   comparison.
+  Notebook Promise waiting now follows Zig's 64 idle turn cutoff and reports
+  a libuv run failure. The kernel consumer checks that an unresolved Promise
+  yields `Promise did not settle`, then accepts a later request. Its shared
+  mode passes with both the Zig and Cyna binaries.
 
 - HTTP client trace context was a confirmed difference: with the same local
   HTTP server, `await trace('parent', async () => { await get(url);
