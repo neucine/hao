@@ -317,7 +317,12 @@ char *hao_normalize_module(JSContext *ctx, const char *base,
                                                 (const unsigned char *)specifier,
                                                 candidate, sizeof(candidate));
         if (candidate_len < 0) {
-            JS_ThrowReferenceError(ctx, "Cannot resolve package: %s", specifier);
+            const char *reason = candidate_len == -2 ? "CommonJS packages are not supported"
+                : candidate_len == -3 ? "Package entry is not ESM-compatible"
+                : candidate_len == -4 ? "Package manifest not found"
+                : candidate_len == -5 ? "Package export not found"
+                : "Cannot resolve module";
+            JS_ThrowReferenceError(ctx, "%s: %s (from %s)", reason, specifier, base);
             return NULL;
         }
         candidate[candidate_len] = 0;
@@ -391,7 +396,7 @@ JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque) {
     }
     FILE *file = fopen(name, "rb");
     if (!file) {
-        JS_ThrowReferenceError(ctx, "Module not found: %s", name);
+        JS_ThrowReferenceError(ctx, "Module source not found");
         return NULL;
     }
     if (fseek(file, 0, SEEK_END) != 0) {

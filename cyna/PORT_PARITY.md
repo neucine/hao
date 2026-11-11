@@ -43,6 +43,12 @@ The Cyna HTTP client also captures a trace context before deferring its native
 request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
 
+The package loader now carries resolution failure categories across the Cyna
+boundary. A shared fixture matched Zig's stderr and exit status for missing
+packages, manifests, exports, invalid JSON, CommonJS packages, non ESM entries,
+missing entry files, and relative source files. The smoke suite retains this
+diagnostic matrix.
+
 The Cyna configuration path uses `std.config` for Boolean and positive integer
 parsing. A direct Zig/Cyna acceptance comparison covered stack size, GC
 threshold, libuv pool size, trace capacity, native stack traces, and telemetry

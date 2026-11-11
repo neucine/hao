@@ -1320,7 +1320,7 @@ if "$runtime" "$fixture_dir/app/shadowed.ts" > "$fixture_dir/stdout" 2> "$fixtur
     echo 'expected the first existing package entry to block later extensions' >&2
     exit 1
 fi
-grep -q 'Cannot resolve package: shadowed' "$fixture_dir/stderr"
+grep -q 'Package entry is not ESM-compatible: shadowed' "$fixture_dir/stderr"
 mkdir -p "$fixture_dir/app/node_modules/colon/child"
 printf '{"exports":{"./native":"./wrong.mjs"}}\n' > "$fixture_dir/app/node_modules/colon/package.json"
 printf 'export const selected = "wrong";\n' > "$fixture_dir/app/node_modules/colon/wrong.mjs"
@@ -1349,13 +1349,14 @@ if RUNTIME_PACKAGE_PATH="$fixture_dir/vendor" "$runtime" "$fixture_dir/app/prior
     echo 'expected the first package to block an unexported subpath' >&2
     exit 1
 fi
-grep -q 'Cannot resolve package: priority/extra' "$fixture_dir/stderr"
+grep -q 'Package export not found: priority/extra' "$fixture_dir/stderr"
 printf 'import "demo/private";\n' > "$fixture_dir/app/unexported.ts"
 if "$runtime" "$fixture_dir/app/unexported.ts" > "$fixture_dir/stdout" 2> "$fixture_dir/stderr"; then
     echo 'expected an unexported package subpath to fail' >&2
     exit 1
 fi
-grep -q 'Cannot resolve package: demo/private' "$fixture_dir/stderr"
+grep -q 'Package export not found: demo/private' "$fixture_dir/stderr"
+python3 "$repo_root/cyna/test/package_diagnostics.py" "$runtime"
 
 cat > "$fixture_dir/process.ts" <<'EOF'
 import { getEnv, run } from 'std:process';

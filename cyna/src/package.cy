@@ -5,6 +5,19 @@ import { env_get } from std.process;
 import { Value, parse } from std.json;
 import { copy_output, text_from_c } from .c_bytes;
 
+struct Resolution {
+    path: ?string;
+    error: i32;
+}
+
+fn failed(code: i32): Resolution {
+    return Resolution { path: none, error: code };
+}
+
+fn found(path: string): Resolution {
+    return Resolution { path: path, error: 0 };
+}
+
 fn join2(first: string, second: string): string {
     const parts: [2]string = [first.clone(), second.clone()];
     return join(parts[..]);
@@ -144,9 +157,9 @@ fn has_parent_segment(path: string): bool {
     return false;
 }
 
-fn find_entry(root: string, entry: string, package_type: ?string): ?string {
+fn find_entry(root: string, entry: string, package_type: ?string): Resolution {
     if entry.len() == 0 or entry.starts_with("/") or has_parent_segment(entry) {
-        return none;
+        return failed(-1);
     }
     var relative = entry.clone();
     if entry.starts_with("./") {
@@ -158,37 +171,40 @@ fn find_entry(root: string, entry: string, package_type: ?string): ?string {
         const path = join2(root, candidate);
         const found = exists(path) catch (code) => false;
         if found {
-            if supported_entry(candidate, package_type) { return path; }
-            return none;
+            if supported_entry(candidate, package_type) { return found(path); }
+            return failed(-3);
         }
     }
-    return none;
+    return failed(-1);
 }
 
-fn resolve_in(root: string, subpath: string): ?string {
+fn resolve_in(root: string, subpath: string): Resolution {
     const manifest_path = join2(root, "package.json");
-    const source = read_file_limited(manifest_path, 256 * 1024);
-    if source is none {
-        return none;
-    }
-    const manifest = parse(source) catch (code) {
-        return none;
-    };
-    if field(&manifest, "type") is kind {
-        if kind == "commonjs" {
-            return none;
+    const maybe_source = read_file_limited(manifest_path.clone(), 256 * 1024);
+    if maybe_source is source {
+        const manifest = parse(source) catch (code) {
+            return failed(-1);
+        };
+        if field(&manifest, "type") is kind {
+            if kind == "commonjs" {
+                return failed(-2);
+            }
         }
+        if entry_for(&manifest, subpath) is entry {
+            return find_entry(root, entry, field(&manifest, "type"));
+        }
+        return failed(-5);
+    } else {
+        const present = exists(manifest_path) catch (code) => false;
+        if present { return failed(-1); }
+        return failed(-4);
     }
-    if entry_for(&manifest, subpath) is entry {
-        return find_entry(root, entry, field(&manifest, "type"));
-    }
-    return none;
 }
 
-fn resolve(base: string, specifier: string): ?string {
+fn resolve(base: string, specifier: string): Resolution {
     const name = package_name(specifier);
     if name.len() == 0 or name == "std" {
-        return none;
+        return failed(-1);
     }
     var subpath = "";
     if name.len() < specifier.len() {
@@ -227,13 +243,14 @@ fn resolve(base: string, specifier: string): ?string {
         }
         directory = parent;
     }
-    return none;
+    return failed(-1);
 }
 
 export c("hao_resolve_package") fn resolve_package(base_pointer: *const c_uchar, specifier_pointer: *const c_uchar, output: *c_uchar, capacity: c_size_t): c_int {
     const base = text_from_c(base_pointer);
     const specifier = text_from_c(specifier_pointer);
-    if resolve(base, specifier) is path {
+    const resolution = resolve(base, specifier);
+    if resolution.path is path {
         const bytes = path.bytes();
         if bytes.len() >= capacity as usize or bytes.len() > 4095 {
             return -1;
@@ -241,5 +258,5 @@ export c("hao_resolve_package") fn resolve_package(base_pointer: *const c_uchar,
         copy_output(output, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t);
         return bytes.len() as c_int;
     }
-    return -1;
+    return resolution.error as c_int;
 }
