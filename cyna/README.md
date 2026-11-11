@@ -1,8 +1,8 @@
 # Hao Cyna port
 
-Parity review against the Zig `legacy` branch is in progress. The source tree
-now follows the legacy subsystem layout where Cyna imports permit it. A passing
-existing test suite is not a complete parity audit.
+The source tree follows the Zig `legacy` subsystem layout where Cyna imports
+permit it. [The parity ledger](PORT_PARITY.md) records direct comparisons,
+intentional improvements, and behavior that has not been exhaustively tested.
 The port retains the legacy TypeScript declarations under `src/std/`.
 Run `npx --yes --package typescript@5.9.3 tsc --project cyna/src/tsconfig.json`
 to check the public module types and their implementations.

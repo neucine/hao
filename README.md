@@ -88,6 +88,9 @@ hao test test/e2e/runtime
 
 Build Hao on macOS arm64:
 
+Install Cyna 0.5.1-beta.1 before building. This compiler version currently
+requires a development distribution; see [Cyna build requirements](cyna/README.md).
+
 ```bash
 sh cyna/build.sh
 ./cyna/build/hao-cyna path/to/main.ts
