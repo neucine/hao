@@ -177,6 +177,11 @@ improvement, with a smoke check.
   and a smoke case with two concurrent requests and a rejected request now
   produce parented child spans. Further scheduling combinations remain part
   of the full parity audit.
+- The shared HTTP server consumer passed under both runtimes for Unicode and
+  binary bodies, JSON requests, HEAD, handler and header errors, recovery after
+  errors, and eight concurrent POST requests with independent bodies. The
+  concurrent probe exercises multiple live connections while each handler
+  awaits a timer; it does not cover every protocol framing or shutdown case.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes

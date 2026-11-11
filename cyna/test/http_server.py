@@ -2,6 +2,7 @@ import http.client
 import pathlib
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 runtime = pathlib.Path(sys.argv[1]).resolve()
 fixture = pathlib.Path(__file__).with_name('http_server_fixture.ts')
@@ -33,6 +34,11 @@ try:
         assert request('GET', path)[0] == 500
     for _ in range(3):
         assert request('GET', '/')[0] == 200
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda value: request('POST', '/json',
+            f'{{"request":{value}}}', {'Content-Type': 'application/json'}), range(8)))
+    for index, (status, _, body) in enumerate(results):
+        assert status == 200 and f'"request":{index}'.encode() in body
     print('HTTP server behavior checks passed')
 finally:
     server.terminate()
