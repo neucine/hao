@@ -189,7 +189,7 @@ fn user_expressions(runtime: &const Runtime, content: &const Value, serial: u32)
 
 fn execute(wire: &const Wire, runtime: &const Runtime, content: &const Value, count: u32, serial: u32, silent: bool): i32 {
     const code = field(content, "code");
-    if code is none { return 1; }
+    if code is none { return 0; }
     if send_status(wire, "busy") != 0 { return 1; }
     if not silent {
         const escaped_code = json_string(code);
@@ -289,15 +289,15 @@ pub fn run(path: string): i32 {
                     } else if kind == "history_request" {
                         if transport.send(3, "history_reply", history_reply(&history, &content, count)) != 0 { return 1; }
                     } else if kind == "execute_request" {
-                        serial = serial + 1;
-                        const silent = boolean(&content, "silent");
-                        if not silent and not is_false(&content, "store_history") {
-                            count = count + 1;
-                            if field(&content, "code") is code {
+                        if field(&content, "code") is code {
+                            serial = serial + 1;
+                            const silent = boolean(&content, "silent");
+                            if not silent and not is_false(&content, "store_history") {
+                                count = count + 1;
                                 remember(&history, count, code);
                             }
+                            if execute(&transport, &host, &content, count, serial, silent) != 0 { return 1; }
                         }
-                        if execute(&transport, &host, &content, count, serial, silent) != 0 { return 1; }
                     }
                 }
             }

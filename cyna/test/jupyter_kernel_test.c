@@ -100,6 +100,16 @@ int main(int argc, char **argv) {
         if (receive_content(iopub, content, sizeof(content)) < 0) { status = 41; break; }
     }
     if (!status && !info_idle) status = 42;
+    if (!status && (send_request(shell, "execute_request", "{}") < 0 ||
+        send_request(shell, "kernel_info_request", "{}") < 0 ||
+        receive_content(shell, content, sizeof(content)) < 0 ||
+        !strstr(content, "\"implementation\":\"hao\""))) status = 66;
+    int recovery_idle = 0;
+    for (int i = 0; !status && i < 4 && !recovery_idle; i++) {
+        if (receive_content(iopub, content, sizeof(content)) < 0) { status = 67; break; }
+        if (strstr(content, "\"execution_state\":\"idle\"")) recovery_idle = 1;
+    }
+    if (!status && !recovery_idle) status = 68;
     if (!status && (send_request(shell, "execute_request", "{\"code\":\"globalThis.__silentValue = 9; console.log('hidden'); 123\",\"silent\":true}") < 0 ||
         receive_content(shell, content, sizeof(content)) < 0 ||
         !strstr(content, "\"status\":\"ok\"") || !strstr(content, "\"execution_count\":null"))) status = 43;

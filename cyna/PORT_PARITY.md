@@ -77,6 +77,9 @@ that adapter.
   inspection, history, silent execution, and user expressions beyond the Zig
   handler's request set. Those additions need their own behavior review and
   do not establish parity for the shared request types.
+  The kernel integration test now sends an `execute_request` without `code`
+  followed by a valid `kernel_info_request`. Cyna stays alive and answers the
+  latter, matching Zig's early return before execution count changes.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
 
