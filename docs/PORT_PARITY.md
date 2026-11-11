@@ -415,6 +415,16 @@ improvement, with a smoke check.
   undefined, and numeric strings. Its 91 output lines matched between Zig and
   Cyna. The smoke suite retains representative truncation, signedness, float,
   and Boolean cases. Pointer and C ABI policy combinations remain open.
+  A direct pointer conversion probe found that Zig accepts a numeric
+  `valueOf` object and reports `FFI: ptr/buffer arguments must be numeric
+  pointer values` for negative values, Symbols, and throwing objects. The
+  Cyna adapter previously treated every object as a typed array and leaked
+  QuickJS conversion errors. It now tries numeric conversion for ordinary
+  objects and uses Zig's pointer error. Cyna retains typed array backing
+  pointers for `ptr` and `buffer`, which the C declaration wrapper needs;
+  Zig converts a typed array to zero in the raw `dlopen` path. The smoke suite
+  checks both the shared error cases and an offset typed array view. Additional
+  pointer lifetime combinations remain open.
   A shared libc probe matched `cstring` argument byte lengths for accented and
   emoji text, `strcmp` ordering, and nullable `cstring` returns from `getenv`.
   The smoke suite retains these direct FFI conversions.

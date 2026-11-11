@@ -294,7 +294,14 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
                 uint8_t *bytes = JS_GetArrayBuffer(ctx, &total, held_buffers[i]);
                 valid = bytes && offset <= total && length <= total - offset;
                 if (valid) values[i].ptr = bytes + offset;
-            } else valid = false;
+            } else {
+                JSValue error = JS_GetException(ctx);
+                JS_FreeValue(ctx, error);
+                held_buffers[i] = JS_UNDEFINED;
+                uint64_t number = 0;
+                valid = unsigned_arg(ctx, input, &number);
+                if (valid) values[i].ptr = (void *)(uintptr_t)number;
+            }
         } else if (type == HAO_BOOL) {
             int boolean = JS_ToBool(ctx, input);
             valid = boolean >= 0;
@@ -314,6 +321,13 @@ static JSValue call_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
             if (type == HAO_I8) values[i].i8 = (int8_t)number;
             if (type == HAO_I16) values[i].i16 = (int16_t)number;
             if (type == HAO_I32) values[i].i32 = (int32_t)number;
+        }
+        if (!valid && (type == HAO_PTR || type == HAO_BUFFER)) {
+            if (JS_HasException(ctx)) {
+                JSValue error = JS_GetException(ctx);
+                JS_FreeValue(ctx, error);
+            }
+            JS_ThrowTypeError(ctx, "FFI: ptr/buffer arguments must be numeric pointer values");
         }
         JS_FreeValue(ctx, input);
         held_count++;

@@ -944,6 +944,8 @@ int64_t hao_echo_i64(int64_t value) { return value; }
 float hao_echo_f32(float value) { return value; }
 double hao_echo_f64(double value) { return value; }
 uint8_t hao_echo_bool(uint8_t value) { return value; }
+uintptr_t hao_pointer_bits(void *value) { return (uintptr_t)value; }
+uintptr_t hao_buffer_bits(void *value) { return (uintptr_t)value; }
 static char hao_long_text[1024 * 1024 + 18];
 const char *hao_long_string(void) {
     memset(hao_long_text, 'x', sizeof(hao_long_text) - 1);
@@ -1350,6 +1352,24 @@ try { library.hao_echo_u8(-1); } catch (error) { console.log(error.name, error.m
 library.close();
 EOF
 test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-widths.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' '-126 127 2' '-32768 0' '-2147483648 4294967295' '9007199254740991' '1.100000023841858' '1.25 false true' 'TypeError FFI: invalid argument value')"
+cat > "$fixture_dir/ffi-pointers.ts" <<'EOF'
+import { dlopen } from 'std:ffi';
+import { getEnv } from 'std:process';
+const path = getEnv('HAO_FFI_TEST_PATH');
+const library = dlopen(`${path}/libhao_search_fixture.dylib`, {
+  hao_pointer_bits: { args: ['ptr'], returns: 'u64' },
+  hao_buffer_bits: { args: ['buffer'], returns: 'u64' },
+});
+console.log(library.hao_pointer_bits(null), library.hao_pointer_bits({ valueOf() { return 42; } }));
+for (const value of [-1, Symbol('invalid'), { valueOf() { throw Error('invalid'); } }]) {
+  try { library.hao_pointer_bits(value); }
+  catch (error) { console.log(error.name, error.message); }
+}
+const bytes = new Uint8Array(8);
+console.log(library.hao_buffer_bits(bytes.subarray(2)) - library.hao_buffer_bits(bytes));
+library.close();
+EOF
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-pointers.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s' '0 42' 'TypeError FFI: ptr/buffer arguments must be numeric pointer values' 'TypeError FFI: ptr/buffer arguments must be numeric pointer values' 'TypeError FFI: ptr/buffer arguments must be numeric pointer values' '2')"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
