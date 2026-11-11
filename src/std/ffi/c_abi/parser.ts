@@ -89,6 +89,7 @@ export function parse(declarations: string, opts: any): Prepared {
     if (functions.some(item => item.name === match[2])) {
       throw invalidArg('duplicate C function', 'DuplicateFunctionName');
     }
+    const returnType = functionType(match[1], true);
     const params: Parameter[] = [];
     const rawParams: { name: string; type: string }[] = [];
     if (match[3].trim() && match[3].trim() !== 'void') {
@@ -105,7 +106,7 @@ export function parse(declarations: string, opts: any): Prepared {
         typeReferences.push(param[1]);
       }
     }
-    functions.push({ name: match[2], params, returns: functionType(match[1], true) });
+    functions.push({ name: match[2], params, returns: returnType });
     declarationTypes.set(match[2], { params: rawParams });
     typeReferences.push(match[1]);
   }

@@ -34,6 +34,9 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
 
 export function ffiType(type: string, returning = false): string {
   const source = type.replace(/\s+/g, ' ').trim();
+  if (/^(?:static|extern|inline|restrict)\b/.test(source)) {
+    throw invalidArg('invalid C qualifier placement', 'SyntaxError');
+  }
   if (/^(?:const\s+)?[A-Za-z_]\w*\s+(?:const|volatile|restrict|signed|unsigned|static|extern)(?:\s|\*)/.test(source)) {
     throw invalidArg('invalid C qualifier placement', 'SyntaxError');
   }

@@ -604,6 +604,7 @@ improvement, with a smoke check.
   `static` or `extern` function declarations. The smoke suite checks the
   resulting `prepareNative` and `openNative` error categories. Other C
   declaration and policy combinations still need comparison.
+  A retained 169-form declaration matrix now checks return and parameter types, POD typedefs, and qualifier placement through `prepareNative`. It found that Cyna classified nine rejected forms differently because it checked parameters before the return type and did not classify leading `inline` or `restrict` as syntax errors. The parser now follows Zig's return-first error precedence and all 169 results match. Run `python3 test/port/ffi_declaration_differential.py <legacy-binary> <cyna-binary>`.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for
