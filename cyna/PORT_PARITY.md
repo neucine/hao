@@ -47,8 +47,11 @@ that adapter.
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
   matched file, symlink, missing path, and directory results. The smoke suite
-  covers NUL truncation and the 100 MiB read limit. Concurrent file mutation
-  during a read has not been compared.
+  covers NUL truncation and the 100 MiB read limit. The Cyna file reader now
+  sizes and reads through one open handle, as Zig does, so a separate `stat`
+  call cannot race a subsequent open. It reads the initially sized content
+  when a file grows during the read, matching Zig's read path. Concurrent
+  mutation during a read has not been exercised directly.
 
 - The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
   `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a

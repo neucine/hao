@@ -35,19 +35,19 @@ unsigned char *hao_fs_read_alloc_limited(const unsigned char *path, size_t lengt
     unsigned char *storage = NULL;
     if (fseek(file, 0, SEEK_END) != 0) goto done;
     long size = ftell(file);
-    if (size < 0 || (uintmax_t)size > limit || (size_t)size > SIZE_MAX - sizeof(size_t)) goto done;
+    if (size < 0 || (uintmax_t)size > limit || (size_t)size > SIZE_MAX - sizeof(size_t) - 1) goto done;
     if (fseek(file, 0, SEEK_SET) != 0) goto done;
     size_t content_size = (size_t)size;
-    storage = hao_alloc(sizeof(size_t) + content_size);
+    storage = hao_alloc(sizeof(size_t) + content_size + 1);
     if (!storage) goto done;
     memcpy(storage, &content_size, sizeof(size_t));
     unsigned char *content = storage + sizeof(size_t);
-    if (fread(content, 1, content_size, file) != content_size ||
-        fgetc(file) != EOF || ferror(file)) {
+    if (fread(content, 1, content_size, file) != content_size) {
         hao_free(storage);
         storage = NULL;
         goto done;
     }
+    content[content_size] = 0;
 done:
     fclose(file);
     return storage ? storage + sizeof(size_t) : NULL;

@@ -8,8 +8,9 @@
 #include <sys/stat.h>
 
 extern int hao_fs_exists(const unsigned char *path);
-extern int hao_fs_read_limited(const unsigned char *path, size_t path_length,
-                               unsigned char *output, size_t capacity);
+extern unsigned char *hao_fs_read_alloc_limited(const unsigned char *path,
+                                                size_t path_length, size_t limit);
+extern void hao_fs_free_buffer(unsigned char *buffer);
 extern int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);
 
 unsigned char hao_byte_at(const unsigned char *pointer, size_t index) {
@@ -35,26 +36,12 @@ static JSValue hao_fs_read_file_sync(JSContext *ctx, JSValueConst this_val, int 
     if (argc < 1) return JS_ThrowTypeError(ctx, "readFileSync expects a path");
     const char *path = JS_ToCString(ctx, argv[0]);
     if (!path) return JS_EXCEPTION;
-    struct stat info;
-    if (stat(path, &info) != 0 || info.st_size < 0 || info.st_size > 100 * 1024 * 1024) {
-        JS_FreeCString(ctx, path);
-        return JS_ThrowInternalError(ctx, "failed to read file");
-    }
-    size_t capacity = (size_t)info.st_size;
-    unsigned char *buffer = hao_alloc(capacity + 1);
-    if (!buffer) {
-        JS_FreeCString(ctx, path);
-        return JS_ThrowOutOfMemory(ctx);
-    }
-    int length = hao_fs_read_limited((const unsigned char *)path, strlen(path), buffer, capacity);
+    unsigned char *buffer = hao_fs_read_alloc_limited((const unsigned char *)path,
+                                                      strlen(path), 100 * 1024 * 1024);
     JS_FreeCString(ctx, path);
-    if (length < 0) {
-        hao_free(buffer);
-        return JS_ThrowInternalError(ctx, "failed to read file");
-    }
-    buffer[length] = 0;
+    if (!buffer) return JS_ThrowInternalError(ctx, "failed to read file");
     JSValue result = JS_NewString(ctx, (const char *)buffer);
-    hao_free(buffer);
+    hao_fs_free_buffer(buffer);
     return result;
 }
 
