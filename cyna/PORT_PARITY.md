@@ -184,7 +184,11 @@ improvement, with a smoke check.
   awaits a timer. The same consumer now closes the server from an active
   handler, verifies that the client disconnects, then waits for the handler's
   pending timer to settle. Zig and Cyna both exit successfully with the same
-  output order. Other protocol framing and shutdown cases remain open.
+  output order. Raw socket probes under both runtimes matched rejection statuses
+  for missing Host, duplicate Content-Length, chunked transfer encoding,
+  Expect, oversized body declaration, and oversized headers. Both served only
+  the first of two pipelined requests before closing the connection. Other
+  protocol framing and shutdown cases remain open.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes

@@ -1,5 +1,6 @@
 import http.client
 import pathlib
+import socket
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +22,15 @@ try:
         finally:
             connection.close()
 
+    def raw_request(payload):
+        with socket.create_connection(('127.0.0.1', port), timeout=2) as connection:
+            connection.settimeout(2)
+            connection.sendall(payload)
+            chunks = []
+            while part := connection.recv(65536):
+                chunks.append(part)
+            return b''.join(chunks)
+
     status, headers, body = request('GET', '/')
     assert status == 200 and body == 'Hello 世界 🐈'.encode()
     assert dict(headers)['X-Test'] == 'yes'
@@ -39,6 +49,21 @@ try:
             f'{{"request":{value}}}', {'Content-Type': 'application/json'}), range(8)))
     for index, (status, _, body) in enumerate(results):
         assert status == 200 and f'"request":{index}'.encode() in body
+    framing = [
+        (b'GET / HTTP/1.1\r\n\r\n', 400),
+        (b'GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n', 400),
+        (b'POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n', 501),
+        (b'POST / HTTP/1.1\r\nHost: localhost\r\nExpect: 100-continue\r\n\r\n', 417),
+        (b'POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1048577\r\n\r\n', 413),
+        (b'GET / HTTP/1.1\r\nHost: localhost\r\nX-Large: ' + b'x' * 16384 + b'\r\n\r\n', 431),
+    ]
+    for payload, expected in framing:
+        response = raw_request(payload)
+        assert response.startswith(f'HTTP/1.1 {expected} '.encode()), response[:120]
+    pipelined = raw_request(
+        b'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n'
+        b'GET /json HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    assert pipelined.count(b'HTTP/1.1 ') == 1 and b'Hello ' in pipelined
     try:
         request('GET', '/stop')
         raise AssertionError('closing the server should close its active client')
