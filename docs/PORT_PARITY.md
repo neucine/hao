@@ -260,6 +260,10 @@ improvement, with a smoke check.
   `async/uv.cy` through `bridge/uv.cy` and the shared allocator. Their C ABI
   wrappers reside in `hao_abi.cy`, and `bridge/async/uv.h` declares them for C callers. The executable, embedding library,
   and async smoke fixtures passed after removing `async/uv.c` from both builds.
+  A C consumer now links the embedding library and checks an idle loop, a timer
+  serviced by `run_once`, a canceled timer, and freeing a loop with a pending
+  timer. It observes both fire callbacks and all three close callbacks before
+  the loop memory is released. This directly checks the port's C ABI lifecycle.
   The remaining Zig `Loop` methods have explicit implementation locations:
   loop allocation, deinitialization, and nonblocking runs are in
   `async/uv.cy`; current-loop ownership is the `HaoRuntime` handle in

@@ -59,6 +59,13 @@ clang -I "$repo_root/include" -I "$repo_root/.deps/install/include" "$repo_root/
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$fixture_dir/embed-consumer" "$repo_root/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
+clang -I "$repo_root/.deps/install/include" "$repo_root/test/port/async_uv_consumer.c" \
+    "$embed_library" -L "$cyna_lib" -lcyna_std -lcyna \
+    -L "$repo_root/.deps/install/lib" -lquickjs -luv \
+    -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
+    -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto \
+    -o "$fixture_dir/async-uv-consumer" 2> "$fixture_dir/async-uv-link.log"
+test "$("$fixture_dir/async-uv-consumer")" = 'async loop ok'
 clang -I /opt/homebrew/include "$repo_root/test/port/jupyter_wire_test.c" \
     "$repo_root/src/bridge/jupyter/zmq.c" "$repo_root/src/bridge/runtime_allocator.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto \
