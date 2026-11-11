@@ -606,3 +606,7 @@ forms against the Zig executable. Empty `main` now reports an unsupported
 ESM entry after resolving the package directory, and a leading slash in an
 export resolves within the package root. All 17 outputs match; the retained
 port checks cover both formerly divergent forms.
+An additional path probe matched repeated leading slashes and trailing slashes
+on files and directories. The package resolver now checks the unnormalized
+path with `access(2)`, as Zig does, before returning the normalized module
+path. The retained checks cover both previously divergent forms.

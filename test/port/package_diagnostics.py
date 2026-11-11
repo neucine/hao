@@ -21,6 +21,7 @@ with tempfile.TemporaryDirectory(prefix="hao-package-diagnostics-") as directory
         "unsupported": ({"exports": "./index.js"}, "index.js", "Package entry is not ESM-compatible"),
         "entry-missing": ({"exports": "./absent.ts"}, None, "Cannot resolve module"),
         "empty-main": ({"type": "module", "main": ""}, None, "Package entry is not ESM-compatible"),
+        "trailing-file": ({"type": "module", "exports": "./index.ts/"}, "index.ts", "Cannot resolve module"),
     }
     for name, (manifest, entry, reason) in cases.items():
         if name != "missing":
@@ -44,6 +45,10 @@ with tempfile.TemporaryDirectory(prefix="hao-package-diagnostics-") as directory
     (absolute / "index.ts").write_text("export const value = 42;\n")
     source = root / "absolute.ts"
     source.write_text('import { value } from "absolute"; console.log(value);\n')
+    result = subprocess.run([runtime, source], capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout == "42\n" and result.stderr == "", result
+
+    (absolute / "package.json").write_text(json.dumps({"type": "module", "exports": "//index.ts"}))
     result = subprocess.run([runtime, source], capture_output=True, text=True)
     assert result.returncode == 0 and result.stdout == "42\n" and result.stderr == "", result
 

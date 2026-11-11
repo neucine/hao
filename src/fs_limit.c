@@ -10,6 +10,14 @@ int hao_fs_path_exists(const unsigned char *path) {
     return path && access((const char *)path, F_OK) == 0 ? 1 : 0;
 }
 
+int hao_fs_path_exists_len(const unsigned char *path, size_t length) {
+    if (!path || length > PATH_MAX || memchr(path, 0, length)) return 0;
+    char buffer[PATH_MAX + 1];
+    memcpy(buffer, path, length);
+    buffer[length] = 0;
+    return access(buffer, F_OK) == 0 ? 1 : 0;
+}
+
 int hao_fs_script_read_error(const unsigned char *path, size_t length, size_t limit) {
     if (!path || length > PATH_MAX || memchr(path, 0, length)) return 2;
     char buffer[PATH_MAX + 1];

@@ -5,6 +5,8 @@ import { env_get } from std.process;
 import { Value, parse } from std.json;
 import { copy_output, text_from_c } from .c_bytes;
 
+extern c("hao_fs_path_exists_len") fn path_exists_len(path: *const c_uchar, length: c_size_t): c_int;
+
 struct Resolution {
     path: ?string;
     error: i32;
@@ -165,14 +167,22 @@ fn find_entry(root: string, entry: string, package_type: ?string): Resolution {
     if entry.starts_with("./") {
         relative = entry.slice(2, entry.len());
     } else if entry.starts_with("/") {
-        relative = entry.slice(1, entry.len());
+        var start: usize = 0;
+        const bytes = entry.bytes();
+        while start < bytes.len() and bytes[start] == 47 {
+            start = start + 1;
+        }
+        relative = entry.slice(start, entry.len());
     }
     const extensions: [9]string = ["", ".ts", ".js", ".mts", ".mjs", ".dylib", ".so", ".dll", ".node"];
     for extension in extensions {
         const candidate = $"{relative}{extension}";
         const path = join2(root, candidate);
-        const found = exists(path) catch (code) => false;
-        if found {
+        // Keep a trailing separator for access(2): a file followed by '/' is
+        // missing, while a directory followed by '/' still exists.
+        const access_path = $"{root}/{candidate}";
+        const bytes = access_path.bytes();
+        if path_exists_len(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) != 0 {
             if supported_entry(candidate, package_type) { return found(path); }
             return failed(-3);
         }
