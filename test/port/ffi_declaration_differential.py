@@ -49,6 +49,8 @@ def declarations() -> list[str]:
                   'void f(void, const void);', 'void f(void, void);',
                   'void f(const void, int x);',
                   'void f(const void, const void value);'))
+    forms.extend(('int x(', 'int x', 'int x(void)', 'unsigned x(',
+                  'double x(', 'void x(', 'Foo x(', 'volatile int x('))
     return forms
 
 

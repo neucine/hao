@@ -38,6 +38,10 @@ export function parse(declarations: string, opts: any): Prepared {
   if (/#|\.\.\.|\(\s*\*\s*[A-Za-z_]\w*\s*\)/.test(source)) {
     throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
   }
+  // Zig rejects a platform-width return type before checking the rest of the declaration.
+  if (/^\s*(?:short|int|long|unsigned|signed)\b/.test(source)) {
+    throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
+  }
   if (source.trim() && !source.trim().endsWith(';')) throw invalidArg('C declaration requires a terminating semicolon', 'SyntaxError');
   if (opts?.search != null) {
     const search = opts.search;
