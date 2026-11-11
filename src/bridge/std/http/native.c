@@ -227,6 +227,23 @@ static void set_legacy_error(HaoHttpJob *job, const char *name) {
     snprintf(job->error, sizeof(job->error), "http.request error: %s", name);
     job->legacy_error = true;
 }
+static bool same_origin(CURLU *first, CURLU *second) {
+    const CURLUPart parts[] = { CURLUPART_SCHEME, CURLUPART_HOST, CURLUPART_PORT };
+    bool same = true;
+    for (size_t i = 0; i < 3; i++) {
+        char *left = NULL, *right = NULL;
+        CURLUcode a = curl_url_get(first, parts[i], &left, CURLU_DEFAULT_PORT);
+        CURLUcode b = curl_url_get(second, parts[i], &right, CURLU_DEFAULT_PORT);
+        if (a != CURLUE_OK || b != CURLUE_OK || strcasecmp(left, right) != 0) same = false;
+        curl_free(left); curl_free(right);
+        if (!same) break;
+    }
+    return same;
+}
+static bool sensitive_header(const char *header) {
+    return strncasecmp(header, "Authorization:", 14) == 0 ||
+        strncasecmp(header, "Cookie:", 7) == 0;
+}
 static void perform_http(uv_work_t *work) {
     HaoHttpJob *job = work->data;
     HaoHttpResponse *response = &job->response;
@@ -237,6 +254,7 @@ static void perform_http(uv_work_t *work) {
     response->custom_method = strcmp(job->method, "GET") != 0 &&
         strcmp(job->method, "POST") != 0;
     CURL *curl = NULL;
+    struct curl_slist *redirect_headers = NULL;
     char *temporary_path = NULL;
     unsigned char *transport_url = NULL;
     static const char *const url_errors[] = {NULL, "InvalidFormat", "UnexpectedCharacter",
@@ -307,17 +325,34 @@ static void perform_http(uv_work_t *work) {
         curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &current_url);
         curl_easy_getinfo(curl, CURLINFO_REDIRECT_COUNT, &followed);
         CURLU *url = curl_url();
+        CURLU *origin = NULL;
         char *next_url = NULL;
         CURLUcode url_status = url && current_url ? curl_url_set(url, CURLUPART_URL, current_url, 0) : CURLUE_BAD_HANDLE;
+        if (url_status == CURLUE_OK) origin = curl_url_dup(url);
+        if (url_status == CURLUE_OK && !origin) { curl_url_cleanup(url); set_error(job, "out of memory"); goto done; }
         if (url_status == CURLUE_OK)
             url_status = curl_url_set(url, CURLUPART_URL, response->redirect_location, 0);
         if (url_status == CURLUE_OK) url_status = curl_url_get(url, CURLUPART_URL, &next_url, 0);
         if (url_status != CURLUE_OK || followed >= 3) {
             if (next_url) curl_free(next_url);
+            if (origin) curl_url_cleanup(origin);
             if (url) curl_url_cleanup(url);
             set_legacy_error(job, followed >= 3 ? "TooManyHttpRedirects" : "InvalidFormat");
             goto done;
         }
+        if (!same_origin(origin, url)) {
+            for (struct curl_slist *header = job->request_headers; header; header = header->next) {
+                if (sensitive_header(header->data)) continue;
+                struct curl_slist *next = curl_slist_append(redirect_headers, header->data);
+                if (!next) {
+                    curl_url_cleanup(origin); curl_url_cleanup(url); curl_free(next_url);
+                    set_error(job, "out of memory"); goto done;
+                }
+                redirect_headers = next;
+            }
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, redirect_headers);
+        }
+        curl_url_cleanup(origin);
         curl_easy_setopt(curl, CURLOPT_URL, next_url);
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
@@ -397,6 +432,7 @@ static void perform_http(uv_work_t *work) {
     if (response->download_file) fclose(response->download_file);
     if (temporary_path) { unlink(temporary_path); hao_free(temporary_path); }
     if (curl) curl_easy_cleanup(curl);
+    curl_slist_free_all(redirect_headers);
     hao_free(transport_url);
 }
 static int append_response_header(JSContext *ctx, JSValueConst headers, const HaoHeader *header) {

@@ -400,6 +400,13 @@ improvement, with a smoke check.
   restarts a custom method as GET on 303. A bodyless POST remains POST on 307.
   HEAD returns the redirect response without following it. All 30 public
   outcomes match Zig.
+  A cross-origin 303 probe found that Zig forwards explicit `Authorization`
+  and `Cookie` headers to the destination. Libcurl strips them for GET, but
+  Cyna's manual custom-method handoff initially forwarded them for PUT. The
+  handoff now removes those two headers when scheme, host, or port changes,
+  while retaining them for a same-origin redirect. The retained Cyna header
+  consumer checks GET and PUT on both paths. This is a deliberate credential
+  protection difference from Zig.
   A shared response header probe found that Cyna overwrote repeated header
   names while Zig accumulated them into arrays. The adapter now preserves
   arrival order for repeated keys and keeps differently cased keys separate,
