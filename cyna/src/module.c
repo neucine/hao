@@ -89,7 +89,7 @@ int hao_runtime_register(uintptr_t handle, const char *name, size_t name_len,
     }
     memcpy(module->name, name, name_len);
     module->name[name_len] = 0;
-    memcpy(module->source, source, source_len);
+    if (source_len) memcpy(module->source, source, source_len);
     module->source[source_len] = 0;
     module->source_len = source_len;
     if (hao_find_module(host, module->name) || hao_find_native_module(host, module->name)) {
@@ -170,6 +170,113 @@ int hao_embed_register_package_callbacks(HaoRuntimeHandle handle, const unsigned
     else host->packages = entry;
     host->last_package = entry;
     return 0;
+}
+
+static bool hao_package_owns(const unsigned char *package_name, size_t package_len,
+                             const unsigned char *specifier, size_t specifier_len) {
+    if (!specifier || !specifier_len || memchr(specifier, 0, specifier_len)) return false;
+    bool standard = package_len == 3 && memcmp(package_name, "std", 3) == 0;
+    if (standard) return specifier_len >= 4 && memcmp(specifier, "std:", 4) == 0;
+    if (specifier_len >= 4 && memcmp(specifier, "std:", 4) == 0) return false;
+    return specifier_len >= package_len && memcmp(specifier, package_name, package_len) == 0 &&
+        (specifier_len == package_len || specifier[package_len] == ':');
+}
+
+static bool hao_same_name(const unsigned char *left, size_t left_len,
+                          const unsigned char *right, size_t right_len) {
+    return left_len == right_len && memcmp(left, right, left_len) == 0;
+}
+
+static void hao_rollback_package_modules(HaoRuntime *host, size_t source_count,
+                                          size_t native_count) {
+    while (source_count--) {
+        HaoSourceModule *module = host->modules;
+        host->modules = module->next;
+        hao_free(module->name);
+        hao_free(module->source);
+        hao_free(module);
+    }
+    while (native_count--) {
+        HaoNativeModule *module = host->native_modules;
+        host->native_modules = module->next;
+        hao_free(module->name);
+        hao_free(module);
+    }
+}
+
+int hao_embed_register_package(HaoRuntimeHandle handle, const HaoEmbedPackage *package) {
+    if (!handle || !package) return 1;
+    if ((!package->name && package->name_len) ||
+        (package->source_count && !package->sources) ||
+        (package->native_count && !package->native_modules)) {
+        hao_embed_invalid_buffer(handle);
+        return 1;
+    }
+    hao_embed_clear_error(handle);
+    HaoRuntime *host = (HaoRuntime *)handle;
+    bool valid = package->name_len && package->name_len != SIZE_MAX &&
+        !memchr(package->name, 0, package->name_len);
+    for (HaoPackageCallbacks *it = host->packages; valid && it; it = it->next) {
+        if (strlen(it->name) == package->name_len &&
+            memcmp(it->name, package->name, package->name_len) == 0) valid = false;
+    }
+    for (size_t i = 0; valid && i < package->source_count; i++) {
+        const HaoEmbedSourceModule *source = &package->sources[i];
+        valid = source->specifier_len != SIZE_MAX && source->source_len != SIZE_MAX &&
+            (source->source || !source->source_len) &&
+            hao_package_owns(package->name, package->name_len,
+                             source->specifier, source->specifier_len);
+        if (!valid) break;
+        for (size_t j = 0; j < i; j++) {
+            const HaoEmbedSourceModule *prior = &package->sources[j];
+            if (hao_same_name(source->specifier, source->specifier_len,
+                              prior->specifier, prior->specifier_len)) valid = false;
+        }
+        for (size_t j = 0; j < package->native_count; j++) {
+            const HaoEmbedNativeModule *native = &package->native_modules[j];
+            if (native->specifier && hao_same_name(source->specifier, source->specifier_len,
+                native->specifier, native->specifier_len)) valid = false;
+        }
+        char *name = valid ? hao_strndup((const char *)source->specifier, source->specifier_len) : NULL;
+        if (!name || hao_find_module(host, name) || hao_find_native_module(host, name)) valid = false;
+        hao_free(name);
+    }
+    for (size_t i = 0; valid && i < package->native_count; i++) {
+        const HaoEmbedNativeModule *native = &package->native_modules[i];
+        valid = native->specifier_len != SIZE_MAX && native->loader &&
+            hao_package_owns(package->name, package->name_len,
+                             native->specifier, native->specifier_len);
+        if (!valid) break;
+        for (size_t j = 0; j < i; j++) {
+            const HaoEmbedNativeModule *prior = &package->native_modules[j];
+            if (hao_same_name(native->specifier, native->specifier_len,
+                              prior->specifier, prior->specifier_len)) valid = false;
+        }
+        char *name = valid ? hao_strndup((const char *)native->specifier, native->specifier_len) : NULL;
+        if (!name || hao_find_module(host, name) || hao_find_native_module(host, name)) valid = false;
+        hao_free(name);
+    }
+    size_t added_sources = 0, added_native = 0;
+    for (size_t i = 0; valid && i < package->source_count; i++) {
+        const HaoEmbedSourceModule *source = &package->sources[i];
+        valid = hao_runtime_register(handle, (const char *)source->specifier, source->specifier_len,
+                                     (const char *)source->source, source->source_len) == 0;
+        if (valid) added_sources++;
+    }
+    for (size_t i = 0; valid && i < package->native_count; i++) {
+        const HaoEmbedNativeModule *native = &package->native_modules[i];
+        valid = hao_runtime_register_native(handle, (const char *)native->specifier,
+                                            native->specifier_len, native->loader) == 0;
+        if (valid) added_native++;
+    }
+    if (valid) valid = hao_embed_register_package_callbacks(handle, package->name,
+        package->name_len, package->install, package->deinit, package->userdata) == 0;
+    if (valid) return 0;
+    hao_rollback_package_modules(host, added_sources, added_native);
+    hao_embed_clear_error(handle);
+    static const unsigned char failure[] = "Package registration failed";
+    hao_embed_set_error(handle, failure, sizeof(failure) - 1);
+    return 1;
 }
 
 int hao_package_install(HaoRuntime *host) {

@@ -82,6 +82,45 @@ int main(int argc, char **argv) {
             (const unsigned char *)"<native>", 8) != 0) return 29;
     if (hao_embed_last_error(other, error, sizeof(error)) != 0) return 17;
     hao_embed_free(other);
+    HaoRuntimeHandle atomic_runtime = hao_embed_new();
+    const char *atomic_source = "export const value = 5;";
+    HaoEmbedSourceModule atomic_sources[] = {
+        { (const unsigned char *)"demo:source", 11,
+          (const unsigned char *)atomic_source, strlen(atomic_source) },
+    };
+    HaoEmbedNativeModule atomic_native[] = {
+        { (const unsigned char *)"demo:native", 11, load_native_module },
+    };
+    HaoEmbedPackage atomic_package = {
+        .name = (const unsigned char *)"demo", .name_len = 4,
+        .sources = atomic_sources, .source_count = 1,
+        .native_modules = atomic_native, .native_count = 1,
+    };
+    if (!atomic_runtime || hao_embed_register_package(atomic_runtime, &atomic_package) != 0) return 44;
+    const char *atomic_eval = "import { value } from 'demo:source'; import { answer } from 'demo:native'; if (value + answer !== 22) throw Error('package mismatch');";
+    if (hao_embed_eval(atomic_runtime, (const unsigned char *)atomic_eval, strlen(atomic_eval),
+            (const unsigned char *)"<atomic>", 8) != 0) return 45;
+    if (hao_embed_register_package(atomic_runtime, &atomic_package) == 0) return 46;
+    HaoEmbedSourceModule wrong_sources[] = {
+        { (const unsigned char *)"other:valid", 11, (const unsigned char *)"", 0 },
+        { (const unsigned char *)"wrong:module", 12, (const unsigned char *)"", 0 },
+    };
+    HaoEmbedPackage wrong_package = {
+        .name = (const unsigned char *)"other", .name_len = 5,
+        .sources = wrong_sources, .source_count = 2,
+    };
+    if (hao_embed_register_package(atomic_runtime, &wrong_package) == 0) return 47;
+    if (hao_embed_register_module(atomic_runtime, (const unsigned char *)"other:valid", 11,
+            (const unsigned char *)"", 0) != 0) return 48;
+    HaoEmbedSourceModule empty_source = {
+        (const unsigned char *)"empty:module", 12, NULL, 0,
+    };
+    HaoEmbedPackage empty_package = {
+        .name = (const unsigned char *)"empty", .name_len = 5,
+        .sources = &empty_source, .source_count = 1,
+    };
+    if (hao_embed_register_package(atomic_runtime, &empty_package) != 0) return 49;
+    hao_embed_free(atomic_runtime);
     HaoRuntimeHandle package_runtime = hao_embed_new();
     char alpha = 'A', beta = 'B';
     if (!package_runtime ||

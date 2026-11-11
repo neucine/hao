@@ -65,9 +65,11 @@ that adapter.
   duplicate rejection. Package install and deinit callbacks now run in Zig's
   registration and reverse registration orders. The C consumer checks two
   evaluations, duplicate package names, failure propagation, and one deinit
-  pass even when installation fails. The embedding
-  ABI is version 4. Source/native module registration is still per specifier,
-  rather than a single atomic package registration transaction.
+  pass even when installation fails. The embedding ABI is version 5. An
+  atomic package registration call now validates ownership and duplicates,
+  copies source modules, and registers native loaders and callbacks together.
+  The C consumer checks a mixed source/native package and verifies rejection
+  leaves no partially registered module.
   The native addon consumer now checks `js_array_length` for ordinary and
   sparse arrays. The Cyna adapter uses the same signed 32 bit conversion as
   Zig and rejects lengths above `INT32_MAX`.

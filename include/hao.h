@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define HAO_EMBED_ABI_VERSION 4
+#define HAO_EMBED_ABI_VERSION 5
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +15,31 @@ typedef uintptr_t HaoRuntimeHandle;
 typedef void *(*HaoNativeModuleLoader)(void *context, const char *module_name);
 typedef int (*HaoPackageInstall)(HaoRuntimeHandle runtime, void *userdata);
 typedef void (*HaoPackageDeinit)(HaoRuntimeHandle runtime, void *userdata);
+
+typedef struct HaoEmbedSourceModule {
+    const unsigned char *specifier;
+    size_t specifier_len;
+    const unsigned char *source;
+    size_t source_len;
+} HaoEmbedSourceModule;
+
+typedef struct HaoEmbedNativeModule {
+    const unsigned char *specifier;
+    size_t specifier_len;
+    HaoNativeModuleLoader loader;
+} HaoEmbedNativeModule;
+
+typedef struct HaoEmbedPackage {
+    const unsigned char *name;
+    size_t name_len;
+    const HaoEmbedSourceModule *sources;
+    size_t source_count;
+    const HaoEmbedNativeModule *native_modules;
+    size_t native_count;
+    HaoPackageInstall install;
+    HaoPackageDeinit deinit;
+    void *userdata;
+} HaoEmbedPackage;
 
 /* Check this before calling the runtime from a separately built host. */
 uint32_t hao_embed_abi_version(void);
@@ -40,6 +65,10 @@ int hao_embed_register_package_callbacks(HaoRuntimeHandle runtime,
                                          const unsigned char *name, size_t name_len,
                                          HaoPackageInstall install,
                                          HaoPackageDeinit deinit, void *userdata);
+/* Registers all package members together. On failure no member is retained.
+   Each specifier must be the package name or begin with name followed by ':'.
+   The std: prefix belongs only to the std package. */
+int hao_embed_register_package(HaoRuntimeHandle runtime, const HaoEmbedPackage *package);
 int hao_embed_run_until_idle(HaoRuntimeHandle runtime);
 
 /* Last operation error. Returns the full byte length, excluding

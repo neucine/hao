@@ -17,6 +17,10 @@ evaluation. If one returns a nonzero value, evaluation stops and
 `hao_embed_last_error` reports the installation failure. Deinit callbacks run
 once in reverse registration order when the runtime is freed. The callback
 function pointers and userdata must remain valid for the runtime lifetime.
+`hao_embed_register_package` registers sources, native modules, and callbacks
+in one call. It checks each module specifier against the package name, rejects
+duplicates, and leaves the registry unchanged if any member is invalid.
+Use this form when a host owns a package with several modules.
 
 `hao_embed_install_std` installs the standard modules from the directory
 produced by `sh cyna/build.sh` (`cyna/build/modules`). Hosts that do not use
