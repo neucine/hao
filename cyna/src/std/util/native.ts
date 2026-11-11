@@ -7,8 +7,9 @@ export interface InspectOptions {
 let defaults = { maxDepth: 4, maxArrayLength: 100, maxStringLength: 10000 };
 
 function limit(value: unknown, fallback: number): number {
-  if (typeof value !== "number" || Number.isNaN(value)) return fallback;
-  if (value === Infinity) return Infinity;
+  if (typeof value !== "number") return fallback;
+  if (Number.isNaN(value)) return 0;
+  if (!Number.isFinite(value) || value >= 18446744073709551616) return Infinity;
   return Math.max(0, Math.floor(value));
 }
 

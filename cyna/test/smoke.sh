@@ -273,6 +273,17 @@ EOF
 util_actual=$("$runtime" "$fixture_dir/util.ts")
 util_expected=$(printf '{ xs: [ 1, 2, 3 ], ok: true }\n[ 1, 2, ... 1 more items ] 2\n<svg />\n{ self: [Circular] }')
 test "$util_actual" = "$util_expected"
+cat > "$fixture_dir/util-limits.ts" <<'EOF'
+import { inspect, setInspectOptions, getInspectOptions } from 'std:util';
+const value = { nested: { value: 1 } };
+console.log(inspect(value, { maxDepth: NaN }));
+console.log(inspect(value, { maxDepth: -Infinity }));
+setInspectOptions({ maxDepth: 1e100 });
+console.log(getInspectOptions().maxDepth);
+setInspectOptions({ maxDepth: NaN });
+console.log(getInspectOptions().maxDepth);
+EOF
+test "$("$runtime" "$fixture_dir/util-limits.ts")" = "$(printf '[Object]\n{ nested: { value: 1 } }\nInfinity\n0')"
 
 cat > "$fixture_dir/console-inspect.ts" <<'EOF'
 console.log({ value: 3 }, [1, 2]);

@@ -125,7 +125,11 @@ improvement, with a smoke check.
   stack frames remain to be
   compared. A direct `std:util` fixture covering primitives, arrays, objects,
   cycles, `repr()`, and inspect options produced identical output on both
-  runtimes.
+  runtimes. An option edge matrix found that Zig clamps `NaN` to zero and
+  treats both signs of infinity and values above `usize` capacity as unlimited;
+  Cyna previously fell back to its default for `NaN` and clamped negative
+  infinity to zero. The port now matches Zig's `inspect` output and
+  `getInspectOptions` values for those cases, with smoke coverage.
 
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
