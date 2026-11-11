@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 extern int hao_embed_telemetry_probe(HaoRuntimeHandle runtime);
 extern void hao_telemetry_metric(uintptr_t handle, const unsigned char *scope, size_t scope_len,
@@ -80,10 +81,23 @@ int main(int argc, char **argv) {
     const char *native_source = "import { answer } from 'demo:native'; if (answer !== 17) throw Error('native module mismatch');";
     if (hao_embed_eval(other, (const unsigned char *)native_source, strlen(native_source),
             (const unsigned char *)"<native>", 8) != 0) return 29;
+    char *owned_name = strdup("demo:owned");
+    char *owned_source = strdup("export const value = 23;");
+    if (!owned_name || !owned_source) return 119;
+    if (hao_embed_register_module(other, (const unsigned char *)owned_name, strlen(owned_name),
+            (const unsigned char *)owned_source, strlen(owned_source)) != 0) return 120;
+    memset(owned_name, 'x', strlen(owned_name));
+    memset(owned_source, 'x', strlen(owned_source));
+    free(owned_name);
+    free(owned_source);
+    const char *owned_eval = "import { value } from 'demo:owned'; if (value !== 23) throw Error('module copy failed');";
+    if (hao_embed_eval(other, (const unsigned char *)owned_eval, strlen(owned_eval),
+            (const unsigned char *)"<owned>", 7) != 0) return 121;
     if (hao_embed_last_error(other, error, sizeof(error)) != 0) return 17;
     hao_embed_free(other);
     HaoRuntimeHandle atomic_runtime = hao_embed_new();
-    const char *atomic_source = "export const value = 5;";
+    char *atomic_source = strdup("export const value = 5;");
+    if (!atomic_source) return 122;
     HaoEmbedSourceModule atomic_sources[] = {
         { (const unsigned char *)"demo:source", 11,
           (const unsigned char *)atomic_source, strlen(atomic_source) },
@@ -97,10 +111,12 @@ int main(int argc, char **argv) {
         .native_modules = atomic_native, .native_count = 1,
     };
     if (!atomic_runtime || hao_embed_register_package(atomic_runtime, &atomic_package) != 0) return 44;
+    if (hao_embed_register_package(atomic_runtime, &atomic_package) == 0) return 46;
+    memset(atomic_source, 'x', strlen(atomic_source));
+    free(atomic_source);
     const char *atomic_eval = "import { value } from 'demo:source'; import { answer } from 'demo:native'; if (value + answer !== 22) throw Error('package mismatch');";
     if (hao_embed_eval(atomic_runtime, (const unsigned char *)atomic_eval, strlen(atomic_eval),
             (const unsigned char *)"<atomic>", 8) != 0) return 45;
-    if (hao_embed_register_package(atomic_runtime, &atomic_package) == 0) return 46;
     HaoEmbedSourceModule wrong_sources[] = {
         { (const unsigned char *)"other:valid", 11, (const unsigned char *)"", 0 },
         { (const unsigned char *)"wrong:module", 12, (const unsigned char *)"", 0 },

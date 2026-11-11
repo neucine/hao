@@ -445,7 +445,10 @@ improvement, with a smoke check.
   atomic package registration call now validates ownership and duplicates,
   copies source modules, and registers native loaders and callbacks together.
   The C consumer checks a mixed source/native package and verifies rejection
-  leaves no partially registered module.
+  leaves no partially registered module. It now mutates and frees caller-owned
+  names and source buffers after ordinary module registration, and frees a
+  package source buffer after registration. Both modules still import and
+  evaluate, directly checking the C embedding API's copy contract.
   Addon extension recognition and normalized module names now live in
   `js/addon.cy`; the C loader retains dynamic library and QuickJS callbacks.
   The native addon consumer now checks `js_array_length` for ordinary and
