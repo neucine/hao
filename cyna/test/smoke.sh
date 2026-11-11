@@ -1601,6 +1601,29 @@ result = subprocess.run([sys.argv[1], sys.argv[2]], capture_output=True, text=Tr
 assert result.returncode == 1 and result.stdout == '', result
 assert result.stderr == f'timer rejected\n    at <anonymous> ({sys.argv[2]}:2:17)\n\n', result
 PY
+cat > "$fixture_dir/async-shutdown.ts" <<'EOF'
+import { serve, get } from 'std:http';
+let started: () => void;
+const entered = new Promise<void>(resolve => { started = resolve; });
+const server = serve({ port: 0, async handler() {
+  console.log('handler entered');
+  started();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  console.log('handler settled');
+  return { body: 'ok' };
+} });
+get(`http://127.0.0.1:${server.port}/`).then(() => console.log('client done')).catch(() => console.log('client failed'));
+await entered;
+setTimeout(() => { throw Error('shutdown failure'); }, 1);
+setTimeout(() => console.log('late timer'), 30);
+EOF
+python3 - "$runtime" "$fixture_dir/async-shutdown.ts" <<'PY'
+import subprocess, sys
+result = subprocess.run([sys.argv[1], sys.argv[2]], capture_output=True, text=True, timeout=5)
+assert result.returncode == 1 and result.stdout == 'handler entered\n', result
+assert result.stderr.startswith('shutdown failure\n    at <anonymous> ('), result
+assert result.stderr.endswith(':19:8)\n\n'), result
+PY
 
 cat > "$fixture_dir/timer-nested.ts" <<'EOF'
 const events: string[] = [];

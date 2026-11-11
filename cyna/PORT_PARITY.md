@@ -211,6 +211,11 @@ improvement, with a smoke check.
   handler. Three runs of each binary produced identical output and completed
   with status zero. The smoke suite retains completion and event membership
   checks without depending on OS scheduling order.
+  A shutdown probe now waits until an HTTP handler has entered, then throws
+  from a timer while the handler, client, and another timer remain pending.
+  Three direct runs of each binary matched exit status, stdout, and stderr:
+  the handler entry prints once and no later callback runs. The smoke suite
+  retains this active-handle failure path.
   A same-turn probe found that draining Promise jobs inside a timer callback
   reordered timers from Zig's `first,second,job` to `first,job,second` when a
   trace span was active. A tracked patch to QuickJS now captures trace context
