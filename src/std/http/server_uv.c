@@ -5,6 +5,7 @@
 #include <uv.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -183,10 +184,13 @@ static void accept_client(uv_stream_t *stream, int status) {
     if (uv_timer_start(&client->timer, client_timeout, server->timeout_ms, 0) != 0 ||
         uv_read_start((uv_stream_t *)&client->tcp, allocate_buffer, read_client) != 0) close_client(client);
 }
-static int64_t integer_property(JSContext *ctx, JSValueConst object, const char *key, int64_t fallback) {
+int hao_http_server_valid_number(double value) {
+    return isfinite(value) && value >= 0 && value <= 9007199254740991.0 && floor(value) == value;
+}
+static double number_property(JSContext *ctx, JSValueConst object, const char *key) {
     JSValue value = JS_GetPropertyStr(ctx, object, key);
-    int64_t result = fallback;
-    if (JS_IsNumber(value)) JS_ToInt64(ctx, &result, value);
+    double result = -1;
+    if (JS_IsNumber(value)) JS_ToFloat64(ctx, &result, value);
     JS_FreeValue(ctx, value);
     return result;
 }
@@ -196,15 +200,29 @@ static JSValue serve_native(JSContext *ctx, JSValueConst this_val, int argc, JSV
         return JS_ThrowTypeError(ctx, "http.serve requires options and a callback");
     JSValue host_value = JS_GetPropertyStr(ctx, argv[0], "hostname");
     const char *hostname = JS_ToCString(ctx, host_value);
-    int64_t port = integer_property(ctx, argv[0], "port", -1);
-    int64_t max_connections = integer_property(ctx, argv[0], "maxConnections", -1);
-    int64_t timeout_ms = integer_property(ctx, argv[0], "requestTimeoutMs", -1);
-    struct sockaddr_in address;
-    if (!hostname || port < 0 || port > 65535 || max_connections < 1 || max_connections > 1024 || timeout_ms < 1 || timeout_ms > 3600000 ||
-        uv_ip4_addr(hostname, (int)port, &address) != 0) {
+    double port = number_property(ctx, argv[0], "port");
+    double max_connections = number_property(ctx, argv[0], "maxConnections");
+    double timeout_ms = number_property(ctx, argv[0], "requestTimeoutMs");
+    int limits_error = !hao_http_server_valid_number(port) ? 1 :
+        !hao_http_server_valid_number(max_connections) ? 2 :
+        !hao_http_server_valid_number(timeout_ms) ? 3 :
+        hao_http_server_limits_error(port, max_connections, timeout_ms);
+    if (limits_error) {
         if (hostname) JS_FreeCString(ctx, hostname);
         JS_FreeValue(ctx, host_value);
-        return JS_ThrowTypeError(ctx, "invalid http.serve address or limits");
+        const char *messages[] = {"", "Invalid port", "Invalid connection limit", "Invalid timeout", "Invalid server limits"};
+        return JS_ThrowTypeError(ctx, "%s", messages[limits_error]);
+    }
+    if (!hostname) {
+        if (hostname) JS_FreeCString(ctx, hostname);
+        JS_FreeValue(ctx, host_value);
+        return JS_ThrowTypeError(ctx, "Invalid hostname");
+    }
+    struct sockaddr_in address;
+    if (uv_ip4_addr(hostname, (int)port, &address) != 0) {
+        JS_FreeCString(ctx, hostname);
+        JS_FreeValue(ctx, host_value);
+        return JS_ThrowTypeError(ctx, "hostname must be an IPv4 address");
     }
     JS_FreeCString(ctx, hostname);
     JS_FreeValue(ctx, host_value);
