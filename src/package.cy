@@ -4,6 +4,7 @@ import { dirname, join } from std.path;
 import { env_get } from std.process;
 import { Value, parse } from std.json;
 import { copy_output, text_from_c } from .c_bytes;
+import { is_addon_path } from .js.addon;
 
 
 fn path_exists(path: string): bool {
@@ -137,7 +138,7 @@ fn entry_for(manifest: &const Value, subpath: string): ?string {
 }
 
 fn supported_entry(path: string, package_type: ?string): bool {
-    if path.ends_with(".dylib") or path.ends_with(".so") or path.ends_with(".dll") or path.ends_with(".node") {
+    if is_addon_path(path) {
         return true;
     }
     if path.ends_with(".ts") or path.ends_with(".mts") or path.ends_with(".mjs") {

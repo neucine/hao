@@ -326,15 +326,13 @@ char *hao_normalize_module(JSContext *ctx, const char *base,
             JS_ThrowReferenceError(ctx, "Package entry not found: %s", specifier);
             return NULL;
         }
-        size_t len = strlen(resolved);
-        const char *extension = strrchr(resolved, '.');
-        bool addon = extension && (!strcmp(extension, ".dylib") || !strcmp(extension, ".so") ||
-                                   !strcmp(extension, ".dll") || !strcmp(extension, ".node"));
-        if (addon) len += strlen(specifier) + 7;
+        size_t len = hao_addon_name_length((const unsigned char *)specifier,
+                                           (const unsigned char *)resolved);
         char *normalized = js_malloc(ctx, len + 1);
-        if (normalized) {
-            if (addon) snprintf(normalized, len + 1, "addon:%s\n%s", specifier, resolved);
-            else memcpy(normalized, resolved, len + 1);
+        if (normalized && hao_addon_write_name((const unsigned char *)specifier,
+                (const unsigned char *)resolved, (unsigned char *)normalized, len + 1) != 0) {
+            js_free(ctx, normalized);
+            normalized = NULL;
         }
         hao_free(resolved);
         return normalized;

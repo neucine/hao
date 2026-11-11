@@ -8,6 +8,9 @@
    std/process/native.cy. This header is the C side of those ABI boundaries. */
 int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
                         unsigned char *output, size_t capacity);
+size_t hao_addon_name_length(const unsigned char *specifier, const unsigned char *path);
+int hao_addon_write_name(const unsigned char *specifier, const unsigned char *path,
+                         unsigned char *output, size_t capacity);
 int hao_fs_exists(const unsigned char *path);
 unsigned char *hao_fs_read_alloc(const unsigned char *path, size_t length, size_t limit);
 int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);

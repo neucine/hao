@@ -378,6 +378,8 @@ improvement, with a smoke check.
   copies source modules, and registers native loaders and callbacks together.
   The C consumer checks a mixed source/native package and verifies rejection
   leaves no partially registered module.
+  Addon extension recognition and normalized module names now live in
+  `js/addon.cy`; the C loader retains dynamic library and QuickJS callbacks.
   The native addon consumer now checks `js_array_length` for ordinary and
   sparse arrays. The Cyna adapter uses the same signed 32 bit conversion as
   Zig and rejects lengths above `INT32_MAX`.
