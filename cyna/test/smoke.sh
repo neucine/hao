@@ -713,7 +713,7 @@ void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
 cat > "$fixture_dir/ffi-c-prepare.ts" <<'EOF'
-import { prepareNative, openNative, closeNative } from 'std:ffi/c/native';
+import { prepareNative, openNative, callNative, closeNative } from 'std:ffi/c/native';
 console.log(JSON.stringify(prepareNative('m', 'double sqrt(double x);')));
 const opened = openNative('m', 'double sqrt(double x);');
 console.log(JSON.stringify({ symbols: opened.symbols, policies: opened.policies }));
@@ -741,8 +741,14 @@ for (const declarations of [
   try { prepareNative('m', declarations); }
   catch (error) { console.log(error.name, error.code, error.message); }
 }
+const recursive = 'typedef struct { Foo f; } Foo; double sqrt(Foo *value);';
+console.log(JSON.stringify(prepareNative('m', recursive)));
+const recursiveLibrary = openNative('m', recursive);
+try { callNative(recursiveLibrary.handle, 'sqrt', [{ f: {} }]); }
+catch (error) { console.log(error.name, error.code, error.message); }
+closeNative(recursiveLibrary.handle);
 EOF
-test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
   '{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
   '{"symbols":["sqrt"],"policies":{"handles":{},"functions":{}}}' \
   '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
@@ -756,7 +762,9 @@ test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s
   'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateParamName' \
   'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateTypeName' \
   'RuntimeError invalid_arg prepareNative: declaration lowering failed: UnknownNamedType' \
-  'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError')"
+  'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError' \
+  '{"descriptor":{"sqrt":{"args":["ptr"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
+  'RuntimeError invalid_arg C: invalid POD struct layout')"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
 const library = openNative('m', 'double sqrt(double x);');

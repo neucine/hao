@@ -25,7 +25,8 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
     alignment = Math.max(alignment, layout.alignment);
   }
   if (!fields.length) throw invalidArg('empty POD struct');
-  return { fields, size: Math.ceil(size / alignment) * alignment, alignment };
+  return { fields, size: Math.ceil(size / alignment) * alignment, alignment,
+    invalidLayout: fields.some(field => field.pod && resolve(field.pod)?.invalidLayout) };
 }
 
 export function ffiType(type: string, returning = false): string {

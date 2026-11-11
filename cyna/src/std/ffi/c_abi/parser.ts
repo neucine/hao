@@ -54,7 +54,7 @@ export function parse(declarations: string, opts: any): Prepared {
   const resolvePod = (name: string): PodSpec | null => {
     if (pods[name]) return pods[name];
     if (!(name in podBodies)) return null;
-    if (resolving.has(name)) throw invalidArg(`recursive POD struct: ${name}`);
+    if (resolving.has(name)) return { fields: [], size: 0, alignment: 1, invalidLayout: true };
     resolving.add(name);
     const spec = podSpec(podBodies[name], resolvePod);
     resolving.delete(name);

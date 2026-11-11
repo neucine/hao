@@ -189,8 +189,11 @@ improvement, with a smoke check.
   A second declaration matrix now matches Zig for empty declarations, an
   opaque typedef without functions, duplicate parameter and type names,
   unknown named types, and several malformed declarations. Zig accepts a
-  self-referential POD declaration while Cyna's eager layout builder rejects
-  it; that remaining difference needs a separate layout decision.
+  self-referential POD declaration during descriptor preparation. Cyna now
+  accepts that declaration too, while rejecting a call that would require its
+  impossible by-value layout before entering native code. The smoke suite
+  covers both outcomes. Pointer fields inside POD structs remain a separate
+  layout and marshaling gap.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from
