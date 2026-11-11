@@ -2,7 +2,7 @@ import { text_from_c } from .c_bytes;
 import { Loop } from .async.loop;
 import { install as install_console } from .global.console;
 import { install as install_timer } from .global.timer;
-import { eval as eval_module, register_source } from .modules;
+import { eval as eval_module, eval_test as eval_test_module, register_source } from .modules;
 import { telemetry_console_settings, native_stack_trace_enabled } from .config;
 import { host as telemetry_host } from .telemetry.interface;
 import { Backend } from std.telemetry;
@@ -16,6 +16,7 @@ extern c("hao_runtime_discard_test_file") fn runtime_discard_test_file(handle: c
 extern c("hao_runtime_set_executable") fn runtime_set_executable(handle: c_size_t, path: *const c_uchar, path_len: c_size_t): c_int;
 extern c("hao_runtime_eval_cell") fn runtime_eval_cell(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): ?*const c_uchar;
 extern c("hao_runtime_free_text") fn runtime_free_text(text: *const c_uchar): void;
+extern c("hao_runtime_drain_test") fn runtime_drain_test(handle: c_size_t, path: *const c_uchar, length: c_size_t): c_int;
 extern c("hao_runtime_set_telemetry_console") fn runtime_set_telemetry_console(handle: c_size_t, enabled: c_int, port: c_ushort): void;
 extern c("hao_runtime_set_native_stack_trace") fn runtime_set_native_stack_trace(handle: c_size_t, enabled: c_int): void;
 
@@ -62,6 +63,10 @@ pub struct Runtime {
         return eval_module(self.handle, source, filename);
     }
 
+    pub fn eval_test(self: &const Runtime, source: string, filename: string): i32 {
+        return eval_test_module(self.handle, source, filename);
+    }
+
     pub fn eval_cell(self: &const Runtime, source: string, filename: string): ?string {
         const source_bytes = source.bytes();
         const name_bytes = filename.bytes();
@@ -83,6 +88,11 @@ pub struct Runtime {
     pub fn drain_jobs(self: &const Runtime): i32 {
         const loop = Loop { handle: self.handle };
         return loop.drain_jobs();
+    }
+
+    pub fn drain_test_jobs(self: &const Runtime, path: string): i32 {
+        const bytes = path.bytes();
+        return runtime_drain_test(self.handle, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) as i32;
     }
 
     pub fn register_source_module(self: &const Runtime, name: string, source: string): i32 {

@@ -693,7 +693,7 @@ if load_result=$("$runtime" test "$fixture_dir/broken.test.ts" "$fixture_dir/aft
     exit 1
 fi
 case "$load_result" in
-    *'1 loaded, 1 failed, 2 total'*'2 passed, 0 failed, 0 skipped'*) ;;
+    *'✕ module '*'broken.test.ts'*'load failed'*'1 loaded, 1 failed, 2 total'*'2 passed, 1 failed, 0 skipped'*) ;;
     *) echo "$load_result" >&2; exit 1 ;;
 esac
 cat > "$fixture_dir/grep-suite.test.ts" <<'EOF'

@@ -68,8 +68,12 @@ The test reporter now writes its file counts, case results, suite indentation,
 skip reasons, and summary to stderr in Zig's layout. A direct plain reporter
 probe with passing and skipped cases, plus a failing case probe, matched Zig's
 output structure; measured durations naturally differed. The smoke suite also
-checks the empty directory summary on stderr. File load failures and complex
-hook combinations still need direct reporter comparisons.
+checks the empty directory summary on stderr. A direct file load failure probe
+found that Cyna discarded tests registered before the exception, while Zig ran
+them. Cyna now retains those registrations and reports the failed module and
+exception message on stderr. The smoke suite checks a partially loaded suite
+whose hook fails during the subsequent run. Complex hook combinations still
+need direct reporter comparisons.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript

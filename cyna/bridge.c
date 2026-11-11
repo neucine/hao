@@ -240,8 +240,10 @@ uv_loop_t *hao_runtime_loop(JSContext *ctx) {
     return host ? host->loop : NULL;
 }
 
-int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
-                     const char *filename, size_t filename_len) {
+static void hao_print_test_failure(JSContext *ctx, JSValueConst error, const char *path);
+
+static int hao_runtime_eval_impl(uintptr_t handle, const char *source, size_t source_len,
+                                 const char *filename, size_t filename_len, bool test_file) {
     HaoRuntime *host = (HaoRuntime *)handle;
     if (filename_len == SIZE_MAX || source_len == SIZE_MAX) return 1;
     if (hao_package_install(host) != 0) return 1;
@@ -266,7 +268,8 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
         if (error) {
             hao_free(host->embed_error);
             host->embed_error = hao_strdup(error);
-            fprintf(stderr, "%s\n", error);
+            if (test_file) fprintf(stderr, "✕ module %s\n  %s\n", name, error);
+            else fprintf(stderr, "%s\n", error);
             hao_transpiler_free(error);
         }
         hao_free(name);
@@ -277,11 +280,25 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
     hao_free(name);
     int status = 0;
     if (JS_IsException(result)) {
-        hao_print_exception(host->context);
+        if (test_file) {
+            JSValue error = JS_GetException(host->context);
+            hao_print_test_failure(host->context, error, filename);
+            JS_FreeValue(host->context, error);
+        } else hao_print_exception(host->context);
         status = 1;
     }
     JS_FreeValue(host->context, result);
     return status;
+}
+
+int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len,
+                     const char *filename, size_t filename_len) {
+    return hao_runtime_eval_impl(handle, source, source_len, filename, filename_len, false);
+}
+
+int hao_runtime_eval_test(uintptr_t handle, const char *source, size_t source_len,
+                          const char *filename, size_t filename_len) {
+    return hao_runtime_eval_impl(handle, source, source_len, filename, filename_len, true);
 }
 
 static char *hao_rewrite_cell_declarations(const char *source) {
@@ -762,23 +779,47 @@ int hao_runtime_test_failures(uintptr_t handle) {
     return failures;
 }
 
-int hao_runtime_drain(uintptr_t handle) {
+static void hao_print_test_failure(JSContext *ctx, JSValueConst error, const char *path) {
+    JSValue detail = JS_GetPropertyStr(ctx, error, "message");
+    const char *message = JS_IsUndefined(detail) ? JS_ToCString(ctx, error) : JS_ToCString(ctx, detail);
+    fprintf(stderr, "✕ module %s\n  %s\n", path, message ? message : "[uninitialized]");
+    if (message) JS_FreeCString(ctx, message);
+    JS_FreeValue(ctx, detail);
+}
+
+static int hao_runtime_drain_impl(uintptr_t handle, const char *test_path) {
     HaoRuntime *host = (HaoRuntime *)handle;
     JSContext *job_ctx = NULL;
     int result;
     int ran_jobs = 0;
     while ((result = JS_ExecutePendingJob(host->runtime, &job_ctx)) > 0) ran_jobs = 1;
     if (result < 0) {
-        hao_print_exception(job_ctx);
+        if (test_path) {
+            JSValue error = JS_GetException(job_ctx);
+            hao_print_test_failure(job_ctx, error, test_path);
+            JS_FreeValue(job_ctx, error);
+        } else hao_print_exception(job_ctx);
         return -1;
     }
     if (host->has_rejection) {
-        hao_print_value(host->rejection_context, host->rejection);
+        if (test_path) hao_print_test_failure(host->rejection_context, host->rejection, test_path);
+        else hao_print_value(host->rejection_context, host->rejection);
         JS_FreeValue(host->rejection_context, host->rejection);
         host->has_rejection = false;
         return -1;
     }
     return ran_jobs;
+}
+
+int hao_runtime_drain(uintptr_t handle) { return hao_runtime_drain_impl(handle, NULL); }
+int hao_runtime_drain_test(uintptr_t handle, const char *path, size_t length) {
+    char *name = hao_alloc(length + 1);
+    if (!name) return -1;
+    memcpy(name, path, length);
+    name[length] = 0;
+    int result = hao_runtime_drain_impl(handle, name);
+    hao_free(name);
+    return result;
 }
 
 int hao_runtime_run_turn(uintptr_t handle) {

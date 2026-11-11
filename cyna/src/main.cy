@@ -28,6 +28,7 @@ fn usage(): void {
 fn run_file(host: &const Runtime, path: string, test_file: bool): i32 {
     const source = read_file_limited(path.clone(), 10 * 1024 * 1024);
     if source is content {
+        if test_file { return host.eval_test(content, path); }
         return host.eval(content, path);
     }
     if test_file {
@@ -134,9 +135,8 @@ fn main(): i32 {
                 const path_bytes = path.bytes();
                 test_print_load(file_index as c_size_t, files_total as c_size_t,
                     path_bytes.ptr as! *const c_uchar, path_bytes.len() as c_size_t);
-                if run_file(&host, path.clone(), true) != 0 or host.drain_jobs() < 0 {
+                if run_file(&host, path.clone(), true) != 0 or host.drain_test_jobs(path.clone()) < 0 {
                     file_failures = file_failures + 1;
-                    if host.discard_test_file(path.clone()) != 0 { return 1; }
                 } else {
                     files_loaded = files_loaded + 1;
                 }
