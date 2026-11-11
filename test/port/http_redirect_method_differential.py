@@ -95,9 +95,11 @@ def main() -> int:
                 "['HEAD', undefined, 301], ['HEAD', undefined, 303], "
                 "['HEAD', undefined, 307], ['HEAD', 'payload', 303], "
                 "['PATCH', 'payload', 301], ['PATCH', 'payload', 303], "
-                "['PATCH', 'payload', 307], ['PATCH', undefined, 303], "
+                "['PATCH', 'payload', 307], ['PATCH', 'payload', 308], "
+                "['PATCH', undefined, 303], ['PATCH', undefined, 307], "
                 "['DELETE', 'payload', 301], ['DELETE', 'payload', 303], "
-                "['DELETE', 'payload', 307], ['DELETE', undefined, 303], "
+                "['DELETE', 'payload', 307], ['DELETE', 'payload', 308], "
+                "['DELETE', undefined, 303], ['DELETE', undefined, 307], "
                 "['POST', 'payload', 307, 'manual']]) {\n"
                 f"  try {{ const response = await request('http://127.0.0.1:{server.server_port}/redirect/' + code, "
                 "{ method, body, redirect, headers: { 'X-Probe': 'value' } });\n"
@@ -120,8 +122,8 @@ def main() -> int:
             print('legacy:', repr(legacy), file=sys.stderr)
             print('cyna:', repr(cyna), file=sys.stderr)
             return 1
-        assert legacy[0] == 0 and len(legacy[1].splitlines()) == 38, legacy
-        print('HTTP redirect methods matched legacy: 38 outcomes')
+        assert legacy[0] == 0 and len(legacy[1].splitlines()) == 42, legacy
+        print('HTTP redirect methods matched legacy: 42 outcomes')
         return 0
     finally:
         server.shutdown()
