@@ -94,11 +94,15 @@ try:
         b'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n'
         b'GET /json HTTP/1.1\r\nHost: localhost\r\n\r\n')
     assert pipelined.count(b'HTTP/1.1 ') == 1 and b'Hello ' in pipelined
-    try:
-        request('GET', '/stop')
-        raise AssertionError('closing the server should close its active client')
-    except http.client.RemoteDisconnected:
-        pass
+    with socket.create_connection(('127.0.0.1', port), timeout=2) as partial:
+        partial.settimeout(2)
+        partial.sendall(b'POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 20\r\n\r\nshort')
+        try:
+            request('GET', '/stop')
+            raise AssertionError('closing the server should close its active client')
+        except http.client.RemoteDisconnected:
+            pass
+        assert partial.recv(1) == b'', 'closing the server should close an incomplete request'
     assert server.wait(timeout=3) == 0
     assert server.stdout.read() == 'stop entered\nstop settled\n'
     print('HTTP server behavior checks passed')
