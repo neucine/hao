@@ -544,6 +544,11 @@ improvement, with a smoke check.
   `static` or `extern` function declarations. The smoke suite checks the
   resulting `prepareNative` and `openNative` error categories. Other C
   declaration and policy combinations still need comparison.
+  A further 29 declaration probe found that postfixed `const` on a base type
+  (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
+  but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for
+  those forms; all 29 probe outputs match, and the smoke suite retains the
+  three formerly mismatched cases.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from

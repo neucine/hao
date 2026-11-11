@@ -1106,6 +1106,9 @@ for (const declaration of [
   'void f(struct Foo *x);',
   'typedef struct Foo Bar; void f(Bar *x);',
   'typedef struct { } Empty; void f(Empty *x);',
+  'char const *f(void);',
+  'void f(char const *x);',
+  'void f(uint8_t const *x);',
 ]) {
   try { console.log(JSON.stringify(prepareNative('m', declaration))); }
   catch (error) { console.log(error.name, error.code, error.message); }
@@ -1116,6 +1119,9 @@ RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: U
 RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature
 RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature
 {"descriptor":{"f":{"args":["ptr"],"returns":"void"}},"policies":{"handles":{},"functions":{}}}
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
 EOF
 )"
 cat > "$fixture_dir/ffi-c-named-types.ts" <<'EOF'

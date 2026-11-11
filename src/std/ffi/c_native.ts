@@ -66,6 +66,7 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
         throw invalidArg(`${operation}: unsupported or invalid C declarations: UnsupportedFeature`, 'UnsupportedFeature');
       }
       if (error.message === 'C declaration requires a terminating semicolon' ||
+          error.message === 'invalid C qualifier placement' ||
           error.message === 'unterminated C block comment' ||
           error.message.startsWith('invalid C declaration:') ||
           error.message.startsWith('invalid C parameter:') ||
