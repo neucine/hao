@@ -478,6 +478,7 @@ improvement, with a smoke check.
   The shared kernel consumer now also sends a binary heartbeat containing an
   embedded NUL before the shell requests. Both runtimes echo the exact three
   bytes and continue through the shared execution and shutdown sequence.
+  Notebook cell declaration rewriting now lives in `jupyter/cell.cy`. The bridge allocates a bounded output buffer and retains QuickJS and Rust transpiler integration. The shared kernel consumer checks repeated `let` and `class` declarations across cells.
   Notebook cells now use Zig's `__hao_kernel_cell_<execution_count>.ts`
   filename under the kernel working directory. The shared error probe checks
   that both runtimes report this filename in a cell stack. The Cyna bridge

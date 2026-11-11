@@ -20,6 +20,7 @@
 #include "js/addon_native.h"
 #include "errors.h"
 #include "global/console.h"
+#include "jupyter/cell.h"
 
 #include "../libs/transpiler/include/hao_transpiler.h"
 void hao_runtime_free(uintptr_t handle);
@@ -343,35 +344,17 @@ int hao_runtime_eval_test(uintptr_t handle, const char *source, size_t source_le
 
 static char *hao_rewrite_cell_declarations(const char *source) {
     size_t length = strlen(source);
-    char *output = hao_alloc(length * 2 + 1);
+    if (length > (SIZE_MAX - 1) / 2) return NULL;
+    size_t capacity = length * 2;
+    char *output = hao_alloc(capacity + 1);
     if (!output) return NULL;
-    size_t at = 0;
-    const char *line = source;
-    while (*line) {
-        const char *end = strchr(line, '\n');
-        size_t count = end ? (size_t)(end - line) : strlen(line);
-        if (count >= 6 && !memcmp(line, "const ", 6)) {
-            memcpy(output + at, "var ", 4); at += 4;
-            memcpy(output + at, line + 6, count - 6); at += count - 6;
-        } else if (count >= 4 && !memcmp(line, "let ", 4)) {
-            memcpy(output + at, "var ", 4); at += 4;
-            memcpy(output + at, line + 4, count - 4); at += count - 4;
-        } else if (count >= 7 && !memcmp(line, "class ", 6)) {
-            size_t name_end = 6;
-            while (name_end < count && line[name_end] != ' ' && line[name_end] != '{' && line[name_end] != '\t') name_end++;
-            if (name_end > 6) {
-                memcpy(output + at, "var ", 4); at += 4;
-                memcpy(output + at, line + 6, name_end - 6); at += name_end - 6;
-                memcpy(output + at, " = ", 3); at += 3;
-            }
-            memcpy(output + at, line, count); at += count;
-        } else {
-            memcpy(output + at, line, count); at += count;
-        }
-        if (end) { output[at++] = '\n'; line = end + 1; }
-        else break;
+    size_t written = hao_jupyter_rewrite_cell((const unsigned char *)source,
+        length, (unsigned char *)output, capacity);
+    if (written > capacity) {
+        hao_free(output);
+        return NULL;
     }
-    output[at] = 0;
+    output[written] = 0;
     return output;
 }
 

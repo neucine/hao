@@ -6,6 +6,7 @@ import { fs_exists } from .std.fs.native;
 import { valid_method_c } from .std.http.native;
 import { type_code_c, parse_unsigned_c } from .std.ffi.native;
 import { limits_error_c } from .std.http.server_uv;
+import { rewrite_cell_c } from .jupyter.cell;
 import { resolve_package } from .package;
 import { get_env } from .std.process.native;
 
