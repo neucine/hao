@@ -21,12 +21,12 @@ function stripComments(source: string): string {
   return result;
 }
 export function parse(declarations: string, opts: any): Prepared {
-  if (typeof declarations !== 'string' || !declarations.trim()) throw invalidArg('cdecl: declarations must be a non-empty string');
+  if (typeof declarations !== 'string') throw invalidArg('cdecl: declarations must be a string');
   const source = stripComments(declarations);
   if (/#|\.\.\.|\(\s*\*\s*[A-Za-z_]\w*\s*\)/.test(source)) {
     throw invalidArg('unsupported C declarations', 'UnsupportedFeature');
   }
-  if (!source.trim().endsWith(';')) throw invalidArg('C declaration requires a terminating semicolon', 'SyntaxError');
+  if (source.trim() && !source.trim().endsWith(';')) throw invalidArg('C declaration requires a terminating semicolon', 'SyntaxError');
   if (opts?.search != null) {
     const search = opts.search;
     if (typeof search !== 'object' || Array.isArray(search)) throw invalidArg('invalid C library search policy');
@@ -95,7 +95,6 @@ export function parse(declarations: string, opts: any): Prepared {
     declarationTypes.set(match[2], { params: rawParams });
     typeReferences.push(match[1]);
   }
-  if (!functions.length) throw invalidArg('cdecl requires at least one function');
   const primitives = new Set(['void', 'bool', 'char', 'size_t', 'float', 'double',
     'int8_t', 'int16_t', 'int32_t', 'int64_t', 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t']);
   for (const reference of typeReferences) {

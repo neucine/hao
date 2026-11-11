@@ -730,8 +730,19 @@ for (const declarations of ['int sum(int a, int b);', 'void set_cb(void (*cb)(in
   try { prepareNative('m', declarations); }
   catch (error) { console.log(error.name, error.code, error.message); }
 }
+console.log(JSON.stringify(prepareNative('m', '')));
+console.log(JSON.stringify(prepareNative('m', 'typedef struct Foo Foo;')));
+for (const declarations of [
+  'void f(double a, double a);',
+  'typedef struct Foo Foo; typedef struct Foo Foo; void f(void);',
+  'Unknown f(void);',
+  'void f(double);',
+]) {
+  try { prepareNative('m', declarations); }
+  catch (error) { console.log(error.name, error.code, error.message); }
+}
 EOF
-test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
   '{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
   '{"symbols":["sqrt"],"policies":{"handles":{},"functions":{}}}' \
   '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
@@ -739,6 +750,12 @@ test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s\n%s
   'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateFunctionName' \
   'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature' \
   'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature' \
+  'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError' \
+  '{"descriptor":{},"policies":{"handles":{},"functions":{}}}' \
+  '{"descriptor":{},"policies":{"handles":{},"functions":{}}}' \
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateParamName' \
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: DuplicateTypeName' \
+  'RuntimeError invalid_arg prepareNative: declaration lowering failed: UnknownNamedType' \
   'RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError')"
 cat > "$fixture_dir/ffi-c-call-errors.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/c/native';
@@ -1017,9 +1034,9 @@ nested.close();
 try { cdecl('hao_search_fixture', '/* never closed'); }
 catch (error) { console.log(error.message); }
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nopenNative: unsupported or invalid C declarations: SyntaxError')"
 mv "$fixture_dir/libhao_search_fixture.dylib" "$fixture_dir/libhao_search_fixture.so"
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nunterminated C block comment')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-search.ts")" = "$(printf '29\n4660\nhao_fail_handle failed\nstatus 7\n29\n37\n37\n4 12\n7 3.75\n2 11 4 9\nopenNative: unsupported or invalid C declarations: SyntaxError')"
 
 mkdir -p "$fixture_dir/app/node_modules/demo" "$fixture_dir/app/node_modules/@scope/tool" "$fixture_dir/vendor/external"
 mkdir -p "$fixture_dir/symlink-app" "$fixture_dir/symlink-target"

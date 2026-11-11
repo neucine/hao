@@ -20,10 +20,24 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
       if (error.message === 'duplicate C function') {
         throw invalidArg(`${operation}: declaration lowering failed: DuplicateFunctionName`, 'DuplicateFunctionName');
       }
+      if (error.message.startsWith('duplicate C parameter:')) {
+        throw invalidArg(`${operation}: declaration lowering failed: DuplicateParamName`, 'DuplicateParamName');
+      }
+      if (error.message.startsWith('duplicate C type:')) {
+        throw invalidArg(`${operation}: declaration lowering failed: DuplicateTypeName`, 'DuplicateTypeName');
+      }
+      const unknownType = /^unsupported C type: (?:const\s+)?([A-Za-z_]\w*)\s*$/.exec(error.message);
+      if (unknownType && !['short', 'int', 'long', 'unsigned', 'signed', 'volatile', 'restrict', 'const'].includes(unknownType[1])) {
+        throw invalidArg(`${operation}: declaration lowering failed: UnknownNamedType`, 'UnknownNamedType');
+      }
       if (error.message === 'unsupported C declarations' || error.message.startsWith('unsupported C type:')) {
         throw invalidArg(`${operation}: unsupported or invalid C declarations: UnsupportedFeature`, 'UnsupportedFeature');
       }
-      if (error.message === 'C declaration requires a terminating semicolon') {
+      if (error.message === 'C declaration requires a terminating semicolon' ||
+          error.message === 'unterminated C block comment' ||
+          error.message.startsWith('invalid C declaration:') ||
+          error.message.startsWith('invalid C parameter:') ||
+          error.message.startsWith('unsupported C typedef:')) {
         throw invalidArg(`${operation}: unsupported or invalid C declarations: SyntaxError`, 'SyntaxError');
       }
     }

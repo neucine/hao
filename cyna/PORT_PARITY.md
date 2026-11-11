@@ -186,6 +186,11 @@ improvement, with a smoke check.
   function pointer declarations, and missing semicolons. The smoke suite
   covers these `prepareNative` cases; other declaration forms and option
   combinations still need comparison.
+  A second declaration matrix now matches Zig for empty declarations, an
+  opaque typedef without functions, duplicate parameter and type names,
+  unknown named types, and several malformed declarations. Zig accepts a
+  self-referential POD declaration while Cyna's eager layout builder rejects
+  it; that remaining difference needs a separate layout decision.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from
