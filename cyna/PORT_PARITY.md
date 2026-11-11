@@ -163,6 +163,13 @@ improvement, with a smoke check.
   the configured code and an `internal` fallback for unrecognized codes. A
   shared native function probe matched the name, code, and message for both
   `io_error` and an unknown policy code.
+  The exported `std:ffi/c/native` `prepareNative` function now returns Zig's
+  `{ descriptor, policies }` shape instead of exposing Cyna's internal parser
+  record. Direct Zig/Cyna comparisons matched scalar descriptors and an
+  inferred opaque handle output policy. The smoke suite also checks that
+  policy forms Zig cannot represent in a descriptor report the same
+  `RuntimeError` category. More declaration and option combinations remain
+  to be compared.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.

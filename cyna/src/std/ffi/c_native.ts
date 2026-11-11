@@ -12,9 +12,32 @@ const runtimeErrorCodes = new Set([
   'unsupported_lowering', 'internal', 'thread_pool_unavailable',
 ]);
 
-export function prepareNative(name: string, declarations: string, opts?: any): Prepared {
+function prepareSpec(name: string, declarations: string, opts?: any): Prepared {
   if (typeof name !== 'string' || !name) throw invalidArg('cdecl: invalid library name');
   return parse(declarations, opts);
+}
+export function prepareNative(name: string, declarations: string, opts?: any): {
+  descriptor: Record<string, { args: string[]; returns: string }>;
+  policies: { handles: Record<string, { close?: string }>; functions: Record<string, any> };
+} {
+  const prepared = prepareSpec(name, declarations, opts);
+  const descriptor: Record<string, { args: string[]; returns: string }> = {};
+  const functions: Record<string, any> = {};
+  for (const fn of prepared.functions) {
+    const policy = prepared.policies?.functions?.[fn.name];
+    if (policy?.errors || Object.keys(policy?.buffers ?? {}).length) {
+      throw new RuntimeError('internal', 'prepareNative: failed to build descriptor');
+    }
+    descriptor[fn.name] = { args: fn.params.map(param => param.type), returns: fn.returns };
+    let type = policy?.returns?.kind === 'handle' ? policy.returns.type : undefined;
+    if (!type && policy?.returns?.out) {
+      const output = fn.params.find(param => param.name === policy.returns.out);
+      const match = /^([A-Za-z_]\w*)\s*\*\s*\*$/.exec(output?.rawType ?? '');
+      if (match && prepared.opaqueTypes.includes(match[1])) type = match[1];
+    }
+    if (type) functions[fn.name] = { returns: { kind: 'handle', type } };
+  }
+  return { descriptor, policies: { handles: prepared.policies?.handles ?? {}, functions } };
 }
 function openWithSearch(name: string, search: any): number {
   const open = (candidate: string): number | null => {
@@ -43,7 +66,7 @@ function openWithSearch(name: string, search: any): number {
   throw invalidArg('library unavailable');
 }
 export function openNative(name: string, declarations: string, opts?: any): { handle: number; symbols: string[]; policies: any } {
-  const prepared = prepareNative(name, declarations, opts);
+  const prepared = prepareSpec(name, declarations, opts);
   let handle: number;
   try { handle = openWithSearch(name, prepared.policies?.search); }
   catch (_) { throw new RuntimeError('io_error', 'openNative: failed to open library'); }

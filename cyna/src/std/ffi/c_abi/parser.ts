@@ -84,7 +84,7 @@ export function parse(declarations: string, opts: any): Prepared {
         if (params.some(item => item.name === param[2])) throw invalidArg(`duplicate C parameter: ${param[2]}`);
         const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
         const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;
-        params.push({ name: param[2], type: ffiType(param[1]), pod });
+        params.push({ name: param[2], type: ffiType(param[1]), pod, rawType: param[1].trim() });
         rawParams.push({ name: param[2], type: param[1].trim() });
         typeReferences.push(param[1]);
       }
@@ -148,5 +148,5 @@ export function parse(declarations: string, opts: any): Prepared {
       }
     }
   }
-  return { symbols: functions.map(item => item.name), functions, policies: opts ?? {}, pods };
+  return { symbols: functions.map(item => item.name), functions, policies: opts ?? {}, pods, opaqueTypes: [...opaqueTypes] };
 }

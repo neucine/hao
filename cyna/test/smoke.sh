@@ -710,6 +710,20 @@ typedef struct { uint8_t tag; HaoPoint point; int16_t tail; } HaoNested;
 void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
+cat > "$fixture_dir/ffi-c-prepare.ts" <<'EOF'
+import { prepareNative } from 'std:ffi/c/native';
+console.log(JSON.stringify(prepareNative('m', 'double sqrt(double x);')));
+console.log(JSON.stringify(prepareNative('x',
+  'typedef struct Foo Foo; int32_t hao_open(Foo **out);',
+  { functions: { hao_open: { returns: { out: 'out' } } } })));
+try { prepareNative('m', 'double sqrt(double x);',
+  { functions: { sqrt: { errors: { kind: 'status', ok: 0, code: 'io_error' } } } }); }
+catch (error) { console.log(error.name, error.code, error.message); }
+EOF
+test "$("$runtime" "$fixture_dir/ffi-c-prepare.ts")" = "$(printf '%s\n%s\n%s' \
+  '{"descriptor":{"sqrt":{"args":["f64"],"returns":"f64"}},"policies":{"handles":{},"functions":{}}}' \
+  '{"descriptor":{"hao_open":{"args":["ptr"],"returns":"i32"}},"policies":{"handles":{},"functions":{"hao_open":{"returns":{"kind":"handle","type":"Foo"}}}}}' \
+  'RuntimeError internal prepareNative: failed to build descriptor')"
 cat > "$fixture_dir/ffi-c-policy-error.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
