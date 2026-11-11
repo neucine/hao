@@ -81,6 +81,13 @@ improvement, with a smoke check.
   when a file grows during the read, matching Zig's read path. Concurrent
   mutation during a read has not been exercised directly.
 
+- The `std:process` native boundary matched Zig in a direct matrix covering
+  malformed options, argument arrays, working directories, output limits,
+  exit codes, and environment lookup. The smoke suite now retains the
+  representative option errors alongside its existing subprocess and NUL
+  cases. The Cyna console preserves the embedded NUL in a printed input
+  label where Zig truncates it; both lookups return the same environment value.
+
 - The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
   `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
   serviced turn even when its final handle closes. `Loop.run_until_idle` also
