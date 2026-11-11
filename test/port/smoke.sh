@@ -664,6 +664,14 @@ for flag in ('1', 'true', 'yes', 'on'):
             'resident_bytes', 'physical_footprint_bytes',
             'resident_peak_bytes', 'physical_footprint_peak_bytes',
         } <= memory_names
+        memory = {metric['name']: metric['value'] for metric in metrics
+                  if metric['scope'] == 'runtime.memory'}
+        assert memory['resident_peak_bytes'] >= memory['resident_bytes'] > 0
+        assert memory['physical_footprint_peak_bytes'] >= memory['physical_footprint_bytes'] > 0
+        next_memory = {metric['name']: metric['value'] for metric in json.loads(get('/api/metrics'))
+                       if metric['scope'] == 'runtime.memory'}
+        assert next_memory['resident_peak_bytes'] >= memory['resident_peak_bytes']
+        assert next_memory['physical_footprint_peak_bytes'] >= memory['physical_footprint_peak_bytes']
         traces = json.loads(get('/api/traces?since=0&limit=10'))
         assert [record['kind'] for record in traces['records'] if record['name'] == 'fixture-trace'] == ['span_start', 'span_end']
         assert [record['kind'] for record in traces['records'] if record['name'] in ('fixture-event', 'fixture-received')] == ['span_start', 'event', 'span_end']

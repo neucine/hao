@@ -4,13 +4,21 @@
 #include <uv.h>
 #include "../runtime_allocator.h"
 #include <stdint.h>
+#include <stdatomic.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "../../../include/addon.h"
 
-static uint64_t resident_peak_bytes;
-static uint64_t physical_footprint_peak_bytes;
+static _Atomic uint64_t resident_peak_bytes;
+static _Atomic uint64_t physical_footprint_peak_bytes;
+
+static uint64_t update_peak(_Atomic uint64_t *peak, uint64_t value) {
+    uint64_t current = atomic_load_explicit(peak, memory_order_relaxed);
+    while (value > current && !atomic_compare_exchange_weak_explicit(
+            peak, &current, value, memory_order_relaxed, memory_order_relaxed)) {}
+    return atomic_load_explicit(peak, memory_order_relaxed);
+}
 
 typedef struct {
     char *scope, *name, *unit;
@@ -191,9 +199,8 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     HaoAllocatorStats allocator = hao_allocator_stats();
     uint64_t resident_bytes = 0, physical_footprint_bytes = 0;
     hao_process_memory_snapshot(&resident_bytes, &physical_footprint_bytes);
-    if (resident_bytes > resident_peak_bytes) resident_peak_bytes = resident_bytes;
-    if (physical_footprint_bytes > physical_footprint_peak_bytes)
-        physical_footprint_peak_bytes = physical_footprint_bytes;
+    uint64_t resident_peak = update_peak(&resident_peak_bytes, resident_bytes);
+    uint64_t physical_footprint_peak = update_peak(&physical_footprint_peak_bytes, physical_footprint_bytes);
     JSValue result = JS_NewObject(ctx);
     if (JS_IsException(result)) return result;
 #define GAUGE(name, value) JS_SetPropertyStr(ctx, result, name, JS_NewFloat64(ctx, (double)(value)))
@@ -228,8 +235,8 @@ static JSValue memory_snapshot(JSContext *ctx, JSValueConst this_val, int argc, 
     GAUGE("allocator_free_count", allocator.free_count);
     GAUGE("resident_bytes", resident_bytes);
     GAUGE("physical_footprint_bytes", physical_footprint_bytes);
-    GAUGE("resident_peak_bytes", resident_peak_bytes);
-    GAUGE("physical_footprint_peak_bytes", physical_footprint_peak_bytes);
+    GAUGE("resident_peak_bytes", resident_peak);
+    GAUGE("physical_footprint_peak_bytes", physical_footprint_peak);
 #undef GAUGE
     return result;
 }

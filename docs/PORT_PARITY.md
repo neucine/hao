@@ -109,6 +109,10 @@ reject result.
   A live console comparison found that `/api/metrics` includes all ten Zig
   host memory metric names. Cyna also exposes QuickJS metrics supplied by
   `std.telemetry`; the smoke suite now guards the shared host metric set.
+  The native telemetry adapter now updates resident and physical footprint
+  peaks with atomic compare and exchange, matching Zig's process wide peak
+  counters. The live console check verifies each peak is at least its current
+  reading and does not decrease across two snapshots.
   `/api/traces` returned matching cursor and record shapes in the sampled
   requests. Cyna now follows Zig's prefix route for `/tracesXYZ`; the smoke suite
   retains that case.
