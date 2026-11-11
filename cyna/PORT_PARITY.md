@@ -76,6 +76,8 @@ whose hook fails during the subsequent run. Complex hook combinations still
 need direct reporter comparisons.
 A malformed TypeScript test file now exits after Zig's `TranspileFailed` line,
 without a test summary; the smoke suite retains this fatal load path.
+An oversized test file similarly exits with `StreamTooLong` and no summary,
+matching a direct Zig/Cyna comparison at the 10 MiB read limit.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript

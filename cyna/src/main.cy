@@ -31,22 +31,19 @@ fn run_file(host: &const Runtime, path: string, test_file: bool): i32 {
         if test_file { return host.eval_test(content, path); }
         return host.eval(content, path);
     }
-    if test_file {
-        println("Unable to read script");
+    const bytes = path.bytes();
+    const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
+        10 * 1024 * 1024);
+    if reason == 2 {
+        write_stderr("NameTooLong\n");
+    } else if reason == 1 {
+        write_stderr("StreamTooLong\n");
+    } else if reason == 0 {
+        write_stderr("FileNotFound\n");
     } else {
-        const bytes = path.bytes();
-        const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
-            10 * 1024 * 1024);
-        if reason == 2 {
-            write_stderr("NameTooLong\n");
-        } else if reason == 1 {
-            write_stderr("StreamTooLong\n");
-        } else if reason == 0 {
-            write_stderr("FileNotFound\n");
-        } else {
-            write_stderr("FileReadFailed\n");
-        }
+        write_stderr("FileReadFailed\n");
     }
+    if test_file { return 2; }
     return 1;
 }
 

@@ -706,6 +706,16 @@ if "$runtime" test "$fixture_dir/syntax-error.test.ts" > "$fixture_dir/syntax-st
 fi
 test ! -s "$fixture_dir/syntax-stdout"
 test "$(tail -1 "$fixture_dir/syntax-stderr")" = 'TranspileFailed'
+python3 - "$fixture_dir/oversize.test.ts" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_bytes(b' ' * (10 * 1024 * 1024 + 1))
+PY
+if "$runtime" test "$fixture_dir/oversize.test.ts" > "$fixture_dir/oversize-stdout" 2> "$fixture_dir/oversize-stderr"; then
+    exit 1
+fi
+test ! -s "$fixture_dir/oversize-stdout"
+test "$(tail -1 "$fixture_dir/oversize-stderr")" = 'StreamTooLong'
 cat > "$fixture_dir/grep-suite.test.ts" <<'EOF'
 import { describe, test } from 'std:test';
 describe('needle suite', () => test('plain case', () => { throw Error('suite name must not match grep'); }));
