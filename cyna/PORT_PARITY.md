@@ -6,7 +6,11 @@ currently exercises 20 files and 82 cases; it does not cover every Zig source
 boundary.
 On the current trees, `hao test test/e2e` passed 67 Zig cases with 7 skips and
 75 Cyna cases with 7 skips. The Cyna branch adds eight cases, so these totals
-are suite health evidence rather than proof of behavior parity.
+are suite health evidence rather than proof of behavior parity. Running the
+unchanged `legacy` suite under the Cyna binary with
+`python3 cyna/test/legacy_e2e.py` also passes 67 cases with 7 skips. This
+directly checks legacy suite behavior under Cyna while leaving untested source
+boundaries in the open list below.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `cyna/src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
