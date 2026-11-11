@@ -37,7 +37,7 @@ jobs:
       contents: read
       actions: read
     env:
-      GH_TOKEN: ${{ secrets.DEPENDENCY_READ_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - name: Install native libraries
