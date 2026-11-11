@@ -5,7 +5,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../../include/addon.h"
+#include "../../include/addon.h"
 
 typedef struct {
     uint64_t resident_bytes;

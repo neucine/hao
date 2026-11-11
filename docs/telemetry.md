@@ -3,7 +3,7 @@
 `std:telemetry` exposes counters, gauges, histograms, metric snapshots, root
 and child spans, and the `trace(name, callback)` helper. The Cyna runtime
 stores metrics per runtime in its native adapter. Trace spans and a bounded
-record buffer currently live in `cyna/src/std/telemetry/native.ts`.
+record buffer currently live in `src/std/telemetry/native.ts`.
 
 ```ts
 import { counter, metrics, trace } from "std:telemetry"

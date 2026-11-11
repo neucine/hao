@@ -1,7 +1,11 @@
 .zig-cache/
+.cyna-cache/
+build/
+embed/build/
+checks/**/build/
 zig-out/
 zig-pkg/
-cyna/.deps/
+.deps/
 libs/transpiler/target/
 .hao-e2e-fs.txt
 .DS_Store

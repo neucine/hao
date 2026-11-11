@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 repo = Path(__file__).resolve().parents[2]
-runtime = (repo / "cyna/build/hao-cyna").resolve()
+runtime = (repo / "build/hao-cyna").resolve()
 legacy = next(
     (
         ref

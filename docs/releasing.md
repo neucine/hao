@@ -1,24 +1,24 @@
 # Releasing Hao
 
 The `main` branch contains the Cyna implementation. Its version is recorded in
-`cyna/cyna.toml`, `cyna/embed/cyna.toml`, and the CLI version output. Keep those
+`cyna.toml`, `embed/cyna.toml`, and the CLI version output. Keep those
 values together when preparing a release.
 
 Before tagging, build and verify on Apple Silicon macOS with Cyna
 `0.5.1-beta.1` installed:
 
 ```sh
-sh cyna/build.sh
-cyna check cyna
-cyna check cyna/embed
-sh cyna/test/smoke.sh
-./cyna/build/hao-cyna test test/e2e
+sh build.sh
+cyna check .
+cyna check embed
+sh test/port/smoke.sh
+./build/hao-cyna test test/e2e
 ```
 
 The build fetches pinned QuickJS and libuv archives, checks their SHA-256
 values, and builds them with a C compiler and CMake. Cargo builds the Rust
 TypeScript transpiler. The Cyna compiler builds the CLI and embedding archive.
-A release package should include the CLI, the `cyna/build/modules` directory,
+A release package should include the CLI, the `build/modules` directory,
 `include/addon.h`, `include/hao.h`, and the embedding archive with its link
 metadata and dependency libraries.
 

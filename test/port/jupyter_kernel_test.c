@@ -1,5 +1,5 @@
 #include <zmq.h>
-#include "../crypto.h"
+#include "../../crypto.h"
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -1,6 +1,6 @@
 #include "runtime_host.h"
 #include "runtime_allocator.h"
-#include "../../include/hao.h"
+#include "../include/hao.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

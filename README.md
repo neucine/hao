@@ -89,14 +89,14 @@ hao test test/e2e/runtime
 Build Hao on macOS arm64:
 
 Install Cyna 0.5.1-beta.1 before building. This compiler version currently
-requires a development distribution; see [Cyna build requirements](cyna/README.md).
+requires a development distribution; see [Cyna build requirements](docs/implementation.md).
 
 ```bash
-sh cyna/build.sh
-./cyna/build/hao-cyna path/to/main.ts
-./cyna/build/hao-cyna test test/e2e
+sh build.sh
+./build/hao-cyna path/to/main.ts
+./build/hao-cyna test test/e2e
 ```
 
 The implementation boundaries and additional checks are in
-[cyna/README.md](cyna/README.md). The previous Zig implementation is retained
+[docs/implementation.md](docs/implementation.md). The previous Zig implementation is retained
 on the `legacy` branch.

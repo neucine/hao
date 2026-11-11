@@ -31,7 +31,7 @@
     "skipLibCheck": true
   },
   "include": [
-    "../../types/native-host.d.ts",
+    "../types/native-host.d.ts",
     "std/**/*.d.ts",
     "std/runtime/index.ts",
     "std/fs/index.ts",

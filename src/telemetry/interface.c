@@ -1,6 +1,6 @@
 #include "../runtime_host.h"
 #include "../runtime_allocator.h"
-#include "../../../include/addon.h"
+#include "../../include/addon.h"
 #include <math.h>
 #include <string.h>
 

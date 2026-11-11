@@ -9,7 +9,7 @@ On the current trees, `hao test test/e2e` passed 67 Zig cases with 7 skips and
 75 Cyna cases with 7 skips. The Cyna branch adds eight cases, so these totals
 are suite health evidence rather than proof of behavior parity. Running the
 unchanged `legacy` suite under the Cyna binary with
-`python3 cyna/test/legacy_e2e.py` also passes 67 cases with 7 skips. This
+`python3 test/port/legacy_e2e.py` also passes 67 cases with 7 skips. This
 directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
 The `cyna-port` CI runs TypeScript, C header, and script checks. Native build
@@ -18,15 +18,15 @@ that compiler distribution is not published at the public download endpoint.
 The public 0.5.0 release also lacks `std.config`, which this port uses.
 The 0.5.1-beta.1 distribution was staged locally from Cyna PR #9 using the
 compiler-rt archives in the published 0.5.0 distribution. Its staged compiler
-successfully built Hao and its embedding library, and `cyna/test/smoke.sh`
+successfully built Hao and its embedding library, and `test/port/smoke.sh`
 passed with that compiler. The archive SHA-256 is
 `34cd1346773a1aa6d291ad1f3858494e66276ea074191ec802d48e7d35e24134`.
 This is local distribution verification; the beta remains unpublished.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
-under `cyna/src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
+under `src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
 intentional implementation locations:
-`python3 cyna/test/source_inventory.py` checks this inventory against the
+`python3 test/port/source_inventory.py` checks this inventory against the
 `legacy` Git tree, including the existence of every mapped port location;
 the `cyna-port` CI runs it after fetching `legacy`. This checks file coverage,
 while behavior parity still requires the comparisons below.
@@ -41,7 +41,7 @@ while behavior parity still requires the comparisons below.
 | `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `bridge.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
 | `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/telemetry/interface.c`, `src/std/telemetry/native.ts` | Cyna `std.telemetry` supplies the host backend; JavaScript keeps the public trace ring and cursor API. |
 | `telemetry/server.zig` | `src/std/telemetry/console.ts`, `src/telemetry/dashboard.html` | The telemetry console uses the ported HTTP server and existing dashboard. |
-| `transpiler.zig` | `bridge.c`, `src/module.c`, `../libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
+| `transpiler.zig` | `bridge.c`, `src/module.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
 
 The legacy TypeScript standard modules are byte identical in the port except
 `std/http/index.ts`: the Cyna tree separates its HTTP server into

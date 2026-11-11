@@ -7,7 +7,7 @@ import sys
 
 
 root = Path(__file__).resolve().parents[2]
-port = root / "cyna"
+port = root
 reference = sys.argv[1] if len(sys.argv) > 1 else "origin/legacy"
 source = subprocess.check_output(
     ["git", "ls-tree", "-r", "--name-only", reference, "--", "src"],
@@ -24,7 +24,7 @@ if not zig_files:
     raise SystemExit(f"no Zig source files found in {reference}")
 
 exceptions: dict[str, list[str]] = {}
-for line in (port / "PORT_PARITY.md").read_text().splitlines():
+for line in (port / "docs/PORT_PARITY.md").read_text().splitlines():
     columns = line.split("|")
     if len(columns) < 4 or ".zig`" not in columns[1]:
         continue

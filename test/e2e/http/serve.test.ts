@@ -40,7 +40,7 @@ test('native server enforces request and response limits', async () => {
 
 test('native server validates wire framing and expires incomplete or slow requests', async () => {
   const { run } = await import('std:process')
-  const result = await run({ cmd: 'python3', args: ['test/e2e/http/server-wire.py', 'cyna/build/hao-cyna'], check: false })
+  const result = await run({ cmd: 'python3', args: ['test/e2e/http/server-wire.py', 'build/hao-cyna'], check: false })
   if (result.exitCode !== 0) throw Error(result.stderr)
   expect(result.stdout).toContain('checks passed')
 })

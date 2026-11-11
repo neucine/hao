@@ -22,10 +22,10 @@ jobs:
           printf '#include "hao.h"\n_Static_assert(HAO_EMBED_ABI_VERSION == 5, "embed ABI version");\n' | cc -Iinclude -x c -c -o /tmp/hao-embed-header.o -
       - name: Check build scripts
         run: |
-          sh -n cyna/build.sh
-          sh -n cyna/build_deps.sh
-          sh -n cyna/test/smoke.sh
+          sh -n build.sh
+          sh -n build_deps.sh
+          sh -n test/port/smoke.sh
       - name: Check Zig source inventory
         run: |
           git fetch --no-tags --depth=1 origin legacy:refs/remotes/origin/legacy
-          python3 cyna/test/source_inventory.py
+          python3 test/port/source_inventory.py

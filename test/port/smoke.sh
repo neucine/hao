@@ -2,7 +2,7 @@
 set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-runtime="$repo_root/cyna/build/hao-cyna"
+runtime="$repo_root/build/hao-cyna"
 fixture_dir=$(mktemp -d)
 trap 'rm -rf "$fixture_dir"' EXIT HUP INT TERM
 test "$("$runtime" --version)" = 'hao 0.1.2'
@@ -45,19 +45,19 @@ result = subprocess.run([sys.argv[1], str(Path(sys.argv[2]) / 'main.ts')],
 assert result.returncode == 1 and result.stdout == '' and result.stderr == 'error: StreamTooLong\n', result
 PY
 cyna_dir=$(CDPATH= cd -- "$(dirname -- "$(command -v cyna)")/.." && pwd -P)
-clang -I "$repo_root/include" -I "$repo_root/cyna/.deps/install/include" "$repo_root/cyna/test/embed_consumer.c" \
-    "$repo_root/cyna/embed/build/libhao-cyna-embed.a" \
+clang -I "$repo_root/include" -I "$repo_root/.deps/install/include" "$repo_root/test/port/embed_consumer.c" \
+    "$repo_root/embed/build/libhao-cyna-embed.a" \
     -L "$cyna_dir/targets/aarch64-apple-darwin/lib" -lcyna_std -lcyna \
-    -L "$repo_root/cyna/.deps/install/lib" -lquickjs -luv \
+    -L "$repo_root/.deps/install/lib" -lquickjs -luv \
     -L "$repo_root/libs/transpiler/target/release" -lhao_transpiler \
     -L /opt/homebrew/lib -lcurl -lffi -lzmq -lcrypto -o "$fixture_dir/embed-consumer" 2> "$fixture_dir/embed-link.log"
-test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$fixture_dir/embed-consumer" "$repo_root/cyna/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
-clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_wire_test.c" \
-    "$repo_root/cyna/src/jupyter/zmq.c" "$repo_root/cyna/src/runtime_allocator.c" \
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$fixture_dir/embed-consumer" "$repo_root/build/modules" 2> "$fixture_dir/embed-error.log")" = '42'
+clang -I /opt/homebrew/include "$repo_root/test/port/jupyter_wire_test.c" \
+    "$repo_root/src/jupyter/zmq.c" "$repo_root/src/runtime_allocator.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto \
     -o "$fixture_dir/jupyter-wire-test"
 test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'
-clang -I /opt/homebrew/include "$repo_root/cyna/test/jupyter_kernel_test.c" \
+clang -I /opt/homebrew/include "$repo_root/test/port/jupyter_kernel_test.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto -o "$fixture_dir/jupyter-kernel-test"
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime")" = 'kernel ok'
 test "$("$fixture_dir/jupyter-kernel-test" "$runtime" --shared)" = 'kernel ok'
@@ -77,7 +77,7 @@ EOF
 cat > "$fixture_dir/jupyter-explicit.json" <<'EOF'
 {"transport":"ipc","ip":"0.0.0.0","shell_port":1,"control_port":2,"iopub_port":3,"stdin_port":4,"hb_port":5,"key":"secret","signature_scheme":"hmac-sha256"}
 EOF
-cyna build "$repo_root/cyna/checks/jupyter-connection" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
+cyna build "$repo_root/checks/jupyter-connection" --output "$fixture_dir/jupyter-connection-check" > "$fixture_dir/jupyter-build.log" 2>&1
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-connection.json")" = "$(printf 'tcp://127.0.0.1:57503\n\nhmac-sha256')"
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-explicit.json")" = "$(printf 'ipc://0.0.0.0:1\nsecret\nhmac-sha256')"
 cat > "$fixture_dir/jupyter-exponent-port.json" <<'EOF'
@@ -111,7 +111,7 @@ with open(sys.argv[1], 'w') as output:
     output.write(prefix + 'x' * (64 * 1024 - len(prefix) - len(suffix)) + suffix)
 PY
 test "$("$fixture_dir/jupyter-connection-check" "$fixture_dir/jupyter-limit.json")" = "$(printf 'tcp://127.0.0.1:1\n\nhmac-sha256')"
-python3 "$repo_root/cyna/test/jupyter_cli.py" "$runtime"
+python3 "$repo_root/test/port/jupyter_cli.py" "$runtime"
 configured_actual=$(RUNTIME_QJS_STACK_SIZE=16777216 RUNTIME_QJS_GC_THRESHOLD=1048576 RUNTIME_LIBUV_THREADPOOL_SIZE=4 "$runtime" "$fixture_dir/main.ts")
 test "$configured_actual" = "$expected"
 test "$(RUNTIME_TELEMETRY_CONSOLE=OFF "$runtime" "$fixture_dir/main.ts")" = "$expected"
@@ -130,7 +130,7 @@ if RUNTIME_QJS_STACK_SIZE="$(printf '\t16777216')" "$runtime" "$fixture_dir/main
     echo 'expected leading whitespace in stack size to fail' >&2
     exit 1
 fi
-python3 "$repo_root/cyna/test/config_cli.py" "$runtime"
+python3 "$repo_root/test/port/config_cli.py" "$runtime"
 cat > "$fixture_dir/settings.env" <<'EOF'
 # startup settings and quoted values
 export HAO_DOTENV_TEST="loaded # intact"
@@ -183,7 +183,7 @@ addon_actual=$("$runtime" "$fixture_dir/addon.ts")
 test "$addon_actual" = "$(printf 'hao 5 a,b extra\nfalse true false\n2 -1\n15\nTypeError add expects two numbers\nTypeError add expects two numbers\nTypeError add expects two numbers\nTypeError add expects two numbers\n-1\n0\n0\n0\n2')"
 
 mkdir -p "$fixture_dir/node_modules/metric"
-clang -dynamiclib -I "$repo_root/include" "$repo_root/cyna/test/metric_addon.c" -o "$fixture_dir/node_modules/metric/native.dylib"
+clang -dynamiclib -I "$repo_root/include" "$repo_root/test/port/metric_addon.c" -o "$fixture_dir/node_modules/metric/native.dylib"
 cat > "$fixture_dir/node_modules/metric/package.json" <<'EOF'
 {"type":"module","exports":{"./native":"./native.dylib"}}
 EOF
@@ -414,7 +414,7 @@ download_actual=$("$runtime" "$fixture_dir/download.ts")
 download_expected=$(printf '200 4194304 2b07811057df887086f06a67edc6ebf911de8b6741156e7a2eb1416a4b8b1b2e 4194304\nlimited 4194304\nmissing 4194304\ntruncated 4194304\nparent 4194304\ncompressed 200000 200000')
 test "$download_actual" = "$download_expected"
 test "$(find "$fixture_dir" -name 'download.bin.hao-*' | wc -l | tr -d ' ')" = 0
-python3 "$repo_root/cyna/test/http_server.py" "$runtime" > "$fixture_dir/server-behavior"
+python3 "$repo_root/test/port/http_server.py" "$runtime" > "$fixture_dir/server-behavior"
 grep -q 'HTTP server behavior checks passed' "$fixture_dir/server-behavior"
 (cd "$repo_root" && python3 test/e2e/http/server-wire.py "$runtime") > "$fixture_dir/server-wire"
 grep -q 'wire framing and deadline checks passed' "$fixture_dir/server-wire"
@@ -1474,7 +1474,7 @@ if "$runtime" "$fixture_dir/app/unexported.ts" > "$fixture_dir/stdout" 2> "$fixt
     exit 1
 fi
 grep -q 'Package export not found: demo/private' "$fixture_dir/stderr"
-python3 "$repo_root/cyna/test/package_diagnostics.py" "$runtime"
+python3 "$repo_root/test/port/package_diagnostics.py" "$runtime"
 
 cat > "$fixture_dir/process.ts" <<'EOF'
 import { getEnv, run } from 'std:process';

@@ -4,7 +4,7 @@ The source tree follows the Zig `legacy` subsystem layout where Cyna imports
 permit it. [The parity ledger](PORT_PARITY.md) records direct comparisons,
 intentional improvements, and behavior that has not been exhaustively tested.
 The port retains the legacy TypeScript declarations under `src/std/`.
-Run `npx --yes --package typescript@5.9.3 tsc --project cyna/src/tsconfig.json`
+Run `npx --yes --package typescript@5.9.3 tsc --project src/tsconfig.json`
 to check the public module types and their implementations.
 
 This is the Cyna implementation for Apple Silicon macOS. It runs JavaScript
@@ -35,7 +35,7 @@ Ordinary objects use `std:util.inspect` for their text result.
 Top level `const`, `let`, and class declarations can be redefined in later cells.
 JavaScript execution errors include their stack in the Jupyter error reply.
 The build also produces a Cyna runtime static library with the C API in
-`include/hao.h`; the consumer example is `cyna/test/embed_consumer.c`.
+`include/hao.h`; the consumer example is `test/port/embed_consumer.c`.
 
 `src/runtime.cy` owns the runtime, `src/async/loop.cy` drives Promise jobs and
 libuv turns, and `src/fs.cy` owns
@@ -89,7 +89,7 @@ created on the event loop thread after each transfer completes.
 
 `std:test` uses Hao's existing TypeScript assertion and mock APIs with a Cyna
 hosted suite registry. Run a file or directory with
-`./cyna/build/hao-cyna test [--grep pattern] <file-or-dir>...`. The runner
+`./build/hao-cyna test [--grep pattern] <file-or-dir>...`. The runner
 supports async tests and hooks, skip and only modes, a failing exit status,
 reverse cleanup hook order, and blocked suites after failed setup.
 Directory discovery selects `.test.ts` files; explicit file paths can have
@@ -141,14 +141,14 @@ Builds currently require Apple Silicon macOS, Cyna 0.5.1-beta.1, Rust,
 CMake, a C compiler, and the Homebrew curl, libffi, zeromq, and openssl@3
 libraries. The pinned Cyna beta is not available from the public release
 installer yet, so use an installed development distribution of that version.
-From the Hao repository root, run `sh cyna/build.sh`, then
-`./cyna/build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
+From the Hao repository root, run `sh build.sh`, then
+`./build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust
 transpiler archive and pinned QuickJS and libuv C libraries through
-`cyna/build_deps.sh`, builds the Cyna
+`build_deps.sh`, builds the Cyna
 executable and embedding archive, and installs the module files.
 It verifies the dependency archive SHA-256 values before extracting them into
-the ignored `cyna/.deps/` directory.
+the ignored `.deps/` directory.
 
-Run `sh cyna/test/smoke.sh` after building to check TypeScript imports,
+Run `sh test/port/smoke.sh` after building to check TypeScript imports,
 `std:runtime`, `std:fs`, `std:process`, `std:plot`, package imports, timers,
 queued Promise jobs, and error exit behavior.

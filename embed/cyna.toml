@@ -10,4 +10,4 @@ include_paths = ["../.deps/install/include", "/opt/homebrew/include"]
 
 [link]
 libs = ["quickjs", "uv", "hao_transpiler", "curl", "ffi", "zmq", "crypto"]
-search_paths = ["../.deps/install/lib", "../../libs/transpiler/target/release", "/opt/homebrew/lib"]
+search_paths = ["../.deps/install/lib", "../libs/transpiler/target/release", "/opt/homebrew/lib"]

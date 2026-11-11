@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-deps="$repo_root/cyna/.deps"
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+deps="$repo_root/.deps"
 install="$deps/install"
 mkdir -p "$deps" "$install/include" "$install/lib"
 
@@ -35,7 +35,7 @@ fetch_source libuv \
     5f0557b90b1106de71951a3c3931de5e0430d78da1d9a10287ebc7a3f78ef8eb
 
 if ! grep -q 'JS_SetJobContextHooks' "$deps/quickjs/quickjs.h"; then
-    patch -d "$deps/quickjs" -p1 < "$repo_root/cyna/patches/quickjs-job-context.patch"
+    patch -d "$deps/quickjs" -p1 < "$repo_root/patches/quickjs-job-context.patch"
     rm -f "$install/lib/libquickjs.a"
 fi
 
