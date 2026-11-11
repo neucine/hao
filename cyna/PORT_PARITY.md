@@ -284,6 +284,12 @@ improvement, with a smoke check.
   recursive declaration successfully; Zig crashes on `callNative` with
   `{ f: {} }`, while Cyna returns that structured error and exits normally.
   The Cyna behavior avoids a host crash; its smoke suite covers this path.
+  Four further unchanged smoke fixtures ran under both binaries with identical
+  exit status, stdout, and stderr: policy errors, options purity, declaration
+  syntax, and named types. The tail of the broader preparation fixture also
+  matched after isolating it from Zig's recursive POD crash. These checks
+  cover the listed declaration and policy cases, while native call combinations
+  outside those fixtures remain open.
   A declaration matrix found a duplicate function error mismatch. Both
   `prepareNative` and `openNative` now report Zig's
   `declaration lowering failed: DuplicateFunctionName` message for this case.
