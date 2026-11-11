@@ -158,12 +158,14 @@ fn has_parent_segment(path: string): bool {
 }
 
 fn find_entry(root: string, entry: string, package_type: ?string): Resolution {
-    if entry.len() == 0 or entry.starts_with("/") or has_parent_segment(entry) {
+    if has_parent_segment(entry) {
         return failed(-1);
     }
     var relative = entry.clone();
     if entry.starts_with("./") {
         relative = entry.slice(2, entry.len());
+    } else if entry.starts_with("/") {
+        relative = entry.slice(1, entry.len());
     }
     const extensions: [9]string = ["", ".ts", ".js", ".mts", ".mjs", ".dylib", ".so", ".dll", ".node"];
     for extension in extensions {

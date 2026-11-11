@@ -600,3 +600,9 @@ improvement, with a smoke check.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.
+
+Package manifest resolution was compared across 17 export and main entry
+forms against the Zig executable. Empty `main` now reports an unsupported
+ESM entry after resolving the package directory, and a leading slash in an
+export resolves within the package root. All 17 outputs match; the retained
+port checks cover both formerly divergent forms.
