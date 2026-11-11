@@ -84,6 +84,10 @@ improvement, with a smoke check.
   call cannot race a subsequent open. It reads the initially sized content
   when a file grows during the read, matching Zig's read path. Concurrent
   mutation during a read has not been exercised directly.
+  A direct unreadable file probe found that Zig's `statSync` fails because it
+  opens the file before measuring its size, while Cyna's use of `stat` returned
+  the size. Cyna now opens and seeks the file like Zig, and the smoke suite
+  checks the permission error under a non-root user.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,

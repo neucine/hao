@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 extern int hao_fs_exists(const unsigned char *path);
 extern unsigned char *hao_fs_read_alloc_limited(const unsigned char *path,
@@ -69,13 +68,16 @@ static JSValue hao_fs_stat_sync(JSContext *ctx, JSValueConst this_val, int argc,
     if (argc < 1) return JS_ThrowTypeError(ctx, "statSync expects a path");
     const char *path = JS_ToCString(ctx, argv[0]);
     if (!path) return JS_EXCEPTION;
-    struct stat info;
-    int status = stat(path, &info);
+    FILE *file = fopen(path, "rb");
     JS_FreeCString(ctx, path);
-    if (status != 0) return JS_ThrowInternalError(ctx, "failed to stat file");
+    if (!file) return JS_ThrowInternalError(ctx, "failed to stat file");
+    int status = fseek(file, 0, SEEK_END);
+    long size = status == 0 ? ftell(file) : -1;
+    fclose(file);
+    if (size < 0) return JS_ThrowInternalError(ctx, "failed to stat file");
     JSValue result = JS_NewObject(ctx);
     if (JS_IsException(result)) return result;
-    JS_SetPropertyStr(ctx, result, "size", JS_NewFloat64(ctx, (double)info.st_size));
+    JS_SetPropertyStr(ctx, result, "size", JS_NewFloat64(ctx, (double)size));
     return result;
 }
 
