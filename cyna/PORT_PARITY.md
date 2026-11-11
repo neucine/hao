@@ -93,6 +93,9 @@ that adapter.
   2^63, and `UINT64_MAX` under both runtimes. The observed JavaScript numbers,
   including rounding above 2^53, matched. The Cyna smoke fixture now retains
   the `UINT64_MAX` and 2^53 + 1 checks.
+  Zig rejects a C function declaration with no final semicolon. Cyna's parser
+  previously accepted `double sqrt(double x)`; it now rejects that form, and
+  the smoke suite checks the rejected and accepted variants.
 
 This document is a source inventory and work list. Passing the current tests
 does not close these checks.

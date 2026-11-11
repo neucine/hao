@@ -703,6 +703,17 @@ typedef struct { uint8_t tag; HaoPoint point; int16_t tail; } HaoNested;
 void hao_update_nested(HaoNested *item) { item->point.x += 8; item->tail = 9; }
 EOF
 clang -dynamiclib "$fixture_dir/ffi-search.c" -o "$fixture_dir/libhao_search_fixture.dylib"
+cat > "$fixture_dir/ffi-terminator.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+for (const declaration of ['double sqrt(double x)', 'double sqrt(double x);']) {
+  try {
+    const library = cdecl('m', declaration);
+    console.log('accepted', library.sqrt(4));
+    library.close();
+  } catch (_) { console.log('rejected'); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/ffi-terminator.ts")" = "$(printf 'rejected\naccepted 2')"
 cat > "$fixture_dir/ffi-char.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
