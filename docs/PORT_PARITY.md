@@ -84,6 +84,13 @@ reject result.
   began rejecting embedded NUL bytes in names and values with Zig's
   `InvalidEnvName` and `InvalidEnvValue` diagnostics. The CLI fixture retains
   those two invalid input cases.
+  A retained `test/port/telemetry_metrics_differential.py` compares metric
+  definition validation, negative counter deltas, NaN and infinity handling,
+  and histogram extrema with the Zig executable. It exposed nonfinite value
+  rejection, missing counter validation, wrong histogram snapshot values, and
+  different error categories. `telemetry/metrics.cy` now owns these rules; the
+  corrected C adapter retains registry storage and QuickJS conversion. The
+  fixture matches legacy after the fix.
   A live console comparison found that `/api/metrics` includes all ten Zig
   host memory metric names. Cyna also exposes QuickJS metrics supplied by
   `std.telemetry`; the smoke suite now guards the shared host metric set.

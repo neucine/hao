@@ -10,6 +10,7 @@ import { host as telemetry_host } from .telemetry.interface;
 // C adapters call these exports after the runtime is constructed.
 import { snapshot_c } from .process_memory;
 import { install_runtime_error } from .errors;
+import { metric_kind } from .telemetry.metrics;
 import { Backend } from std.telemetry;
 
 
