@@ -13,8 +13,40 @@ const runtimeErrorCodes = new Set([
 ]);
 const runtimeArg = (message: string) => new RuntimeError('invalid_arg', message);
 
+function validatePolicyOptions(opts: any, operation: string): void {
+  const invalid = () => { throw invalidArg(`${operation}: invalid options: InvalidArgument`, 'InvalidArgument'); };
+  if (opts == null) return;
+  if (typeof opts !== 'object') invalid();
+  const functions = opts.functions;
+  if (functions == null) return;
+  if (typeof functions !== 'object') invalid();
+  for (const policy of Object.values(functions) as any[]) {
+    if (!policy || typeof policy !== 'object') invalid();
+    const returns = policy.returns;
+    if (returns != null) {
+      if (typeof returns !== 'object') invalid();
+      if (returns.kind != null && String(returns.kind) !== 'handle') invalid();
+    }
+    const errors = policy.errors;
+    if (errors != null) {
+      if (typeof errors !== 'object') invalid();
+      if (!['status', 'null', 'sentinel'].includes(String(errors.kind))) invalid();
+    }
+    const buffers = policy.buffers;
+    if (buffers != null) {
+      if (typeof buffers !== 'object') invalid();
+      for (const buffer of Object.values(buffers) as any[]) {
+        if (!buffer || typeof buffer !== 'object') invalid();
+        if (!['u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', 'f32', 'f64'].includes(String(buffer.element)) ||
+            buffer.direction != null && !['in', 'out', 'inout'].includes(String(buffer.direction))) invalid();
+      }
+    }
+  }
+}
+
 function prepareSpec(name: string, declarations: string, opts: any, operation: string): Prepared {
   if (typeof name !== 'string' || !name) throw invalidArg('cdecl: invalid library name');
+  validatePolicyOptions(opts, operation);
   try { return parse(declarations, opts); }
   catch (error) {
     if (error instanceof RuntimeError) {
@@ -32,6 +64,9 @@ function prepareSpec(name: string, declarations: string, opts: any, operation: s
       }
       if (error.message.startsWith('unknown C function policy:')) {
         throw invalidArg(`${operation}: declaration lowering failed: UnknownFunctionOption`, 'UnknownFunctionOption');
+      }
+      if (error.message.startsWith('invalid C handle return policy:')) {
+        throw invalidArg(`${operation}: declaration lowering failed: UnknownHandleType`, 'UnknownHandleType');
       }
       if (error.message === 'unknown C output parameter') {
         throw invalidArg(`${operation}: declaration lowering failed: UnknownOutParam`, 'UnknownOutParam');

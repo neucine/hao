@@ -134,14 +134,14 @@ export function parse(declarations: string, opts: any): Prepared {
     if (!functions.some(item => item.name === name)) throw invalidArg(`unknown C function policy: ${name}`);
     const policy = opts.functions[name];
     const fn = functions.find(item => item.name === name)!;
-    if (policy?.returns?.out) {
-      const out = functions.find(item => item.name === name)!.params.find(param => param.name === policy.returns.out);
-      if (!out) throw invalidArg('unknown C output parameter');
-      if (out.type !== 'ptr') throw invalidArg('C output parameter is not a pointer');
-    }
     if (policy?.returns?.kind === 'handle' &&
         (!opaqueTypes.has(policy.returns.type) || fn.returns !== 'ptr')) {
       throw invalidArg(`invalid C handle return policy: ${name}`);
+    }
+    if (policy?.returns?.out) {
+      const out = fn.params.find(param => param.name === policy.returns.out);
+      if (!out) throw invalidArg('unknown C output parameter');
+      if (out.type !== 'ptr') throw invalidArg('C output parameter is not a pointer');
     }
     for (const [pointerName, buffer] of Object.entries(policy?.buffers ?? {}) as [string, any][]) {
       const pointer = fn.params.find(param => param.name === pointerName);
