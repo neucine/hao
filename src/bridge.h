@@ -4,7 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-uintptr_t hao_runtime_new(void);
+uintptr_t hao_runtime_new(size_t stack_size, size_t gc_threshold, size_t thread_pool_size,
+                          size_t trace_records, int console_enabled);
 void hao_runtime_free(uintptr_t handle);
 int hao_runtime_start_tests(uintptr_t handle, const char *grep, size_t grep_len);
 int hao_runtime_test_failures(uintptr_t handle);
@@ -19,8 +20,6 @@ int hao_runtime_eval(uintptr_t handle, const char *source, size_t source_len, co
 int hao_runtime_eval_test(uintptr_t handle, const char *source, size_t source_len, const char *filename, size_t filename_len);
 int hao_runtime_drain(uintptr_t handle);
 int hao_runtime_run_turn(uintptr_t handle);
-int hao_runtime_size_settings_valid(void);
-int hao_runtime_trace_limit_exceeded(void);
 int hao_embed_bytes_valid(const unsigned char *pointer, size_t length);
 void hao_embed_clear_error(uintptr_t handle);
 void hao_embed_invalid_buffer(uintptr_t handle);

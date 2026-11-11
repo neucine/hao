@@ -1,4 +1,5 @@
-pub extern c("hao_runtime_new") fn runtime_new(): c_size_t;
+pub extern c("hao_runtime_new") fn runtime_new(stack_size: c_size_t, gc_threshold: c_size_t,
+    thread_pool_size: c_size_t, trace_records: c_size_t, console_enabled: c_int): c_size_t;
 pub extern c("hao_runtime_free") fn runtime_free(handle: c_size_t): void;
 pub extern c("hao_runtime_start_tests") fn runtime_start_tests(handle: c_size_t, grep: *const c_uchar, grep_len: c_size_t): c_int;
 pub extern c("hao_runtime_test_failures") fn runtime_test_failures(handle: c_size_t): c_int;
@@ -13,8 +14,6 @@ pub extern c("hao_runtime_eval") fn runtime_eval(handle: c_size_t, source: *cons
 pub extern c("hao_runtime_eval_test") fn runtime_eval_test(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): c_int;
 pub extern c("hao_runtime_drain") fn runtime_drain(handle: c_size_t): c_int;
 pub extern c("hao_runtime_run_turn") fn runtime_run_turn(handle: c_size_t): c_int;
-pub extern c("hao_runtime_size_settings_valid") fn size_settings_valid(): c_int;
-pub extern c("hao_runtime_trace_limit_exceeded") fn trace_limit_exceeded(): c_int;
 pub extern c("hao_embed_bytes_valid") fn bytes_valid(pointer: *const c_uchar, length: c_size_t): c_int;
 pub extern c("hao_embed_clear_error") fn clear_error(handle: c_size_t): void;
 pub extern c("hao_embed_invalid_buffer") fn invalid_buffer(handle: c_size_t): void;

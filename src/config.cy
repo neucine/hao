@@ -5,6 +5,47 @@ import { parse_bool, parse_positive_usize, ConfigError } from std.config;
 
 import { script_read_error } from .fs_limit;
 
+pub struct RuntimeSizeSettings {
+    pub stack_size: usize;
+    pub gc_threshold: usize;
+    pub thread_pool_size: usize;
+    pub trace_records: usize;
+}
+
+fn positive_size(raw: string): usize ! ConfigError {
+    var digits = raw.clone();
+    if digits.starts_with("+") {
+        digits = digits.slice(1, digits.len());
+    }
+    return parse_positive_usize(digits);
+}
+
+pub fn runtime_size_settings(): RuntimeSizeSettings ! ConfigError {
+    var result = RuntimeSizeSettings {
+        stack_size: 8 * 1024 * 1024,
+        gc_threshold: 0,
+        thread_pool_size: 0,
+        trace_records: 4096
+    };
+    if env_get("RUNTIME_QJS_STACK_SIZE") is raw {
+        result.stack_size = try positive_size(raw);
+    }
+    if env_get("RUNTIME_QJS_GC_THRESHOLD") is raw {
+        if raw.len() != 0 { result.gc_threshold = try positive_size(raw); }
+    }
+    if env_get("RUNTIME_LIBUV_THREADPOOL_SIZE") is raw {
+        if raw.len() != 0 { result.thread_pool_size = try positive_size(raw); }
+    }
+    if env_get("RUNTIME_TELEMETRY_TRACE_RECORDS") is raw {
+        result.trace_records = try positive_size(raw);
+    }
+    return result;
+}
+
+pub fn trace_limit_exceeded(sizes: &const RuntimeSizeSettings, console_enabled: bool): bool {
+    return console_enabled and sizes.trace_records > 1048576;
+}
+
 pub struct TelemetryConsoleSettings {
     pub enabled: bool;
     pub port: u16;

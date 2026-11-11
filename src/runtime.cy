@@ -1,10 +1,11 @@
 import { runtime_new, runtime_free, runtime_start_tests, runtime_test_failures, runtime_set_test_file_counts, runtime_set_executable, runtime_eval_cell, runtime_free_text, runtime_drain_test, runtime_set_telemetry_console, runtime_set_native_stack_trace } from .bridge;
 import { text_from_c } from .c_bytes;
+import { write_stderr } from .stderr;
 import { Loop } from .async.loop;
 import { install as install_console } from .global.console;
 import { install as install_timer } from .global.timer;
 import { eval as eval_module, eval_test as eval_test_module, register_source } from .modules;
-import { telemetry_console_settings, native_stack_trace_enabled } from .config;
+import { telemetry_console_settings, native_stack_trace_enabled, runtime_size_settings } from .config;
 import { host as telemetry_host } from .telemetry.interface;
 import { Backend } from std.telemetry;
 
@@ -13,23 +14,26 @@ pub struct Runtime {
     pub handle: c_size_t;
 
     pub fn init(): ?Runtime {
+        const sizes = runtime_size_settings() catch (code) {
+            write_stderr("Invalid Hao runtime size setting\n");
+            return none;
+        };
         const console = telemetry_console_settings() catch (code) {
             return none;
         };
         const native_stack = native_stack_trace_enabled() catch (code) {
             return none;
         };
-        const handle = runtime_new();
+        var console_enabled: c_int = 0;
+        if console.enabled { console_enabled = 1; }
+        const handle = runtime_new(sizes.stack_size as c_size_t, sizes.gc_threshold as c_size_t,
+            sizes.thread_pool_size as c_size_t, sizes.trace_records as c_size_t, console_enabled);
         if handle == 0 {
             return none;
         }
         if install_console(handle) != 0 or install_timer(handle) != 0 {
             runtime_free(handle);
             return none;
-        }
-        var console_enabled: c_int = 0;
-        if console.enabled {
-            console_enabled = 1;
         }
         runtime_set_telemetry_console(handle, console_enabled, console.port as c_ushort);
         var stack_enabled: c_int = 0;

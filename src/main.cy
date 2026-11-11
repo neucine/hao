@@ -1,30 +1,19 @@
-import { size_settings_valid, trace_limit_exceeded } from .bridge;
 import { test_print_load } from .global.console_native;
+import { write_stderr } from .stderr;
 import { args, exe_path } from std.process;
 import { read_file_limited } from .fs;
 import { script_read_error } from .fs_limit;
 import { Runtime } from .runtime;
 import { install } from .std;
 import { collect, sort } from .std.test_files;
-import { load_dotenv, telemetry_console_settings, native_stack_trace_enabled } from .config;
+import { load_dotenv, telemetry_console_settings, native_stack_trace_enabled, runtime_size_settings, trace_limit_exceeded } from .config;
 import { run as run_jupyter } from .jupyter.main;
 import { install as install_jupyter } from .jupyter.install;
 import { string as hao_version } from .version;
 
 
-extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
-
-fn write_stderr(message: string): void {
-    const bytes = message.bytes();
-    if write_fd(2, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) < 0 { return; }
-}
-
 fn usage(): void {
-    const message = "Usage:\n  hao <file.ts|file.js>\n  hao test [--grep pattern] <file-or-dir>...\n  hao jupyter --connection-file <file>\n  hao jupyter install\n  hao --version\n";
-    const bytes = message.bytes();
-    if write_fd(2, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) < 0 {
-        return;
-    }
+    write_stderr("Usage:\n  hao <file.ts|file.js>\n  hao test [--grep pattern] <file-or-dir>...\n  hao jupyter --connection-file <file>\n  hao jupyter install\n  hao --version\n");
 }
 
 fn run_file(host: &const Runtime, path: string, test_file: bool): i32 {
@@ -68,10 +57,10 @@ fn main(): i32 {
         return 1;
     }
     // Zig loads and validates configuration before dispatching even --version.
-    if size_settings_valid() == 0 {
+    const sizes = runtime_size_settings() catch (code) {
         write_stderr("error: BadConfigValue\n");
         return 1;
-    }
+    };
     const console_settings = telemetry_console_settings() catch (code) {
         write_stderr("error: BadConfigValue\n");
         return 1;
@@ -140,7 +129,7 @@ fn main(): i32 {
         }
         sort(&test_files);
     }
-    if trace_limit_exceeded() != 0 {
+    if trace_limit_exceeded(&sizes, console_settings.enabled) {
         write_stderr("error: TelemetryTraceLimitExceeded\n");
         return 1;
     }

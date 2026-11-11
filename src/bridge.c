@@ -4,59 +4,11 @@
 #include "runtime_allocator.h"
 #include <uv.h>
 #include <stdbool.h>
-#include <ctype.h>
-#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <unistd.h>
-
-static bool positive_size_env(const char *name, size_t *out, bool *present) {
-    const char *value = getenv(name);
-    *present = value != NULL;
-    if (!*present) return true;
-    if (!*value || *value == '-' || isspace((unsigned char)*value)) return false;
-    errno = 0;
-    char *end = NULL;
-    unsigned long long parsed = strtoull(value, &end, 10);
-    if (errno || !end || *end || parsed == 0 || parsed > SIZE_MAX) return false;
-    *out = (size_t)parsed;
-    return true;
-}
-
-static bool optional_positive_size_env(const char *name, size_t *out, bool *present) {
-    const char *value = getenv(name);
-    if (value && !*value) {
-        *present = false;
-        return true;
-    }
-    return positive_size_env(name, out, present);
-}
-
-int hao_runtime_size_settings_valid(void) {
-    size_t value = 0;
-    bool present = false;
-    if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &value, &present) ||
-        !optional_positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &value, &present) ||
-        !optional_positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &value, &present) ||
-        !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &value, &present)) return 0;
-    return 1;
-}
-
-static bool telemetry_console_requested(void) {
-    const char *value = getenv("RUNTIME_TELEMETRY_CONSOLE");
-    return value && (!strcmp(value, "1") || !strcasecmp(value, "true") ||
-                     !strcasecmp(value, "yes") || !strcasecmp(value, "on"));
-}
-
-int hao_runtime_trace_limit_exceeded(void) {
-    size_t capacity = 4096;
-    bool present = false;
-    return positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &capacity, &present) &&
-           capacity > 1048576 && telemetry_console_requested();
-}
 
 #include "runtime_host.h"
 #include "std/fs/native.h"
@@ -236,22 +188,13 @@ size_t hao_embed_last_error(uintptr_t handle, unsigned char *output, size_t capa
     return length;
 }
 
-uintptr_t hao_runtime_new(void) {
-    size_t stack_size = 8 * 1024 * 1024, gc_threshold = 0, thread_pool_size = 0;
-    size_t trace_records = 4096;
-    bool stack_present = false, gc_present = false, pool_present = false, trace_present = false;
-    if (!positive_size_env("RUNTIME_QJS_STACK_SIZE", &stack_size, &stack_present) ||
-        !optional_positive_size_env("RUNTIME_QJS_GC_THRESHOLD", &gc_threshold, &gc_present) ||
-        !optional_positive_size_env("RUNTIME_LIBUV_THREADPOOL_SIZE", &thread_pool_size, &pool_present) ||
-        !positive_size_env("RUNTIME_TELEMETRY_TRACE_RECORDS", &trace_records, &trace_present)) {
-        fprintf(stderr, "Invalid Hao runtime size setting\n");
-        return 0;
-    }
-    if (hao_runtime_trace_limit_exceeded()) {
+uintptr_t hao_runtime_new(size_t stack_size, size_t gc_threshold, size_t thread_pool_size,
+                          size_t trace_records, int console_enabled) {
+    if (console_enabled && trace_records > 1048576) {
         fprintf(stderr, "error: TelemetryTraceLimitExceeded\n");
         return 0;
     }
-    if (pool_present) {
+    if (thread_pool_size) {
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%zu", thread_pool_size);
         if (setenv("UV_THREADPOOL_SIZE", buffer, 1) != 0) return 0;
@@ -269,7 +212,7 @@ uintptr_t hao_runtime_new(void) {
         return 0;
     }
     JS_SetMaxStackSize(host->runtime, stack_size);
-    if (gc_present) JS_SetGCThreshold(host->runtime, gc_threshold);
+    if (gc_threshold) JS_SetGCThreshold(host->runtime, gc_threshold);
     JS_SetHostPromiseRejectionTracker(host->runtime, hao_on_rejection, host);
     JS_SetJobContextHooks(host->runtime, hao_job_trace_capture, hao_job_trace_enter,
                           hao_job_trace_leave, hao_job_trace_release, host);
