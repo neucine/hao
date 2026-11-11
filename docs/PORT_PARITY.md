@@ -544,7 +544,12 @@ improvement, with a smoke check.
   result types and `TypeError FFI: library has been closed`. The Cyna smoke
   fixture now checks a successful call before the duplicate close. The shared
   FFI end to end suite passes 4 Zig cases and 7 Cyna cases; three added Cyna
-  cases cover invalid declarations and multiline type parsing. These checks
+  cases cover invalid declarations and multiline type parsing.
+  A retained `test/port/ffi_handle_differential.py` compares 23 call and close
+  outcomes with two live libraries, numeric and coercible handles, unknown
+  handles, duplicate closes, and calls after close. Exit status, stdout, and
+  stderr match Zig. This verifies handle lookup and closure independently of
+  pointer argument lifetimes.
   A shared scalar width matrix now covers `i16`, `u16`, `i32`, `u32`, `i64`,
   `f64`, and `bool` with integer boundaries, BigInt, nonfinite numbers, null,
   undefined, and numeric strings. Its 91 output lines matched between Zig and
