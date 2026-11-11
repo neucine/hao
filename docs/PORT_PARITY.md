@@ -402,6 +402,9 @@ improvement, with a smoke check.
   The shared consumer now checks IOPub order for an execution that writes both
   streams and returns a value: busy status, input, stdout, stderr, result, and
   idle status. The same compiled consumer passes against both kernels.
+  After two pending Promise failure cases, the shared consumer now runs a
+  timer that writes stdout and resolves a cell Promise. Both kernels publish
+  the delayed stream before the result, reach idle, and accept later requests.
   The shared kernel consumer now also sends a binary heartbeat containing an
   embedded NUL before the shell requests. Both runtimes echo the exact three
   bytes and continue through the shared execution and shutdown sequence.
