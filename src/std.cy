@@ -2,7 +2,7 @@ import { read_file } from std.fs;
 import { join, dirname } from std.path;
 import { exe_path } from std.process;
 import { Runtime } from .runtime;
-import { fs_exists } from .fs;
+import { fs_exists } from .std.fs.native;
 import { resolve_package } from .package;
 import { get_env } from .std.process.native;
 

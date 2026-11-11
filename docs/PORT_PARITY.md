@@ -193,7 +193,9 @@ improvement, with a smoke check.
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
   matched file, symlink, missing path, and directory results. The smoke suite
-  covers NUL truncation and the 100 MiB read limit. The Cyna file reader now
+  covers NUL truncation and the 100 MiB read limit. Cyna `std/fs/native.cy`
+  exports the filesystem C ABI beside its QuickJS adapter; `fs.cy` owns
+  bounded reads and diagnostics. The Cyna file reader now
   sizes and reads through one open handle, as Zig does, so a separate `stat`
   call cannot race a subsequent open. It reads the initially sized content
   when a file grows during the read, matching Zig's read path. Concurrent
