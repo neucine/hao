@@ -243,6 +243,10 @@ improvement, with a smoke check.
   `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
   serviced turn even when its final handle closes. `Loop.run_until_idle` also
   drains QuickJS jobs between turns.
+  The `run_once` and `run_nowait` C ABI wrappers now reside in `async/uv.cy`
+  and call libuv directly; `async/uv.c` retains native loop allocation and
+  closure. The executable, embedding library, and async smoke fixtures passed
+  after moving these wrappers across the boundary.
   The remaining Zig `Loop` methods have explicit implementation locations:
   loop allocation, deinitialization, and nonblocking runs are in
   `async/uv.c`; current-loop ownership is the `HaoRuntime` handle in

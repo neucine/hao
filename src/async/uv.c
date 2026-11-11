@@ -20,13 +20,3 @@ void hao_async_uv_free(uv_loop_t *loop) {
     }
     hao_free(loop);
 }
-
-int hao_async_uv_run_once(uv_loop_t *loop) {
-    if (!loop || !uv_loop_alive(loop)) return 0;
-    return uv_run(loop, UV_RUN_ONCE) < 0 ? -1 : 1;
-}
-
-int hao_async_uv_run_nowait(uv_loop_t *loop) {
-    if (!loop || !uv_loop_alive(loop)) return 0;
-    return uv_run(loop, UV_RUN_NOWAIT);
-}
