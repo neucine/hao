@@ -22,6 +22,17 @@ class Handler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self):
+        if self.path == "/duplicate-headers":
+            self.send_response(200)
+            for value in ("one", "two", "three"):
+                self.send_header("X-Repeat", value)
+            self.send_header("x-repeat", "separate")
+            self.send_header("Set-Cookie", "a=1")
+            self.send_header("Set-Cookie", "b=2")
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"ok")
+            return
         if self.path.startswith("/redirect-limit/"):
             count = int(self.path.rsplit("/", 1)[1])
             self._send(302, b"", extra_headers={"Location":

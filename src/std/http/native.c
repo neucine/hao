@@ -310,13 +310,46 @@ static void perform_http(uv_work_t *work) {
     if (temporary_path) { unlink(temporary_path); hao_free(temporary_path); }
     if (curl) curl_easy_cleanup(curl);
 }
+static int append_response_header(JSContext *ctx, JSValueConst headers, const HaoHeader *header) {
+    JSValue existing = JS_GetPropertyStr(ctx, headers, header->name);
+    if (JS_IsException(existing)) return -1;
+    if (JS_IsUndefined(existing)) {
+        JS_FreeValue(ctx, existing);
+        return JS_SetPropertyStr(ctx, headers, header->name, JS_NewString(ctx, header->value));
+    }
+    if (JS_IsArray(existing)) {
+        JSValue length_value = JS_GetPropertyStr(ctx, existing, "length");
+        int32_t length = 0;
+        int status = JS_ToInt32(ctx, &length, length_value);
+        JS_FreeValue(ctx, length_value);
+        if (status < 0 || length < 0) { JS_FreeValue(ctx, existing); return -1; }
+        status = JS_SetPropertyUint32(ctx, existing, (uint32_t)length, JS_NewString(ctx, header->value));
+        JS_FreeValue(ctx, existing);
+        return status;
+    }
+    JSValue values = JS_NewArray(ctx);
+    if (JS_IsException(values)) { JS_FreeValue(ctx, existing); return -1; }
+    int status = JS_SetPropertyUint32(ctx, values, 0, JS_DupValue(ctx, existing));
+    JS_FreeValue(ctx, existing);
+    if (status >= 0) status = JS_SetPropertyUint32(ctx, values, 1, JS_NewString(ctx, header->value));
+    if (status >= 0) status = JS_SetPropertyStr(ctx, headers, header->name, values);
+    else JS_FreeValue(ctx, values);
+    return status;
+}
 static JSValue make_response(HaoHttpJob *job) {
     JSContext *ctx = job->ctx;
     HaoHttpResponse *response = &job->response;
     JSValue result = JS_NewObject(ctx);
+    if (JS_IsException(result)) return result;
     JSValue headers = JS_NewObject(ctx);
-    for (HaoHeader *header = response->headers; header; header = header->next)
-        JS_SetPropertyStr(ctx, headers, header->name, JS_NewString(ctx, header->value));
+    if (JS_IsException(headers)) { JS_FreeValue(ctx, result); return headers; }
+    for (HaoHeader *header = response->headers; header; header = header->next) {
+        if (append_response_header(ctx, headers, header) < 0) {
+            JS_FreeValue(ctx, headers);
+            JS_FreeValue(ctx, result);
+            return JS_EXCEPTION;
+        }
+    }
     JS_SetPropertyStr(ctx, result, "status", JS_NewInt32(ctx, (int)job->status));
     JS_SetPropertyStr(ctx, result, "statusText", JS_NewString(ctx, response->status_text));
     JS_SetPropertyStr(ctx, result, "url", JS_NewString(ctx, job->final_url));
@@ -356,7 +389,10 @@ static void finish_http(uv_work_t *work, int status) {
         callback = job->reject;
     } else {
         value = make_response(job);
-        callback = job->resolve;
+        if (JS_IsException(value)) {
+            value = JS_GetException(ctx);
+            callback = job->reject;
+        } else callback = job->resolve;
     }
     JSValue previous = JS_UNDEFINED;
     if (!JS_IsUndefined(job->trace_context)) {

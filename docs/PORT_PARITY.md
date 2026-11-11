@@ -342,6 +342,11 @@ improvement, with a smoke check.
   was exceeded. Cyna now reports Zig's `TooManyHttpRedirects` category. All
   seven cases match, and the smoke suite checks the boundary between a
   successful chain and an excessive one.
+  A shared response header probe found that Cyna overwrote repeated header
+  names while Zig accumulated them into arrays. The adapter now preserves
+  arrival order for repeated keys and keeps differently cased keys separate,
+  matching Zig. A direct three-value response and the smoke fixture verify
+  `X-Repeat` and repeated `Set-Cookie` headers.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes
