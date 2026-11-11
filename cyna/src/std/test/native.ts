@@ -141,26 +141,30 @@ export async function runRegistered(): Promise<void> {
     const caseStarted = globalThis.__hao_telemetry_monotonicNs();
     let error: unknown = null;
     let caseFailed = false;
+    let errorPhase = 'test';
     let completedScopes = 0;
     for (const node of nodes) {
       try { await hooks([node], 'before_each'); completedScopes++; }
-      catch (caught) { error = caught; caseFailed = true; break; }
+      catch (caught) { error = caught; caseFailed = true; errorPhase = 'beforeEach'; break; }
     }
     if (!caseFailed) {
       try { await item.fn(); }
       catch (caught) { error = caught; caseFailed = true; }
     }
     for (const node of nodes.slice(0, completedScopes).reverse()) {
-      try { await hooks([node], 'after_each'); }
-      catch (caught) {
-        if (!caseFailed) { error = caught; caseFailed = true; }
-        else line(`${'  '.repeat(nodes.length + 1)}afterEach failed: ${message(caught)}`);
+      for (const hook of [...node.hooks.after_each].reverse()) {
+        globalThis.__hao_test_filePath = hook.file;
+        try { await hook.fn(); }
+        catch (caught) {
+          if (!caseFailed) { error = caught; caseFailed = true; errorPhase = 'afterEach'; }
+          else line(`${'  '.repeat(nodes.length + 1)}afterEach failed: ${message(caught)}`);
+        }
       }
     }
     if (caseFailed) {
       failed++;
       report('FAIL', item, duration(globalThis.__hao_telemetry_monotonicNs() - caseStarted));
-      line(`${'  '.repeat(nodes.length + 1)}test failed: ${message(error)}`);
+      line(`${'  '.repeat(nodes.length + 1)}${errorPhase} failed: ${message(error)}`);
     } else {
       passed++;
       report('PASS', item, duration(globalThis.__hao_telemetry_monotonicNs() - caseStarted));
@@ -185,8 +189,11 @@ export async function runRegistered(): Promise<void> {
         else await runCase(entry);
       } else await runSuite(entry, beforeFailed);
     }
-    try { await hooks([node], 'after_all'); }
-    catch (error) { hookFailure(node, 'afterAll', error); }
+    for (const hook of node.hooks.after_all) {
+      globalThis.__hao_test_filePath = hook.file;
+      try { await hook.fn(); }
+      catch (error) { hookFailure(node, 'afterAll', error); }
+    }
   };
   await runSuite(root);
   const files = globalThis.__hao_test_file_counts ?? { loaded: 0, failed: 0, total: 0 };

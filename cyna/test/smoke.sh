@@ -441,6 +441,24 @@ grep -q 'outer cleanup' "$fixture_dir/hook-output"
 if grep -q 'inner cleanup\|body should not run' "$fixture_dir/hook-output"; then
     exit 1
 fi
+cat > "$fixture_dir/multiple-hook-failures.test.ts" <<'EOF'
+import { describe, test, afterEach, afterAll } from 'std:test';
+describe('multi', () => {
+  afterEach(() => { throw Error('cleanup one'); });
+  afterEach(() => { throw Error('cleanup two'); });
+  afterAll(() => { throw Error('suite cleanup'); });
+  test('body failure', () => { throw null; });
+  test('body pass', () => {});
+});
+EOF
+if RUNTIME_TEST_REPORTER=plain "$runtime" test "$fixture_dir/multiple-hook-failures.test.ts" > "$fixture_dir/multi-out" 2> "$fixture_dir/multi-err"; then
+    exit 1
+fi
+grep -q '0 passed, 3 failed, 0 skipped' "$fixture_dir/multi-err"
+grep -q 'test failed: null' "$fixture_dir/multi-err"
+grep -q 'afterEach failed: cleanup one' "$fixture_dir/multi-err"
+grep -q 'afterEach failed: cleanup two' "$fixture_dir/multi-err"
+grep -q 'afterAll failed: suite cleanup' "$fixture_dir/multi-err"
 cat > "$fixture_dir/capture-child.ts" <<'EOF'
 console.log('child output');
 console.error('child warning');

@@ -84,6 +84,11 @@ before a sibling case, and still runs the enclosing `afterAll`. The Cyna runner
 now walks suites in that order. The direct plain reporter output and stdout
 hook order matched Zig, apart from measured durations. The smoke suite checks
 the failure and skip totals for a blocked suite and partial `beforeEach` setup.
+A shared fixture with two failing `afterEach` hooks, a `null` test throw, and a
+failing `afterAll` now matches Zig's hook execution and failure lines. Cyna
+runs every cleanup hook in reverse order, retains the first failure as the case
+failure, and reports later cleanup failures separately. The smoke suite keeps
+this combination as a regression case.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript
