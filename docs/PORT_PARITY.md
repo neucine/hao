@@ -234,6 +234,13 @@ improvement, with a smoke check.
   `std_fs.c`. Hao can adopt the bounded API after a compiler distribution
   includes it and the typed error path fix, then rerun the filesystem
   differential cases before removing the C reader.
+  A source build of Cyna `51b13ba` compiled Hao into a separate executable
+  without changing the pinned beta build. That executable matched Zig on the
+  retained 84 filesystem path operations and 23 write values and passed the
+  unchanged legacy end to end suite: 67 passed, 7 skipped. The
+  `legacy_e2e.py` runner accepts an optional executable path for this check.
+  These runs validate source compiler compatibility, while Hao still calls its
+  C bounded reader until the new standard library API is adopted in source.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,

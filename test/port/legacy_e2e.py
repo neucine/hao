@@ -6,10 +6,11 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
+import sys
 
 
 repo = Path(__file__).resolve().parents[2]
-runtime = (repo / "build/hao-cyna").resolve()
+runtime = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else (repo / "build/hao-cyna").resolve()
 legacy = next(
     (
         ref
