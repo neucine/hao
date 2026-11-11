@@ -272,7 +272,8 @@ nested `Symbol` values also use Zig's empty inspection text, with smoke checks.
   drains QuickJS jobs between turns.
   Loop allocation, closure, `run_once`, and `run_nowait` are implemented in
   `async/uv.cy` through `bridge/uv.cy` and the shared allocator. Their C ABI
-  wrappers reside in `hao_abi.cy`, and `bridge/async/uv.h` declares them for C callers. The executable, embedding library,
+  wrappers reside in `hao_abi.cy`; C consumers declare the small interface at
+  their own boundary. The executable, embedding library,
   and async smoke fixtures passed after removing `async/uv.c` from both builds.
   A C consumer now links the embedding library and checks an idle loop, a timer
   serviced by `run_once`, a canceled timer, and freeing a loop with a pending

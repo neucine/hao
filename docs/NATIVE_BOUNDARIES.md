@@ -22,6 +22,8 @@ The Cyna import facades name the foreign contracts:
 | `transpiler.cy` | No project C wrapper | Cyna declares the existing Rust archive ABI directly. QuickJS integration calls it from `qjs.c`. |
 | `uv.cy` | No project C wrapper | Cyna declares the libuv entry points directly. `async/uv.cy` owns loop operations. |
 
+`uv.cy` has no matching project C file because libuv is already the C implementation. `async/uv.cy` owns loop allocation, initialization, closing, liveness checks, and run modes. `qjs.c` contains the libuv adapters whose callbacks must interact with QuickJS, including timers, HTTP workers, and server sockets. `hao_abi.cy` exports the small loop lifecycle used by C hosts. A separate `uv.c` would only forward libuv calls without adding conversion, ownership, or callback behavior.
+
 The C boundary exists for four concrete reasons:
 
 - QuickJS exposes a C API and invokes C callbacks.
