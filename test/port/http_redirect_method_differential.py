@@ -19,6 +19,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         self.respond()
 
+    def do_HEAD(self):
+        self.respond()
+
     def respond(self):
         body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
         path = self.path.split('?', 1)[0]
@@ -51,7 +54,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Length', str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        if self.command != 'HEAD':
+            self.wfile.write(data)
 
     def log_message(self, *_args):
         pass
@@ -82,6 +86,8 @@ def main() -> int:
                 "['GET', undefined, 308], ['GET', 'payload', 301], "
                 "['GET', 'payload', 303], ['GET', 'payload', 307], ['PUT', 'payload', 301], "
                 "['PUT', 'payload', 303], ['PUT', 'payload', 307], "
+                "['HEAD', undefined, 301], ['HEAD', undefined, 303], "
+                "['HEAD', undefined, 307], ['HEAD', 'payload', 303], "
                 "['POST', 'payload', 307, 'manual']]) {\n"
                 f"  try {{ const response = await request('http://127.0.0.1:{server.server_port}/redirect/' + code, "
                 "{ method, body, redirect, headers: { 'X-Probe': 'value' } });\n"
@@ -104,8 +110,8 @@ def main() -> int:
             print('legacy:', repr(legacy), file=sys.stderr)
             print('cyna:', repr(cyna), file=sys.stderr)
             return 1
-        assert legacy[0] == 0 and len(legacy[1].splitlines()) == 26, legacy
-        print('HTTP redirect methods matched legacy: 26 outcomes')
+        assert legacy[0] == 0 and len(legacy[1].splitlines()) == 30, legacy
+        print('HTTP redirect methods matched legacy: 30 outcomes')
         return 0
     finally:
         server.shutdown()

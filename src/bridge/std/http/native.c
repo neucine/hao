@@ -230,7 +230,8 @@ static void set_legacy_error(HaoHttpJob *job, const char *name) {
 static void perform_http(uv_work_t *work) {
     HaoHttpJob *job = work->data;
     HaoHttpResponse *response = &job->response;
-    response->manual_redirect = job->manual_redirect;
+    bool follow_redirect = !job->manual_redirect && strcmp(job->method, "HEAD") != 0;
+    response->manual_redirect = !follow_redirect;
     response->has_request_body = job->has_body;
     response->post_request = strcmp(job->method, "POST") == 0;
     response->custom_method = strcmp(job->method, "GET") != 0 &&
@@ -270,7 +271,7 @@ static void perform_http(uv_work_t *work) {
     else if (strcmp(job->method, "GET") != 0 || job->has_body)
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, job->method);
     if (strcmp(job->method, "HEAD") == 0) curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, job->manual_redirect ? 0L : 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, follow_redirect ? 1L : 0L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_body);
