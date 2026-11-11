@@ -436,7 +436,7 @@ EOF
 if "$runtime" test "$fixture_dir/hook-failure.test.ts" > "$fixture_dir/hook-output" 2> "$fixture_dir/hook-stderr"; then
     exit 1
 fi
-grep -q '0 passed, 2 failed, 1 skipped' "$fixture_dir/hook-stderr"
+grep -q '0 passed, 2 failed, 2 skipped' "$fixture_dir/hook-stderr"
 grep -q 'outer cleanup' "$fixture_dir/hook-output"
 if grep -q 'inner cleanup\|body should not run' "$fixture_dir/hook-output"; then
     exit 1

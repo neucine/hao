@@ -78,6 +78,12 @@ A malformed TypeScript test file now exits after Zig's `TranspileFailed` line,
 without a test summary; the smoke suite retains this fatal load path.
 An oversized test file similarly exits with `StreamTooLong` and no summary,
 matching a direct Zig/Cyna comparison at the 10 MiB read limit.
+A shared nested hook fixture showed that Zig records a failed `beforeAll` as
+one suite failure, skips every selected case in that suite, runs its `afterAll`
+before a sibling case, and still runs the enclosing `afterAll`. The Cyna runner
+now walks suites in that order. The direct plain reporter output and stdout
+hook order matched Zig, apart from measured durations. The smoke suite checks
+the failure and skip totals for a blocked suite and partial `beforeEach` setup.
 
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript

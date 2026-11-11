@@ -104,8 +104,6 @@ export async function runRegistered(): Promise<void> {
   collect(root, cases);
   const hasOnly = cases.some(item => item.mode === 'only');
   const grep = globalThis.__hao_test_grep;
-  const entered = new Set<Suite>();
-  const blocked = new Set<Suite>();
   let passed = 0, failed = 0, skipped = 0;
   let skippedDeclared = 0, skippedFiltered = 0, skippedBlocked = 0;
   const selected = cases.filter(item => item.mode !== 'skip' && (!hasOnly || item.mode === 'only') &&
@@ -117,67 +115,80 @@ export async function runRegistered(): Promise<void> {
   line(`Run ${selected}/${cases.length} test case(s)`);
   if (declared || filtered) line(`Skip before run: ${declared} declared, ${filtered} filtered`);
   line();
-  const shownSuites = new Set<Suite>();
-  for (const item of cases) {
+  const selectedCase = (item: Case): boolean => item.mode !== 'skip' &&
+    (!hasOnly || item.mode === 'only') && (!grep || item.name.includes(grep));
+  const hasSelected = (node: Suite): boolean => node.entries.some(entry =>
+    'fn' in entry ? selectedCase(entry) : hasSelected(entry));
+  const skipCase = (item: Case, blocked: boolean): void => {
+    skipped++;
+    const reason = selectedCase(item) && blocked ? 'beforeAll' :
+      item.mode === 'skip' ? 'skip' : hasOnly ? 'only' : 'grep';
+    if (reason === 'beforeAll') skippedBlocked++;
+    else if (reason === 'skip') skippedDeclared++;
+    else skippedFiltered++;
+    report('SKIP', item, reason);
+  };
+  const message = (error: unknown): string => error instanceof Error ? error.message : String(error);
+  const hookFailure = (node: Suite, kind: 'beforeAll' | 'afterAll', error: unknown): void => {
+    failed++;
+    const depth = chain(node).length;
+    line(`${'  '.repeat(depth)}${styled('✕', 31)} ${kind}`);
+    line(`${'  '.repeat(depth + 1)}${kind} failed: ${message(error)}`);
+  };
+  const runCase = async (item: Case): Promise<void> => {
     globalThis.__hao_test_filePath = item.file;
     const nodes = chain(item.suite);
-    for (const [index, node] of nodes.entries()) {
-      if (node !== root && !shownSuites.has(node)) {
-        line(`${'  '.repeat(index)}${node.name}`);
-        shownSuites.add(node);
-      }
-    }
-    if (item.mode === 'skip' || hasOnly && item.mode !== 'only' || grep && !item.name.includes(grep)) {
-      skipped++;
-      const reason = item.mode === 'skip' ? 'skip' : hasOnly ? 'only' : 'grep';
-      if (item.mode === 'skip') skippedDeclared++; else skippedFiltered++;
-      report('SKIP', item, reason);
-      continue;
-    }
     const caseStarted = globalThis.__hao_telemetry_monotonicNs();
     let error: unknown = null;
     let caseFailed = false;
     let completedScopes = 0;
-    let blockedCase = false;
-    try {
-      for (const node of nodes) {
-        if (blocked.has(node)) {
-          skipped++;
-          skippedBlocked++;
-          report('SKIP', item, 'beforeAll');
-          blockedCase = true;
-          break;
-        }
-        if (!entered.has(node)) {
-          entered.add(node);
-          try { await hooks([node], 'before_all'); }
-          catch (caught) { blocked.add(node); throw caught; }
-        }
-      }
-      if (blockedCase) continue;
-      for (const node of nodes) {
-        await hooks([node], 'before_each');
-        completedScopes++;
-      }
-      await item.fn();
-    } catch (caught) { error = caught; caseFailed = true; }
+    for (const node of nodes) {
+      try { await hooks([node], 'before_each'); completedScopes++; }
+      catch (caught) { error = caught; caseFailed = true; break; }
+    }
+    if (!caseFailed) {
+      try { await item.fn(); }
+      catch (caught) { error = caught; caseFailed = true; }
+    }
     for (const node of nodes.slice(0, completedScopes).reverse()) {
       try { await hooks([node], 'after_each'); }
-      catch (caught) { if (!caseFailed) { error = caught; caseFailed = true; } }
+      catch (caught) {
+        if (!caseFailed) { error = caught; caseFailed = true; }
+        else line(`${'  '.repeat(nodes.length + 1)}afterEach failed: ${message(caught)}`);
+      }
     }
     if (caseFailed) {
       failed++;
       report('FAIL', item, duration(globalThis.__hao_telemetry_monotonicNs() - caseStarted));
-      line(`${'  '.repeat(nodes.length + 1)}test failed: ${error instanceof Error ? error.message : String(error)}`);
+      line(`${'  '.repeat(nodes.length + 1)}test failed: ${message(error)}`);
     } else {
       passed++;
       report('PASS', item, duration(globalThis.__hao_telemetry_monotonicNs() - caseStarted));
     }
-  }
-  for (const node of [...entered].reverse()) {
+  };
+  const runSuite = async (node: Suite, blocked = false): Promise<void> => {
+    if (node !== root) line(`${'  '.repeat(chain(node).length - 1)}${node.name}`);
+    const active = hasSelected(node);
+    if (!active || blocked) {
+      for (const entry of node.entries) {
+        if ('fn' in entry) skipCase(entry, blocked);
+        else await runSuite(entry, blocked);
+      }
+      return;
+    }
+    let beforeFailed = false;
+    try { await hooks([node], 'before_all'); }
+    catch (error) { hookFailure(node, 'beforeAll', error); beforeFailed = true; }
+    for (const entry of node.entries) {
+      if ('fn' in entry) {
+        if (beforeFailed || !selectedCase(entry)) skipCase(entry, beforeFailed);
+        else await runCase(entry);
+      } else await runSuite(entry, beforeFailed);
+    }
     try { await hooks([node], 'after_all'); }
-    catch (error) { failed++; line(`${styled('✕', 31)} afterAll ${node.name}: ${error}`); }
-  }
+    catch (error) { hookFailure(node, 'afterAll', error); }
+  };
+  await runSuite(root);
   const files = globalThis.__hao_test_file_counts ?? { loaded: 0, failed: 0, total: 0 };
   line();
   line(`${styled('Test Files:', 1)} ${files.loaded} loaded, ${files.failed} failed, ${files.total} total`);
