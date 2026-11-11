@@ -459,6 +459,10 @@ improvement, with a smoke check.
   does not verify it against the connection key; it signs outbound messages
   only. Cyna's inbound validation is retained as a security improvement, and
   the Cyna kernel consumer now checks recovery after the forged control request.
+  With an empty connection key, Zig sends a 64 byte NUL signature frame;
+  Jupyter's unsigned wire format uses an empty signature frame. Cyna uses the
+  empty frame. The native wire consumer now sends an unsigned request and
+  checks that the reply's signature frame is empty.
   The kernel integration test now sends an `execute_request` without `code`
   followed by a valid `kernel_info_request`. Cyna stays alive and answers the
   latter, matching Zig's early return before execution count changes.
