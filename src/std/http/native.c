@@ -52,6 +52,7 @@ typedef struct {
     long status;
     char sha256[65];
     char error[256];
+    bool legacy_error;
 } HaoHttpJob;
 
 static void free_headers(HaoHeader *header) {
@@ -176,6 +177,10 @@ static size_t receive_header(char *data, size_t size, size_t count, void *opaque
 static void set_error(HaoHttpJob *job, const char *message) {
     snprintf(job->error, sizeof(job->error), "%s", message);
 }
+static void set_legacy_error(HaoHttpJob *job, const char *name) {
+    snprintf(job->error, sizeof(job->error), "http.request error: %s", name);
+    job->legacy_error = true;
+}
 static void perform_http(uv_work_t *work) {
     HaoHttpJob *job = work->data;
     HaoHttpResponse *response = &job->response;
@@ -231,8 +236,19 @@ static void perform_http(uv_work_t *work) {
     if (job->request_headers) curl_easy_setopt(curl, CURLOPT_HTTPHEADER, job->request_headers);
     CURLcode code = curl_easy_perform(curl);
     if (code != CURLE_OK) {
-        set_error(job, response->failed == 1 ? "http response exceeds maxBytes" : curl_easy_strerror(code));
-        goto done;
+        if (response->failed == 1) {
+            set_legacy_error(job, job->download_path ? "DownloadTooLarge" : "ResponseTooLarge");
+            goto done;
+        }
+        if (code == CURLE_PARTIAL_FILE) {
+            if (job->download_path) {
+                set_legacy_error(job, "TruncatedDownload");
+                goto done;
+            }
+        } else {
+            set_error(job, curl_easy_strerror(code));
+            goto done;
+        }
     }
     char *effective_url = NULL;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &job->status);
@@ -306,8 +322,13 @@ static void finish_http(uv_work_t *work, int status) {
     JSValue value;
     JSValue callback;
     if (job->error[0]) {
-        value = JS_NewError(ctx);
-        JS_SetPropertyStr(ctx, value, "message", JS_NewString(ctx, job->error));
+        if (job->legacy_error) {
+            JS_ThrowInternalError(ctx, "%s", job->error);
+            value = JS_GetException(ctx);
+        } else {
+            value = JS_NewError(ctx);
+            JS_SetPropertyStr(ctx, value, "message", JS_NewString(ctx, job->error));
+        }
         callback = job->reject;
     } else {
         value = make_response(job);

@@ -315,10 +315,20 @@ improvement, with a smoke check.
   tab content lengths, non-ASCII host bytes, lowercase methods, `OPTIONS *`,
   and bare carriage return rejection. The deterministic cases are retained in
   the server consumer. Other protocol framing and shutdown cases remain open.
+  A further 28 header variants and 30 request line variants matched response
+  status and length under both runtimes, including NUL rejection, connection
+  directives, transfer encodings, method case, paths, and version spellings.
   A raw response comparison also matched every byte for GET and HEAD success,
   HTTP/1.0 success, missing Host, Expect rejection, handler failure, and an
   empty JSON POST failure. The shared server consumer retains exact response
   checks for the first four cases.
+  A shared HTTP client probe found three transfer differences. A bounded
+  response now rejects with Zig's `InternalError http.request error:
+  ResponseTooLarge`; a bounded download uses `DownloadTooLarge`. For a response
+  cut short of its declared Content-Length, ordinary requests return the bytes
+  received as Zig does, while downloads reject with `TruncatedDownload` and
+  preserve the destination. The client smoke fixture checks these paths, and
+  the shared probe's 12 request and download outcomes now match.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes
