@@ -255,7 +255,12 @@ improvement, with a smoke check.
   callback errors, and a Promise job between two timer callbacks. This checks
   the timer path. A shared nested timer probe additionally matched cancellation,
   Promise job draining, and scheduling a new timer inside a callback. Other
-  libuv handle types and shutdown ordering still need comparison. A callback
+  libuv handle types and shutdown ordering still need comparison.
+  A retained `test/port/timer_conversion_differential.py` compares 36
+  `setTimeout` delay and `clearTimeout` ID conversion outcomes with Zig,
+  including nonfinite numbers, arrays, symbols, and throwing `valueOf` methods.
+  All exit statuses and output bytes match.
+  A callback
   failure followed by a pending timer now matches Zig's stderr bytes and exits
   before the second timer fires. The port prints the exception message and
   stack once. The native timer context path avoids adding an internal wrapper
