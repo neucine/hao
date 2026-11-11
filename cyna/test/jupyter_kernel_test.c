@@ -106,6 +106,44 @@ int main(int argc, char **argv) {
             if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
         }
         if (!status && (!result_seen || !idle_seen)) status = 72;
+        if (!status && (send_request(shell, "execute_request",
+            "{\"code\":\"console.log('hao-stream'); 3\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "status") || !strstr(content, "ok"))) status = 76;
+        int stream_seen = 0;
+        result_seen = idle_seen = 0;
+        for (int i = 0; !status && i < 8 && !idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 77; break; }
+            if (strstr(content, "stdout") && strstr(content, "hao-stream")) stream_seen = 1;
+            if (strstr(content, "text/plain") && strstr(content, "3")) result_seen = 1;
+            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+        }
+        if (!status && (!stream_seen || !result_seen || !idle_seen)) status = 78;
+        if (!status && (send_request(shell, "execute_request",
+            "{\"code\":\"({ repr() { return { mime: 'image/svg+xml', data: '<svg/>' }; } })\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "status") || !strstr(content, "ok"))) status = 79;
+        int display_seen = 0;
+        idle_seen = 0;
+        for (int i = 0; !status && i < 8 && !idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 80; break; }
+            if (strstr(content, "image/svg+xml") && strstr(content, "<svg/>")) display_seen = 1;
+            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+        }
+        if (!status && (!display_seen || !idle_seen)) status = 81;
+        if (!status && (send_request(shell, "execute_request",
+            "{\"code\":\"throw new Error('shared failure')\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "status") || !strstr(content, "error") ||
+            !strstr(content, "shared failure"))) status = 82;
+        int error_seen = 0;
+        idle_seen = 0;
+        for (int i = 0; !status && i < 8 && !idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 83; break; }
+            if (strstr(content, "ename") && strstr(content, "shared failure")) error_seen = 1;
+            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+        }
+        if (!status && (!error_seen || !idle_seen)) status = 84;
         if (!status && (send_request(control, "shutdown_request", "{\"restart\":false}") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok"))) status = 73;
