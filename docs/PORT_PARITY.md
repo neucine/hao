@@ -410,7 +410,11 @@ improvement, with a smoke check.
   fixture now checks a successful call before the duplicate close. The shared
   FFI end to end suite passes 4 Zig cases and 7 Cyna cases; three added Cyna
   cases cover invalid declarations and multiline type parsing. These checks
-  do not cover all marshaling widths or C ABI policy combinations.
+  A shared scalar width matrix now covers `i16`, `u16`, `i32`, `u32`, `i64`,
+  `f64`, and `bool` with integer boundaries, BigInt, nonfinite numbers, null,
+  undefined, and numeric strings. Its 91 output lines matched between Zig and
+  Cyna. The smoke suite retains representative truncation, signedness, float,
+  and Boolean cases. Pointer and C ABI policy combinations remain open.
   A shared libc probe matched `cstring` argument byte lengths for accented and
   emoji text, `strcmp` ordering, and nullable `cstring` returns from `getenv`.
   The smoke suite retains these direct FFI conversions.

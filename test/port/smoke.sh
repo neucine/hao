@@ -936,7 +936,14 @@ uint64_t hao_u64_max(void) { return UINT64_MAX; }
 uint64_t hao_u64_mid(void) { return UINT64_C(9007199254740993); }
 int8_t hao_echo_i8(int8_t value) { return value; }
 uint8_t hao_echo_u8(uint8_t value) { return value; }
+int16_t hao_echo_i16(int16_t value) { return value; }
+uint16_t hao_echo_u16(uint16_t value) { return value; }
+int32_t hao_echo_i32(int32_t value) { return value; }
+uint32_t hao_echo_u32(uint32_t value) { return value; }
+int64_t hao_echo_i64(int64_t value) { return value; }
 float hao_echo_f32(float value) { return value; }
+double hao_echo_f64(double value) { return value; }
+uint8_t hao_echo_bool(uint8_t value) { return value; }
 static char hao_long_text[1024 * 1024 + 18];
 const char *hao_long_string(void) {
     memset(hao_long_text, 'x', sizeof(hao_long_text) - 1);
@@ -1324,14 +1331,25 @@ const path = getEnv('HAO_FFI_TEST_PATH');
 const library = dlopen(`${path}/libhao_search_fixture.dylib`, {
   hao_echo_i8: { args: ['i8'], returns: 'i8' },
   hao_echo_u8: { args: ['u8'], returns: 'u8' },
+  hao_echo_i16: { args: ['i16'], returns: 'i16' },
+  hao_echo_u16: { args: ['u16'], returns: 'u16' },
+  hao_echo_i32: { args: ['i32'], returns: 'i32' },
+  hao_echo_u32: { args: ['u32'], returns: 'u32' },
+  hao_echo_i64: { args: ['i64'], returns: 'i64' },
   hao_echo_f32: { args: ['f32'], returns: 'f32' },
+  hao_echo_f64: { args: ['f64'], returns: 'f64' },
+  hao_echo_bool: { args: ['bool'], returns: 'bool' },
 });
 console.log(library.hao_echo_i8(130), library.hao_echo_i8(-129), library.hao_echo_u8(258));
+console.log(library.hao_echo_i16(32768), library.hao_echo_u16(65536));
+console.log(library.hao_echo_i32(2147483648), library.hao_echo_u32(4294967295));
+console.log(library.hao_echo_i64(9007199254740991));
 console.log(library.hao_echo_f32(1.1));
+console.log(library.hao_echo_f64(1.25), library.hao_echo_bool(NaN), library.hao_echo_bool(Infinity));
 try { library.hao_echo_u8(-1); } catch (error) { console.log(error.name, error.message); }
 library.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-widths.ts")" = "$(printf '%s\n%s\n%s' '-126 127 2' '1.100000023841858' 'TypeError FFI: invalid argument value')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-widths.ts")" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' '-126 127 2' '-32768 0' '-2147483648 4294967295' '9007199254740991' '1.100000023841858' '1.25 false true' 'TypeError FFI: invalid argument value')"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
