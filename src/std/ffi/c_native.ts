@@ -17,6 +17,13 @@ function validatePolicyOptions(opts: any, operation: string): void {
   const invalid = () => { throw invalidArg(`${operation}: invalid options: InvalidArgument`, 'InvalidArgument'); };
   if (opts == null) return;
   if (typeof opts !== 'object') invalid();
+  const handles = opts.handles;
+  if (handles != null) {
+    if (typeof handles !== 'object') invalid();
+    for (const policy of Object.values(handles) as any[]) {
+      if (!policy || typeof policy !== 'object') invalid();
+    }
+  }
   const functions = opts.functions;
   if (functions == null) return;
   if (typeof functions !== 'object') invalid();
@@ -146,7 +153,8 @@ function publicPolicies(prepared: Prepared): {
     }
     if (type) functions[fn.name] = { returns: { kind: 'handle', type } };
   }
-  return { handles: prepared.policies?.handles ?? {}, functions };
+  const handles = prepared.policies?.handles;
+  return { handles: Array.isArray(handles) ? {} : handles ?? {}, functions };
 }
 function openWithSearch(name: string, search: any): number {
   const open = (candidate: string): number | null => {

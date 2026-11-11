@@ -612,6 +612,11 @@ improvement, with a smoke check.
   lowering. Validation now follows Zig's order; handle type validation also
   precedes output parameter validation. All 281 results match. Run
   `python3 test/port/ffi_policy_differential.py <legacy-binary> <cyna-binary>`.
+  A later malformed handle options probe found that scalar `handles` values
+  bypassed Cyna's validation and an empty array leaked into the public result.
+  Cyna now validates handle policy shapes before lowering and normalizes an
+  empty handle list to an empty object. The retained matrix covers these seven
+  additional forms; all 288 results match.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for
