@@ -368,6 +368,11 @@ improvement, with a smoke check.
   header variants, request targets, and content lengths. The shared server
   consumer retains host NUL rejection, percent encoded targets, and three
   content length spellings from that probe.
+  A retained `test/port/http_server_framing_differential.py` sends 588 complete
+  raw requests to each binary. It combines seven methods, seven targets, three
+  HTTP versions, and four header sets, then compares full response bytes. All
+  588 responses match. This covers these framing combinations, not incomplete
+  requests or shutdown races.
   A raw response comparison also matched every byte for GET and HEAD success,
   HTTP/1.0 success, missing Host, Expect rejection, handler failure, and an
   empty JSON POST failure. The shared server consumer retains exact response
