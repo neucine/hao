@@ -263,7 +263,9 @@ improvement, with a smoke check.
   A C consumer now links the embedding library and checks an idle loop, a timer
   serviced by `run_once`, a canceled timer, and freeing a loop with a pending
   timer. It observes both fire callbacks and all three close callbacks before
-  the loop memory is released. This directly checks the port's C ABI lifecycle.
+  the loop memory is released. It also runs a ready timer through `run_nowait`
+  and checks its fire and close callbacks. This directly checks the port's C
+  ABI lifecycle and nonblocking run path.
   The remaining Zig `Loop` methods have explicit implementation locations:
   loop allocation, deinitialization, and nonblocking runs are in
   `async/uv.cy`; current-loop ownership is the `HaoRuntime` handle in

@@ -35,6 +35,15 @@ int main(void) {
     uv_close((uv_handle_t *)&cancelled, on_closed);
     hao_async_uv_free(loop);
     if (fired != 2 || closed != 3) return 8;
+
+    loop = hao_async_uv_new();
+    if (!loop) return 9;
+    uv_timer_t ready;
+    if (uv_timer_init(loop, &ready) != 0 ||
+        uv_timer_start(&ready, on_timer, 0, 0) != 0) return 10;
+    if (hao_async_uv_run_nowait(loop) < 0 || fired != 3) return 11;
+    hao_async_uv_free(loop);
+    if (closed != 4) return 12;
     puts("async loop ok");
     return 0;
 }
