@@ -32,10 +32,31 @@ for (let i = 0; i < values.length; i++) {
   } catch (error) { console.log(i, error.name, error.message); }
 }
 '''
+PATH_KIND_SOURCE = r'''import { existsSync, readFileSync, statSync, writeFileSync } from 'std:fs';
+const paths = ['file', 'dir', 'link-file', 'link-dir', 'broken-link', 'missing',
+  'file\0suffix', 'dir/file', 'file/child'];
+for (const [index, path] of paths.entries()) {
+  for (const [name, operation] of Object.entries({
+    existsSync: () => existsSync(path),
+    readFileSync: () => readFileSync(path),
+    statSync: () => statSync(path).size,
+    writeFileSync: () => writeFileSync(path, 'new'),
+  })) {
+    try { console.log(index, name, JSON.stringify(operation())); }
+    catch (error) { console.log(index, name, error.name, error.message); }
+  }
+}
+'''
 
 
-def run(binary: str, root: Path, source: str) -> tuple[int, bytes, bytes]:
+def run(binary: str, root: Path, source: str, path_kinds: bool = False) -> tuple[int, bytes, bytes]:
     root.mkdir()
+    if path_kinds:
+        (root / 'file').write_text('hao')
+        (root / 'dir').mkdir()
+        (root / 'link-file').symlink_to('file')
+        (root / 'link-dir').symlink_to('dir', target_is_directory=True)
+        (root / 'broken-link').symlink_to('missing')
     script = root / 'probe.ts'
     script.write_text(source)
     result = subprocess.run((binary, str(script)), cwd=root, capture_output=True, timeout=10)
@@ -47,11 +68,12 @@ def main() -> None:
     cyna = str(Path(sys.argv[2]).resolve())
     with tempfile.TemporaryDirectory(prefix='hao-fs-diff-') as directory:
         root = Path(directory)
-        for index, source in enumerate((PATH_SOURCE, DATA_SOURCE)):
-            expected = run(legacy, root / f'legacy-{index}', source)
-            actual = run(cyna, root / f'cyna-{index}', source)
+        for index, source in enumerate((PATH_SOURCE, DATA_SOURCE, PATH_KIND_SOURCE)):
+            path_kinds = source == PATH_KIND_SOURCE
+            expected = run(legacy, root / f'legacy-{index}', source, path_kinds)
+            actual = run(cyna, root / f'cyna-{index}', source, path_kinds)
             assert actual == expected, (index, expected, actual)
-    print('filesystem differential: 84 path operations and 23 data values matched')
+    print('filesystem differential: 84 argument forms, 23 data values, and 36 path kind operations matched')
 
 
 if __name__ == '__main__':
