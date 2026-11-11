@@ -856,6 +856,19 @@ console.log(math.ldexp(1.5, 3));
 math.close();
 EOF
 test "$("$runtime" "$fixture_dir/ffi-mixed.ts")" = 12
+cat > "$fixture_dir/ffi-cstring.ts" <<'EOF'
+import { dlopen } from 'std:ffi';
+const libc = dlopen('c', {
+  strlen: { args: ['cstring'], returns: 'u64' },
+  strcmp: { args: ['cstring', 'cstring'], returns: 'i32' },
+  getenv: { args: ['cstring'], returns: 'cstring' },
+});
+console.log(libc.strlen('é'), libc.strlen('🐈'));
+console.log(libc.strcmp('a', 'b'), libc.strcmp('abc', 'abc'), libc.strcmp('b', 'a'));
+console.log(libc.getenv('PATH') != null, libc.getenv('HAO_MISSING_RANDOM_NAME_317') === null);
+libc.close();
+EOF
+test "$("$runtime" "$fixture_dir/ffi-cstring.ts")" = "$(printf '2 4\n-1 0 1\ntrue true')"
 cat > "$fixture_dir/ffi-closed.ts" <<'EOF'
 import { openNative, callNative, closeNative } from 'std:ffi/native';
 const handle = openNative('m', { cos: { args: ['f64'], returns: 'f64' } });
