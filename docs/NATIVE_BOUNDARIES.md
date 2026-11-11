@@ -1,6 +1,6 @@
 # Native language boundaries
 
-Hao's Cyna application lives in `src/` at the legacy feature paths. All 36 Cyna C ABI exports are declared in `src/hao_abi.cy`. Each export delegates to a public function in its feature module; those modules own the implementation. The executable imports the ABI module, and the static library uses it as its entry module. Public embedding declarations remain in `include/hao.h` and `include/addon.h`.
+Hao's Cyna application lives in `src/` at the legacy feature paths. Three top-level modules name the external roles directly: `src/api.cy` is the Cyna-facing library API, `src/abi.cy` is the centralized C integration surface, and `src/addon.cy` owns JavaScript native-addon recognition and naming. All 36 Cyna C ABI exports are declared in `abi.cy`; each export delegates to a public function in its feature module. The executable imports the ABI module, and the static library uses it as its entry module. Public C declarations remain in `include/hao.h` and `include/addon.h`.
 
 All project C sources live directly under `src/bridge/`. There are five C translation units: four native surfaces plus one shared allocator substrate.
 
@@ -23,7 +23,7 @@ The Cyna import facades name the foreign contracts:
 | `transpiler.cy` | No project C wrapper | Cyna declares the existing Rust archive ABI directly. QuickJS integration calls it from `qjs.c`. |
 | `uv.cy` | No project C wrapper | Cyna declares the libuv entry points directly. `async/uv.cy` owns loop operations. |
 
-`uv.cy` has no matching project C file because libuv is already the C implementation. `async/uv.cy` owns loop allocation, initialization, closing, liveness checks, and run modes. `qjs.c` contains the libuv adapters whose callbacks must interact with QuickJS, including timers, HTTP workers, and server sockets. `hao_abi.cy` exports the small loop lifecycle used by C hosts. A separate `uv.c` would only forward libuv calls without adding conversion, ownership, or callback behavior.
+`uv.cy` has no matching project C file because libuv is already the C implementation. `async/uv.cy` owns loop allocation, initialization, closing, liveness checks, and run modes. `qjs.c` contains the libuv adapters whose callbacks must interact with QuickJS, including timers, HTTP workers, and server sockets. `abi.cy` exports the small loop lifecycle used by C hosts. A separate `uv.c` would only forward libuv calls without adding conversion, ownership, or callback behavior.
 
 The C boundary exists for these concrete reasons:
 
@@ -48,4 +48,4 @@ Cyna owns HTTP URL and server limit policy (`std/http/native.cy`, `std/http/serv
 
 For Jupyter, `bridge/jupyter.cy` declares the ZeroMQ adapter ABI. `jupyter/zmq.cy` converts `Connection` and string values to and from that ABI, and `jupyter/wire.cy` exposes the wire handle and its operations to the kernel. `jupyter.c` owns sockets, multipart frames, and the static HMAC helper because the pinned Cyna std has no corresponding native APIs.
 
-The source inventory checks that `cyna.toml` and `cyna.lib.toml` list exactly the five shared C sources, that every other Cyna manifest selects a subset of those sources, that no C source exists outside `src/bridge/`, that Cyna ABI exports remain centralized in `src/hao_abi.cy`, and that raw extern declarations remain in bridge facade files. That inventory proves layout and boundary constraints; it does not by itself prove behavioral parity.
+The source inventory checks that `api.cy`, `abi.cy`, and `addon.cy` retain their distinct roles, that `cyna.toml` and `cyna.lib.toml` list exactly the five shared C sources, that every other Cyna manifest selects a subset of those sources, that no C source exists outside `src/bridge/`, that Cyna ABI exports remain centralized in `src/abi.cy`, and that raw extern declarations remain in bridge facade files. That inventory proves layout and boundary constraints; it does not by itself prove behavioral parity.

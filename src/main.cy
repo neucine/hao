@@ -10,7 +10,7 @@ import { load_dotenv, telemetry_console_settings, native_stack_trace_enabled, ru
 import { run as run_jupyter } from .jupyter.main;
 import { install as install_jupyter } from .jupyter.install;
 import { string as hao_version } from .version;
-import { abi_async_uv_new } from .hao_abi;
+import { abi_async_uv_new } from .abi;
 
 
 fn usage(): void {

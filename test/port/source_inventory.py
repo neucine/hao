@@ -50,16 +50,34 @@ for line in (port / "docs/NATIVE_BOUNDARIES.md").read_text().splitlines():
     c_only[legacy[0]] = destinations[0]
 
 errors = []
-abi_module = port / "src/hao_abi.cy"
+api_module = port / "src/api.cy"
+abi_module = port / "src/abi.cy"
+addon_module = port / "src/addon.cy"
+for role_module, role in (
+    (api_module, "Cyna embedding API"),
+    (abi_module, "central C ABI"),
+    (addon_module, "JavaScript native addon"),
+):
+    if not role_module.is_file():
+        errors.append(f"missing {role} module: {role_module.relative_to(port)}")
 if not abi_module.is_file() or not re.search(r'export c\("hao_', abi_module.read_text()):
-    errors.append("missing central Hao Cyna ABI exports")
+    errors.append("missing central Hao C ABI exports")
 for candidate in (port / "src").rglob("*.cy"):
-    if candidate == abi_module:
-        continue
-    if re.search(r'\bexport\s+c\s*\(', candidate.read_text()):
+    contents = candidate.read_text()
+    for stale_import, replacement in (
+        (".hao_abi", ".abi"),
+        (".embed", ".api"),
+        (".js.addon", ".addon"),
+    ):
+        if re.search(rf"\bfrom\s+{re.escape(stale_import)}\b", contents):
+            errors.append(
+                f"stale role import in {candidate.relative_to(port)}: "
+                f"{stale_import} -> {replacement}"
+            )
+    if candidate != abi_module and re.search(r'\bexport\s+c\s*\(', contents):
         errors.append(f"export outside central Hao ABI: {candidate.relative_to(port)}")
     if (port / "src/bridge") not in candidate.parents and re.search(
-        r'\bextern\s+c\s*\(', candidate.read_text()
+        r'\bextern\s+c\s*\(', contents
     ):
         errors.append(f"native import outside bridge: {candidate.relative_to(port)}")
 for suffix in ("*.c", "*.h"):

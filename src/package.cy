@@ -4,7 +4,7 @@ import { dirname, join } from std.path;
 import { env_get } from std.process;
 import { Value, parse } from std.json;
 import { copy_output, text_from_c } from .c_bytes;
-import { is_addon_path } from .js.addon;
+import { is_addon_path } from .addon;
 
 
 fn path_exists(path: string): bool {

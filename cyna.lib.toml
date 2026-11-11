@@ -2,7 +2,7 @@ name = "hao-cyna-embed"
 version = "0.1.2"
 src = "src"
 type = "staticlib"
-entry = "src/hao_abi.cy"
+entry = "src/abi.cy"
 
 [c]
 sources = ["src/bridge/qjs.c", "src/bridge/allocator.c", "src/bridge/host.c", "src/bridge/jupyter.c", "src/bridge/telemetry.c"]

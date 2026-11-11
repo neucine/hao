@@ -1,20 +1,20 @@
-// The sole Cyna export surface for Hao. Feature modules own behavior.
+// The sole C ABI export surface for Hao. Feature modules own behavior.
 import { RunResult } from .bridge.host;
 import { new_loop as impl_async_uv_new } from .async.uv;
 import { free_loop as impl_async_uv_free } from .async.uv;
 import { run_once as impl_async_uv_run_once } from .async.uv;
 import { run_nowait as impl_async_uv_run_nowait } from .async.uv;
-import { embed_abi_version as impl_embed_abi_version } from .embed;
-import { embed_telemetry_probe as impl_embed_telemetry_probe } from .embed;
-import { embed_new as impl_embed_new } from .embed;
-import { embed_free as impl_embed_free } from .embed;
-import { embed_eval as impl_embed_eval } from .embed;
-import { embed_run_until_idle as impl_embed_run_until_idle } from .embed;
-import { embed_register_module as impl_embed_register_module } from .embed;
-import { embed_install_std as impl_embed_install_std } from .embed;
+import { embed_abi_version as impl_embed_abi_version } from .api;
+import { embed_telemetry_probe as impl_embed_telemetry_probe } from .api;
+import { embed_new as impl_embed_new } from .api;
+import { embed_free as impl_embed_free } from .api;
+import { embed_eval as impl_embed_eval } from .api;
+import { embed_run_until_idle as impl_embed_run_until_idle } from .api;
+import { embed_register_module as impl_embed_register_module } from .api;
+import { embed_install_std as impl_embed_install_std } from .api;
 import { install_runtime_error as impl_install_runtime_error } from .errors;
-import { addon_name_length as impl_addon_name_length } from .js.addon;
-import { addon_write_name as impl_addon_write_name } from .js.addon;
+import { addon_name_length as impl_addon_name_length } from .addon;
+import { addon_write_name as impl_addon_write_name } from .addon;
 import { rewrite_cell_c as impl_jupyter_rewrite_cell } from .jupyter.cell;
 import { lexical_absolute_c as impl_module_lexical_absolute } from .`module`;
 import { relative_c as impl_module_relative } from .`module`;

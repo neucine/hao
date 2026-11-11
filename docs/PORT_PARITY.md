@@ -22,7 +22,7 @@ Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `src/` with a `.cy` or `.ts` extension. `process_memory.zig` now
 has a same stem Cyna module that assembles the snapshot while its C companion
-in `src/bridge/` reads platform counters. The snapshot export is in `src/hao_abi.cy`. These exceptions have
+in `src/bridge/` reads platform counters. The snapshot export is in `src/abi.cy`. These exceptions have
 intentional implementation locations:
 `python3 test/port/source_inventory.py` checks this inventory against the
 `legacy` Git tree, including the existence of every mapped port location;
@@ -31,7 +31,8 @@ while behavior parity still requires the comparisons below.
 
 | Legacy source | Cyna port location | Reason for layout change |
 | --- | --- | --- |
-| `hao.zig` | `src/runtime.cy`, `src/std.cy`, `src/embed.cy`, `src/hao_abi.cy` | Cyna modules and the embedding C ABI replace the Zig root export module. |
+| `hao.zig` | `src/runtime.cy`, `src/std.cy`, `src/api.cy`, `src/abi.cy` | Cyna modules, the Cyna library API, and the C ABI replace the Zig root export module. |
+| `js/addon.zig` | `src/addon.cy` | The JavaScript native-extension boundary is top-level so the `api.cy`, `abi.cy`, and `addon.cy` roles remain explicit. |
 | `js/abi.zig`, `js/mod.zig` | `src/bridge/qjs.c` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
 | `link.zig` | `cyna.toml`, `cyna.lib.toml`, `build.sh` | Linking is declared in the Cyna build manifests. |
 | `qjs.zig` | `src/runtime.cy`, `src/bridge/qjs.c` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
@@ -49,7 +50,7 @@ request. `std/telemetry/native.ts` contains the host context helpers needed by
 that adapter.
 A retained 38-case `test/port/http_server_limits_differential.py` compares native server port, connection, timeout, and hostname validation with Zig, including nonfinite and fractional numbers, BigInt, Symbol and object conversion, and embedded NUL in the hostname. The C ABI checks floating point validity before Cyna receives the values; Cyna owns the server limit policy in `std/http/server_uv.cy`.
 
-`std/ffi/native.cy` now owns the 15 descriptor type names and unsigned decimal pointer parsing; `hao_abi.cy` exports both policies to the libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All C sources now live under `src/bridge/`; this layout result is separate from behavior parity.
+`std/ffi/native.cy` now owns the 15 descriptor type names and unsigned decimal pointer parsing; `abi.cy` exports both policies to the libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All C sources now live under `src/bridge/`; this layout result is separate from behavior parity.
 
 The 18 legacy `std/**/*.d.ts` declarations and all 12 legacy TypeScript source
 and asset files now have matching port locations. The inventory checks them;
@@ -227,7 +228,7 @@ nested `Symbol` values also use Zig's empty inspection text, with smoke checks.
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
   matched file, symlink, missing path, and directory results. The smoke suite
   covers NUL truncation and the 100 MiB read limit. Cyna `std/fs/native.cy`
-  implements the filesystem operations behind exports in `hao_abi.cy`; the QuickJS adapter is under `src/bridge/`. `fs.cy` owns
+  implements the filesystem operations behind exports in `abi.cy`; the QuickJS adapter is under `src/bridge/`. `fs.cy` owns
   bounded reads and diagnostics. The Cyna file reader now
   sizes and reads through one open handle, as Zig does, so a separate `stat`
   call cannot race a subsequent open. It reads the initially sized content
@@ -272,7 +273,7 @@ nested `Symbol` values also use Zig's empty inspection text, with smoke checks.
   drains QuickJS jobs between turns.
   Loop allocation, closure, `run_once`, and `run_nowait` are implemented in
   `async/uv.cy` through `bridge/uv.cy` and the shared allocator. Their C ABI
-  wrappers reside in `hao_abi.cy`; C consumers declare the small interface at
+  wrappers reside in `abi.cy`; C consumers declare the small interface at
   their own boundary. The executable, embedding library,
   and async smoke fixtures passed after removing `async/uv.c` from both builds.
   A C consumer now links the embedding library and checks an idle loop, a timer
@@ -481,7 +482,7 @@ nested `Symbol` values also use Zig's empty inspection text, with smoke checks.
   ID, then cancels only one. The other timer still fires, checking that a
   cancellation cannot cross embedded runtime boundaries.
   Addon extension recognition and normalized module names now live in
-  `js/addon.cy`; the C loader retains dynamic library and QuickJS callbacks.
+  `addon.cy`; the C loader retains dynamic library and QuickJS callbacks.
   The native addon consumer now checks `js_array_length` for ordinary and
   sparse arrays. The Cyna adapter uses the same signed 32 bit conversion as
   Zig and rejects lengths above `INT32_MAX`.
@@ -893,5 +894,5 @@ documented as LG-79 in the Cyna language gaps ledger.
 
 ## Native boundary layout
 
-Imported C functions now have companion headers and Cyna extern modules; the ownership map is in [NATIVE_BOUNDARIES.md](NATIVE_BOUNDARIES.md). The Rust transpiler declares its C exports in `libs/transpiler/include/hao_transpiler.h`. All Cyna C ABI exports are wrappers in `src/hao_abi.cy`; their feature modules contain ordinary public Cyna functions. All project C sources and internal headers are under `src/bridge/`.
+Imported C functions now have companion headers and Cyna extern modules; the ownership map is in [NATIVE_BOUNDARIES.md](NATIVE_BOUNDARIES.md). The Rust transpiler declares its C exports in `libs/transpiler/include/hao_transpiler.h`. The top-level boundaries are `src/api.cy` for the Cyna library API, `src/abi.cy` for all C ABI wrappers, and `src/addon.cy` for JavaScript native-extension support. All project C sources and internal headers are under `src/bridge/`.
 The shared allocator now lives in `src/bridge/allocator.c`; process execution and process memory moved from the former combined `support.c` into `src/bridge/host.c`. `qjs.c`, `host.c`, `jupyter.c`, and `telemetry.c` share only `allocator.h` where they allocate native values, while `qjs.c` and `host.c` share `host.h` for the process result ABI. The narrow Jupyter connection manifest links only `allocator.c`.

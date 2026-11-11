@@ -34,7 +34,7 @@ stored notebook cells. Shutdown replies echo the requested restart flag.
 Ordinary objects use `std:util.inspect` for their text result.
 Top level `const`, `let`, and class declarations can be redefined in later cells.
 JavaScript execution errors include their stack in the Jupyter error reply.
-The build also produces a Cyna runtime static library. Its exports are centralized in `src/hao_abi.cy`, with the public C API in
+The build also produces a Cyna runtime static library. Its Cyna API lives in `src/api.cy`, its centralized C integration exports live in `src/abi.cy`, with the public C API in
 `include/hao.h`; the consumer example is `test/port/embed_consumer.c`.
 
 `src/runtime.cy` owns the runtime, `src/async/loop.cy` drives Promise jobs and
