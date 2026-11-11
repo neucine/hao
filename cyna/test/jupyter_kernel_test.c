@@ -174,6 +174,12 @@ int main(int argc, char **argv) {
             if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
         }
         if (!status && !idle_seen) status = 98;
+        if (!status && (send_request(shell, "is_complete_request", "{\"code\":\"1 + 1\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"status\"") || !strstr(content, "\"complete\""))) status = 99;
+        if (!status && (send_request(shell, "comm_info_request", "{}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"comms\"") || !strstr(content, "\"status\""))) status = 100;
         if (!status && (send_request(control, "shutdown_request", "{\"restart\":false}") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok"))) status = 73;

@@ -142,6 +142,10 @@ improvement, with a smoke check.
   `jsonEscape` emits a raw NUL in this packet, so this is a deliberate
   valid JSON improvement. Broader message and scheduling combinations remain
   open.
+  The shared kernel consumer now also checks `is_complete_request` and
+  `comm_info_request` under both runtimes. Both reply with the expected
+  completion status and comm map after earlier execute errors, and then
+  continue to accept control shutdown.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond
   the existing C ABI and direct binding cases.
   A direct `std:ffi/native` fixture passed under both runtimes: opening libc,
