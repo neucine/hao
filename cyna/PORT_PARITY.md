@@ -141,6 +141,9 @@ improvement, with a smoke check.
   byte cut from an incomplete character. An unpaired surrogate also counts as
   three UTF-8 replacement bytes while retaining the original string if the
   limit does not truncate it. The smoke suite checks representative limits.
+  A throwing option getter is ignored by Zig while later numeric limits are
+  still read. Cyna now catches each getter separately; a direct inspect and
+  `setInspectOptions` probe matches Zig's output and defaults.
 
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also

@@ -302,6 +302,14 @@ console.log(inspect('a🐈b', { maxStringLength: 5 }));
 console.log(inspect('\uD83D', { maxStringLength: 1 }));
 EOF
 test "$("$runtime" "$fixture_dir/util-unicode.ts")" = "$(printf '�...\n��...\n世�...\na🐈...\n�...')"
+cat > "$fixture_dir/util-option-getter.ts" <<'EOF'
+import { inspect, setInspectOptions, getInspectOptions } from 'std:util';
+const options = { get maxDepth() { throw Error('bad depth'); }, maxArrayLength: 1 };
+console.log(inspect({ a: [1, 2] }, options));
+setInspectOptions(options);
+console.log(JSON.stringify(getInspectOptions()));
+EOF
+test "$("$runtime" "$fixture_dir/util-option-getter.ts")" = "$(printf '{ a: [ 1, ... 1 more items ] }\n{"maxDepth":4,"maxArrayLength":1,"maxStringLength":10000}')"
 
 cat > "$fixture_dir/console-inspect.ts" <<'EOF'
 console.log({ value: 3 }, [1, 2]);

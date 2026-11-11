@@ -14,10 +14,14 @@ function limit(value: unknown, fallback: number): number {
 }
 
 function merge(options?: InspectOptions) {
+  const read = (key: keyof InspectOptions, fallback: number) => {
+    try { return limit(options?.[key], fallback); }
+    catch (_) { return fallback; }
+  };
   return {
-    maxDepth: limit(options?.maxDepth, defaults.maxDepth),
-    maxArrayLength: limit(options?.maxArrayLength, defaults.maxArrayLength),
-    maxStringLength: limit(options?.maxStringLength, defaults.maxStringLength),
+    maxDepth: read('maxDepth', defaults.maxDepth),
+    maxArrayLength: read('maxArrayLength', defaults.maxArrayLength),
+    maxStringLength: read('maxStringLength', defaults.maxStringLength),
   };
 }
 

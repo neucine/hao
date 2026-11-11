@@ -92,11 +92,11 @@ other names or supported JavaScript/TypeScript extensions. Files run in
 lexicographic path order.
 `captureOutput` captures `console.log`, `console.error`, and `console.warn`
 from callbacks, or runs a child file and captures its process output. Callback
-capture is limited to 16 MiB per stream. The runner prints elapsed time and
+capture grows with the stream, including output above 16 MiB. The runner prints elapsed time and
 skip categories; set `RUNTIME_TEST_REPORTER=ansi` for colored case labels.
 Test files share one JavaScript context, so global state can cross file
 boundaries. Test file load failures are counted
-separately; registrations made before a file fails to load are discarded,
+separately; registrations made before a file fails to load are retained,
 successfully loaded files still run, and a load failure sets the command's
 exit status. The runner loads `std:test` before test files so its automatic
 mock cleanup hook survives a failed file import.
