@@ -373,6 +373,10 @@ const manual = await get('http://127.0.0.1:$server_port/download-redirect', { re
 console.log(manual.status, manual.headers['Location']);
 const manualBody = await get('http://127.0.0.1:$server_port/redirect-with-body', { redirect: 'manual' });
 console.log(manualBody.status, manualBody.text());
+const followed = await get('http://127.0.0.1:$server_port/redirect-limit/2');
+console.log(followed.status, followed.url.endsWith('/json'));
+try { await get('http://127.0.0.1:$server_port/redirect-limit/3'); }
+catch (error) { console.log(error.name, error.message); }
 try { await get('http://127.0.0.1:$server_port/large', { maxBytes: 10 }); } catch (error) { console.log(error.name, error.message); }
 const truncated = await get('http://127.0.0.1:$server_port/truncated');
 console.log(truncated.status, truncated.bytes().length);
@@ -385,7 +389,7 @@ for (const url of [
 }
 EOF
 http_actual=$("$runtime" "$fixture_dir/http.ts")
-http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\n302 redirect body\nInternalError http.request error: ResponseTooLarge\n200 5\nInternalError http.request error: HttpChunkTruncated\nInternalError http.request error: ConnectionRefused\nInternalError http.request error: InvalidFormat\nInternalError http.request error: UnsupportedUriScheme')
+http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\n302 redirect body\n200 true\nInternalError http.request error: TooManyHttpRedirects\nInternalError http.request error: ResponseTooLarge\n200 5\nInternalError http.request error: HttpChunkTruncated\nInternalError http.request error: ConnectionRefused\nInternalError http.request error: InvalidFormat\nInternalError http.request error: UnsupportedUriScheme')
 test "$http_actual" = "$http_expected"
 cat > "$fixture_dir/http-native-body.ts" <<EOF
 import { requestNative } from 'std:http/native';

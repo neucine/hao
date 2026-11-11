@@ -268,6 +268,7 @@ static void perform_http(uv_work_t *work) {
             if (code == CURLE_COULDNT_CONNECT) legacy_name = "ConnectionRefused";
             if (code == CURLE_URL_MALFORMAT) legacy_name = "InvalidFormat";
             if (code == CURLE_UNSUPPORTED_PROTOCOL) legacy_name = "UnsupportedUriScheme";
+            if (code == CURLE_TOO_MANY_REDIRECTS) legacy_name = "TooManyHttpRedirects";
             if (legacy_name) set_legacy_error(job, legacy_name);
             else set_error(job, curl_easy_strerror(code));
             goto done;

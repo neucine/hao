@@ -22,6 +22,11 @@ class Handler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self):
+        if self.path.startswith("/redirect-limit/"):
+            count = int(self.path.rsplit("/", 1)[1])
+            self._send(302, b"", extra_headers={"Location":
+                f"/redirect-limit/{count - 1}" if count else "/json"})
+            return
         if self.path == "/redirect-with-body":
             self._send(302, b"redirect body", content_type="text/plain",
                        extra_headers={"Location": "/json", "Content-Length": "13"})

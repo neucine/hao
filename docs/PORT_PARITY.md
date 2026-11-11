@@ -337,6 +337,11 @@ improvement, with a smoke check.
   and downloads. Successful compressed and chunked responses still match.
   The smoke suite retains the failure categories and verifies that a failed
   chunked download preserves its destination.
+  A seven case redirect probe matched successful hops and manual mode, but
+  Cyna initially exposed libcurl's generic error when the three redirect limit
+  was exceeded. Cyna now reports Zig's `TooManyHttpRedirects` category. All
+  seven cases match, and the smoke suite checks the boundary between a
+  successful chain and an excessive one.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes
