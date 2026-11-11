@@ -1,6 +1,7 @@
 """Check legacy Zig source and TypeScript declaration coverage."""
 
 from pathlib import Path
+import json
 import re
 import subprocess
 import sys
@@ -65,6 +66,22 @@ for suffix in ("*.c", "*.h"):
     for candidate in (port / "src").rglob(suffix):
         if (port / "src/bridge") not in candidate.parents:
             errors.append(f"native source outside bridge: {candidate.relative_to(port)}")
+bridge_sources = {
+    candidate.relative_to(port).as_posix()
+    for candidate in (port / "src/bridge").rglob("*.c")
+}
+for manifest_name in ("cyna.toml", "cyna.lib.toml"):
+    manifest = (port / manifest_name).read_text()
+    c_section = re.search(r"(?ms)^\[c\]\n(.*?)(?=^\[|\Z)", manifest)
+    sources = re.search(r"(?m)^sources\s*=\s*(\[[^\n]*\])", c_section.group(1)) if c_section else None
+    if not sources:
+        errors.append(f"missing C source list: {manifest_name}")
+        continue
+    declared = json.loads(sources.group(1))
+    if len(declared) != len(set(declared)):
+        errors.append(f"duplicate C source in {manifest_name}")
+    if set(declared) != bridge_sources:
+        errors.append(f"C source mismatch in {manifest_name}: missing {sorted(bridge_sources - set(declared))}, extra {sorted(set(declared) - bridge_sources)}")
 for path in sorted(zig_files):
     source_path = Path(path)
     c_path = port / "src" / source_path.with_suffix(".c")
@@ -116,4 +133,4 @@ for path in sorted(declaration_files | shared_files):
             errors.append(f"unexpected content drift: src/{path}")
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(c_only)} explicit C boundaries, {len(declaration_files)} TypeScript declarations, {len(shared_files)} TypeScript sources and assets")
+print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(bridge_sources)} shared C bridge sources, {len(declaration_files)} TypeScript declarations, {len(shared_files)} TypeScript sources and assets")
