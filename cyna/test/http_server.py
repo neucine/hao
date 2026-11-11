@@ -31,6 +31,15 @@ try:
                 chunks.append(part)
             return b''.join(chunks)
 
+    response_head = b'HTTP/1.1 200 Response\r\nConnection: close\r\nX-Test: yes\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 17\r\n\r\n'
+    response_body = 'Hello 世界 🐈'.encode()
+    assert raw_request(b'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n') == response_head + response_body
+    assert raw_request(b'GET / HTTP/1.0\r\n\r\n') == response_head + response_body
+    assert raw_request(b'HEAD / HTTP/1.1\r\nHost: localhost\r\n\r\n') == response_head
+    assert raw_request(b'GET / HTTP/1.1\r\n\r\n') == (
+        b'HTTP/1.1 400 Response\r\nConnection: close\r\n'
+        b'Content-Type: text/plain; charset=utf-8\r\nContent-Length: 8\r\n\r\nHTTP 400')
+
     status, headers, body = request('GET', '/')
     assert status == 200 and body == 'Hello 世界 🐈'.encode()
     assert dict(headers)['X-Test'] == 'yes'

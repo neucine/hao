@@ -225,6 +225,10 @@ improvement, with a smoke check.
   Host; folded headers; malformed method and version; Content-Length spacing,
   signs, and conflicts with Transfer-Encoding. The deterministic cases are in
   the server consumer. Other protocol framing and shutdown cases remain open.
+  A raw response comparison also matched every byte for GET and HEAD success,
+  HTTP/1.0 success, missing Host, Expect rejection, handler failure, and an
+  empty JSON POST failure. The shared server consumer retains exact response
+  checks for the first four cases.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes
