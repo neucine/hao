@@ -310,6 +310,18 @@ setInspectOptions(options);
 console.log(JSON.stringify(getInspectOptions()));
 EOF
 test "$("$runtime" "$fixture_dir/util-option-getter.ts")" = "$(printf '{ a: [ 1, ... 1 more items ] }\n{"maxDepth":4,"maxArrayLength":1,"maxStringLength":10000}')"
+cat > "$fixture_dir/util-format-paths.ts" <<'EOF'
+import { inspect } from 'std:util';
+const values: any[] = [
+  Object.defineProperty(function f() {}, 'name', { get() { throw Error('name'); } }),
+  { calls: 0, get repr() { this.calls++; return () => 'repr'; } },
+  { get dtype() { throw Error('dtype'); }, x: 1 },
+  { dtype: 'x', get shape() { throw Error('shape'); }, x: 1 },
+  { dtype: 'x', shape: [], get toString() { throw Error('toString'); }, x: 1 },
+];
+for (const value of values) console.log(inspect(value), value.calls ?? '');
+EOF
+test "$("$runtime" "$fixture_dir/util-format-paths.ts")" = "$(printf '[Function] \nrepr 2\n{ dtype: , x: 1 } \n[object Object] \n{ dtype: x, shape: [  ], toString: , x: 1 } ')"
 
 cat > "$fixture_dir/console-inspect.ts" <<'EOF'
 console.log({ value: 3 }, [1, 2]);

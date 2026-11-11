@@ -73,15 +73,24 @@ export function inspect(value: unknown, options?: InspectOptions): string {
     try {
       const reprMethod = item.repr;
       if (typeof reprMethod === "function") {
-        const repr = reprMethod.call(item, { mode: "text" });
+        const repr = item.repr.call(item, { mode: "text" });
         const data = repr && typeof repr === "object" ? repr.data : repr;
         if (data !== null && data !== undefined && typeof data !== "symbol") return truncate(String(data));
       }
     } catch (_) { /* Fall back to ordinary inspection. */ }
-    try {
-      if (item.dtype != null && item.shape != null && typeof item.toString === "function") return String(item);
-    } catch (_) { return ""; }
-    if (typeof item === "function") return item.name ? `[Function: ${item.name}]` : "[Function]";
+    const failed = {};
+    const property = (key: string) => {
+      try { return item[key]; }
+      catch (_) { return failed; }
+    };
+    if (property('dtype') != null && property('shape') != null && typeof property('toString') === "function") {
+      try { return String(item); }
+      catch (_) { return ""; }
+    }
+    if (typeof item === "function") {
+      try { const name = item.name; return typeof name === "string" && name ? `[Function: ${name}]` : "[Function]"; }
+      catch (_) { return "[Function]"; }
+    }
     if (seen.has(item)) return "[Circular]";
     seen.add(item);
     try {

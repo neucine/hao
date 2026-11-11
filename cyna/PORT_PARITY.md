@@ -144,6 +144,10 @@ improvement, with a smoke check.
   A throwing option getter is ignored by Zig while later numeric limits are
   still read. Cyna now catches each getter separately; a direct inspect and
   `setInspectOptions` probe matches Zig's output and defaults.
+  A further shared probe matched Zig's two reads of a `repr` getter, fallback
+  for a throwing function `name` getter, and the distinct paths for throwing
+  `dtype`, `shape`, and `toString` getters during array-like detection. The
+  smoke suite retains the output and getter count.
 
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
