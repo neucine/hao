@@ -57,6 +57,16 @@ reject result.
   requests. Cyna returns 404 for `/tracesXYZ`, whereas Zig's prefix route
   accepts it; Cyna keeps exact path matching.
 
+A shared CLI argument probe matched `--version`, missing arguments, and invalid
+Jupyter subcommands. It found that bare `hao test` and a missing `--grep` value
+used Cyna stdout messages instead of Zig's usage on stderr with status 2; those
+now match. An empty test directory now runs successfully with zero tests, as
+Zig does. Missing and oversized script files now report Zig's `FileNotFound`
+and `StreamTooLong` messages on stderr. Zig accepts an extra argument after
+`jupyter install`; Cyna retains strict argument validation for that command.
+The empty directory report still differs in stream and formatting: Zig writes
+its test summary to stderr, while Cyna writes a plain summary to stdout.
+
 The console bridge matched Zig for empty calls, primitives, nested objects,
 cycles, and Error values in a direct stdout/stderr comparison. For a JavaScript
 `Symbol`, Zig's inspect conversion writes an empty string, while Cyna writes

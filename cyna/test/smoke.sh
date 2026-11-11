@@ -9,7 +9,7 @@ test "$("$runtime" --version)" = 'hao 0.1.2'
 test "$("$runtime" -v)" = 'hao 0.1.2'
 python3 - "$runtime" <<'PY'
 import subprocess, sys
-for args in ([], ['jupyter', 'unknown']):
+for args in ([], ['jupyter', 'unknown'], ['test'], ['test', '--grep']):
     result = subprocess.run([sys.argv[1], *args], capture_output=True, text=True)
     assert result.returncode == 2 and result.stdout == ''
     assert result.stderr.startswith('Usage:\n  hao <file.ts|file.js>\n')
@@ -29,7 +29,14 @@ import subprocess, sys
 path = Path(sys.argv[2]) / 'oversize.ts'
 path.write_bytes(b' ' * (10 * 1024 * 1024 + 1))
 result = subprocess.run([sys.argv[1], str(path)], capture_output=True, text=True)
-assert result.returncode == 1 and 'Unable to read script' in result.stdout, result
+assert result.returncode == 1 and result.stdout == '' and result.stderr == 'StreamTooLong\n', result
+result = subprocess.run([sys.argv[1], str(Path(sys.argv[2]) / 'missing.ts')],
+    capture_output=True, text=True)
+assert result.returncode == 1 and result.stdout == '' and result.stderr == 'FileNotFound\n', result
+empty = Path(sys.argv[2]) / 'empty-tests'
+empty.mkdir()
+result = subprocess.run([sys.argv[1], 'test', str(empty)], capture_output=True, text=True)
+assert result.returncode == 0 and '0 loaded, 0 failed, 0 total' in result.stdout, result
 dotenv = Path(sys.argv[2]) / 'oversize.env'
 dotenv.write_bytes(b'#' * (1024 * 1024 + 1))
 import os

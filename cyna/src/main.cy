@@ -9,6 +9,12 @@ import { install as install_jupyter } from .jupyter.install;
 import { string as hao_version } from .version;
 
 extern c("write") fn write_fd(fd: c_int, bytes: *const c_uchar, count: c_size_t): c_long;
+extern c("hao_fs_script_read_error") fn script_read_error(path: *const c_uchar, length: c_size_t, limit: c_size_t): c_int;
+
+fn write_stderr(message: string): void {
+    const bytes = message.bytes();
+    if write_fd(2, bytes.ptr as! *const c_uchar, bytes.len() as c_size_t) < 0 { return; }
+}
 
 fn usage(): void {
     const message = "Usage:\n  hao <file.ts|file.js>\n  hao test [--grep pattern] <file-or-dir>...\n  hao jupyter --connection-file <file>\n  hao jupyter install\n  hao --version\n";
@@ -18,12 +24,27 @@ fn usage(): void {
     }
 }
 
-fn run_file(host: &const Runtime, path: string): i32 {
+fn run_file(host: &const Runtime, path: string, test_file: bool): i32 {
     const source = read_file_limited(path.clone(), 10 * 1024 * 1024);
     if source is content {
         return host.eval(content, path);
     }
-    println("Unable to read script");
+    if test_file {
+        println("Unable to read script");
+    } else {
+        const bytes = path.bytes();
+        const reason = script_read_error(bytes.ptr as! *const c_uchar, bytes.len() as c_size_t,
+            10 * 1024 * 1024);
+        if reason == 2 {
+            write_stderr("NameTooLong\n");
+        } else if reason == 1 {
+            write_stderr("StreamTooLong\n");
+        } else if reason == 0 {
+            write_stderr("FileNotFound\n");
+        } else {
+            write_stderr("FileReadFailed\n");
+        }
+    }
     return 1;
 }
 
@@ -58,17 +79,19 @@ fn main(): i32 {
     }
     var test_files: List<string> = list<string>();
     var grep = "";
+    var provided_test_path = false;
     if is_test {
         var index: usize = 2;
         while index < arguments.len() {
             if arguments[index] == "--grep" {
                 if index + 1 >= arguments.len() {
-                    println("--grep requires a pattern");
+                    usage();
                     return 2;
                 }
                 grep = arguments[index + 1].clone();
                 index = index + 2;
             } else {
+                provided_test_path = true;
                 if collect(arguments[index].clone(), &test_files) != 0 {
                     println("Unable to discover test files");
                     return 1;
@@ -76,9 +99,9 @@ fn main(): i32 {
                 index = index + 1;
             }
         }
-        if test_files.len() == 0 {
-            println("No test files found");
-            return 1;
+        if not provided_test_path {
+            usage();
+            return 2;
         }
         sort(&test_files);
     }
@@ -102,7 +125,7 @@ fn main(): i32 {
                 return 1;
             }
             for path in test_files {
-                if run_file(&host, path.clone()) != 0 or host.drain_jobs() < 0 {
+                if run_file(&host, path.clone(), true) != 0 or host.drain_jobs() < 0 {
                     file_failures = file_failures + 1;
                     if host.discard_test_file(path.clone()) != 0 { return 1; }
                 } else {
@@ -121,7 +144,7 @@ fn main(): i32 {
             }
             return 0;
         } else {
-            if run_file(&host, arguments[1].clone()) != 0 {
+            if run_file(&host, arguments[1].clone(), false) != 0 {
                 return 1;
             }
         }

@@ -36,9 +36,9 @@ The build also produces a Cyna runtime static library with the C API in
 
 `src/runtime.cy` owns the runtime, `src/async/loop.cy` drives Promise jobs and
 libuv turns, and `src/fs.cy` owns
-file access, and `bridge.c` and `fs_bridge.c` adapt QuickJS values to the Cyna
-host functions. `readFileSync` uses a 100 MiB limit and fails if the file grows
-between sizing and reading.
+file access, and `bridge.c` and `src/std/fs/native.c` adapt QuickJS values to
+the Cyna host functions. `readFileSync` uses a 100 MiB limit and reads the
+initially sized content if the file grows during a read.
 
 `src/package.cy` handles `RUNTIME_PACKAGE_PATH`, ancestor
 `node_modules` directories, package `exports` and `main`, and the ESM entry
