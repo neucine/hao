@@ -1,11 +1,12 @@
-#include <zmq.h>
-#include "../runtime_allocator.h"
-#include "crypto.h"
+#include "jupyter/crypto.h"
+#include "runtime_allocator.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zmq.h>
 
+/* ZeroMQ transport and multipart framing. */
 enum { HAO_SHELL = 3, HAO_CONTROL = 2, HAO_IOPUB = 4, HAO_HEARTBEAT = 1 };
 enum { HAO_HEADER = 1, HAO_CONTENT = 2 };
 enum { HAO_MAX_FRAME = 1024 * 1024, HAO_MAX_IDENTITIES = 32 };

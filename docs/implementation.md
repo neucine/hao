@@ -39,8 +39,7 @@ The build also produces a Cyna runtime static library. Its exports are centraliz
 
 `src/runtime.cy` owns the runtime, `src/async/loop.cy` drives Promise jobs and
 libuv turns, and `src/fs.cy` owns
-file access, and `src/bridge/runtime.c` and `src/bridge/std/fs/native.c` adapt QuickJS values to
-the Cyna host functions. `readFileSync` uses a 100 MiB limit and reads the
+file access, while `src/bridge/qjs.c` adapts QuickJS values to the Cyna host functions. `readFileSync` uses a 100 MiB limit and reads the
 initially sized content if the file grows during a read.
 
 `src/package.cy` handles `RUNTIME_PACKAGE_PATH`, ancestor

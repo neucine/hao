@@ -70,8 +70,10 @@ bridge_sources = {
     candidate.relative_to(port).as_posix()
     for candidate in (port / "src/bridge").rglob("*.c")
 }
-for manifest_name in ("cyna.toml", "cyna.lib.toml"):
-    manifest = (port / manifest_name).read_text()
+declared_sources: dict[str, set[str]] = {}
+for manifest_path in sorted(port.glob("cyna*.toml")):
+    manifest_name = manifest_path.name
+    manifest = manifest_path.read_text()
     c_section = re.search(r"(?ms)^\[c\]\n(.*?)(?=^\[|\Z)", manifest)
     sources = re.search(r"(?m)^sources\s*=\s*(\[[^\n]*\])", c_section.group(1)) if c_section else None
     if not sources:
@@ -80,8 +82,20 @@ for manifest_name in ("cyna.toml", "cyna.lib.toml"):
     declared = json.loads(sources.group(1))
     if len(declared) != len(set(declared)):
         errors.append(f"duplicate C source in {manifest_name}")
-    if set(declared) != bridge_sources:
-        errors.append(f"C source mismatch in {manifest_name}: missing {sorted(bridge_sources - set(declared))}, extra {sorted(set(declared) - bridge_sources)}")
+    declared_sources[manifest_name] = set(declared)
+    if not set(declared) <= bridge_sources:
+        errors.append(
+            f"C source outside bridge in {manifest_name}: "
+            f"{sorted(set(declared) - bridge_sources)}"
+        )
+for manifest_name in ("cyna.toml", "cyna.lib.toml"):
+    declared = declared_sources.get(manifest_name)
+    if declared is not None and declared != bridge_sources:
+        errors.append(
+            f"C source mismatch in {manifest_name}: "
+            f"missing {sorted(bridge_sources - declared)}, "
+            f"extra {sorted(declared - bridge_sources)}"
+        )
 for path in sorted(zig_files):
     source_path = Path(path)
     c_path = port / "src" / source_path.with_suffix(".c")

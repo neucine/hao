@@ -8,7 +8,7 @@ cyna_bin=${HAO_CYNA_BIN:-"${HAO_CYNA_SOURCE:-$repo_root/.deps/cyna-source}/zig-o
 fixture_dir=$(mktemp -d)
 trap 'rm -rf "$fixture_dir"' EXIT HUP INT TERM
 clang "$repo_root/test/port/runtime_allocator_test.c" \
-    "$repo_root/src/bridge/runtime_allocator.c" -o "$fixture_dir/runtime-allocator-test"
+    "$repo_root/src/bridge/support.c" -o "$fixture_dir/runtime-allocator-test"
 "$fixture_dir/runtime-allocator-test"
 test "$("$runtime" --version)" = 'hao 0.1.2'
 test "$("$runtime" -v)" = 'hao 0.1.2'
@@ -70,7 +70,7 @@ clang -I "$repo_root/.deps/install/include" "$repo_root/test/port/async_uv_consu
     -o "$fixture_dir/async-uv-consumer" 2> "$fixture_dir/async-uv-link.log"
 test "$("$fixture_dir/async-uv-consumer")" = 'async loop ok'
 clang -I /opt/homebrew/include "$repo_root/test/port/jupyter_wire_test.c" \
-    "$repo_root/src/bridge/jupyter/zmq.c" "$repo_root/src/bridge/runtime_allocator.c" \
+    "$repo_root/src/bridge/jupyter.c" "$repo_root/src/bridge/support.c" \
     -L /opt/homebrew/lib -lzmq -lcrypto \
     -o "$fixture_dir/jupyter-wire-test"
 test "$("$fixture_dir/jupyter-wire-test")" = 'wire ok'

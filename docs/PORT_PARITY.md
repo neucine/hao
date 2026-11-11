@@ -32,14 +32,14 @@ while behavior parity still requires the comparisons below.
 | Legacy source | Cyna port location | Reason for layout change |
 | --- | --- | --- |
 | `hao.zig` | `src/runtime.cy`, `src/std.cy`, `src/embed.cy`, `src/hao_abi.cy` | Cyna modules and the embedding C ABI replace the Zig root export module. |
-| `js/abi.zig`, `js/mod.zig` | `src/bridge/runtime.c`, `src/bridge/module.c`, `src/bridge/js/addon.c`, `src/bridge/runtime_host.h` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
+| `js/abi.zig`, `js/mod.zig` | `src/bridge/qjs.c`, `src/bridge/runtime_host.h` | QuickJS interop is at the C boundary; Cyna owns the runtime handle. |
 | `link.zig` | `cyna.toml`, `cyna.lib.toml`, `build.sh` | Linking is declared in the Cyna build manifests. |
-| `qjs.zig` | `src/runtime.cy`, `src/bridge/runtime.c`, `src/bridge/runtime_host.h` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
-| `std/ffi/Library.zig`, `std/ffi/runtime.zig`, `std/ffi/trampoline.zig`, `std/ffi/types.zig` | `src/bridge/std/ffi/native.c`, `src/std/ffi/native.ts` | One libffi adapter replaces the Zig library and call trampoline layers. |
-| `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `src/bridge/test/runner.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
-| `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/bridge/telemetry/interface.c`, `src/std/telemetry/native.ts` | Cyna `std.telemetry` supplies the host backend; JavaScript keeps the public trace ring and cursor API. |
+| `qjs.zig` | `src/runtime.cy`, `src/bridge/qjs.c`, `src/bridge/runtime_host.h` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
+| `std/ffi/Library.zig`, `std/ffi/runtime.zig`, `std/ffi/trampoline.zig`, `std/ffi/types.zig` | `src/bridge/qjs.c`, `src/std/ffi/native.ts` | One libffi adapter replaces the Zig library and call trampoline layers. |
+| `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `src/bridge/qjs.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
+| `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/bridge/telemetry.c`, `src/std/telemetry/native.ts` | Cyna `std.telemetry` supplies the host backend; JavaScript keeps the public trace ring and cursor API. |
 | `telemetry/server.zig` | `src/std/telemetry/console.ts`, `src/telemetry/dashboard.html` | The telemetry console uses the ported HTTP server and existing dashboard. |
-| `transpiler.zig` | `src/bridge/runtime.c`, `src/bridge/module.c`, `src/bridge/jupyter/cell.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
+| `transpiler.zig` | `src/bridge/qjs.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
 
 The legacy TypeScript standard modules are byte identical in the port except
 `std/http/index.ts` and `std/util/native.ts`: the Cyna tree separates its HTTP server into
@@ -283,9 +283,9 @@ nested `Symbol` values also use Zig's empty inspection text, with smoke checks.
   The remaining Zig `Loop` methods have explicit implementation locations:
   loop allocation, deinitialization, and nonblocking runs are in
   `async/uv.cy`; current-loop ownership is the `HaoRuntime` handle in
-  `src/bridge/runtime.c` and `src/bridge/runtime_host.h`; timer start, cancellation, one-shot fire,
-  and close callbacks are in `src/bridge/global/timer.c`; HTTP worker requests use
-  libuv from `src/bridge/std/http/native.c`. Zig's `async/uv.zig` FFI declarations are
+  `src/bridge/qjs.c` and `src/bridge/runtime_host.h`; timer start, cancellation, one-shot fire,
+  and close callbacks are also in `src/bridge/qjs.c`; HTTP worker requests use
+  libuv from `src/bridge/qjs.c`. Zig's `async/uv.zig` FFI declarations are
   replaced by the libuv header included at these C boundaries.
   The smoke suite covers timer cancellation,
   callback errors, and a Promise job between two timer callbacks. This checks
@@ -869,8 +869,7 @@ The executable, embedding library, and Jupyter connection check now use root
 manifests `cyna.toml`, `cyna.lib.toml`, and
 `cyna.jupyter-connection.toml`. `build.sh` writes both runtime artifacts
 under `build/`.
-The native QuickJS host adapters now live at `src/bridge/runtime.c`,
-`src/bridge/jupyter/cell.c`, and `src/bridge/test/runner.c`, and the HMAC
+The consolidated QuickJS host adapters now live in `src/bridge/qjs.c`, and the HMAC
 helper used by Jupyter wire code and its consumers lives at
 `src/bridge/jupyter/crypto.h`. Their build and test includes use those canonical
 source locations.

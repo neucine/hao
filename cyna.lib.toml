@@ -5,7 +5,7 @@ type = "staticlib"
 entry = "src/hao_abi.cy"
 
 [c]
-sources = ["src/bridge/runtime.c", "src/bridge/errors.c", "src/bridge/module.c", "src/bridge/runtime_allocator.c", "src/bridge/global/console.c", "src/bridge/global/timer.c", "src/bridge/std/fs/native.c", "src/bridge/std/process/native.c", "src/bridge/std/process/execute.c", "src/bridge/std/http/native.c", "src/bridge/std/http/server_uv.c", "src/bridge/process_memory.c", "src/bridge/telemetry/metrics.c", "src/bridge/telemetry/interface.c", "src/bridge/std/ffi/native.c", "src/bridge/js/addon.c", "src/bridge/jupyter/cell.c", "src/bridge/jupyter/zmq.c", "src/bridge/test/runner.c"]
+sources = ["src/bridge/qjs.c", "src/bridge/support.c", "src/bridge/jupyter.c", "src/bridge/telemetry.c"]
 include_paths = [".deps/install/include", "/opt/homebrew/include"]
 
 [link]
