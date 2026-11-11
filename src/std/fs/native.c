@@ -1,16 +1,12 @@
 #include <quickjs.h>
 #include "../../runtime_allocator.h"
+#include "../../cyna_exports.h"
+#include "../../fs_limit.h"
 #include <stdint.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-extern int hao_fs_exists(const unsigned char *path);
-extern unsigned char *hao_fs_read_alloc_limited(const unsigned char *path,
-                                                size_t path_length, size_t limit);
-extern void hao_fs_free_buffer(unsigned char *buffer);
-extern int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);
 
 static JSValue hao_fs_arg_error(JSContext *ctx, const char *message) {
     JSValue cause = JS_GetException(ctx);

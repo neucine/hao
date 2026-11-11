@@ -1,4 +1,6 @@
 #include "module.h"
+#include "cyna_exports.h"
+#include "../libs/transpiler/include/hao_transpiler.h"
 #include "runtime_host.h"
 #include "runtime_allocator.h"
 #include "../include/hao.h"
@@ -7,12 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
-extern char *hao_transpile_types_for_path(const char *source, const char *source_path);
-extern char *hao_transpiler_last_error(void);
-extern void hao_transpiler_free(char *text);
 extern JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
-extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
-                               unsigned char *output, size_t capacity);
 
 static HaoSourceModule *hao_find_module(HaoRuntime *host, const char *name) {
     for (HaoSourceModule *module = host->modules; module; module = module->next) {

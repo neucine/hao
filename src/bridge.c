@@ -1,4 +1,5 @@
 #include "bridge.h"
+#include "cyna_exports.h"
 #include <quickjs.h>
 #include "runtime_allocator.h"
 #include <uv.h>
@@ -62,8 +63,6 @@ extern void hao_install_ffi_globals(JSContext *ctx, JSValue global);
 extern void hao_ffi_cleanup(JSContext *ctx);
 extern JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
 extern void hao_addon_cleanup(JSContext *ctx);
-extern int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
-                               unsigned char *output, size_t capacity);
 extern int hao_install_runtime_error(JSContext *ctx);
 extern int hao_test_reporter_ansi(void);
 void hao_runtime_free(uintptr_t handle);

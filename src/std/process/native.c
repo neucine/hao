@@ -1,20 +1,8 @@
 #include <quickjs.h>
 #include "../../runtime_allocator.h"
+#include "../../cyna_exports.h"
 #include <stdint.h>
 #include <stdlib.h>
-
-typedef struct {
-    size_t stdout_len;
-    size_t stderr_len;
-    int exit_code;
-    int has_exit_code;
-    int signal;
-    int has_signal;
-} HaoRunResult;
-
-extern int hao_process_run_json(const unsigned char *options, size_t options_len,
-                                unsigned char *stdout_output, unsigned char *stderr_output,
-                                size_t capacity, HaoRunResult *result);
 
 static JSValue option_type_error(JSContext *ctx, const char *message) {
     JSValue pending = JS_GetException(ctx);
