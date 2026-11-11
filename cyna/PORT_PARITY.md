@@ -96,8 +96,13 @@ improvement, with a smoke check.
   typed error through Hao's exported Cyna function and crashed in
   `failure_trace.c:25`; Zig's `existsSync` returns `false`. Hao now performs
   this Boolean existence check in its C adapter and exports it through
-  `fs.cy`. The smoke suite covers 256 and 1023 byte names. Compiler attribution
-  is still under investigation.
+  `fs.cy`. The smoke suite covers 256 and 1023 byte names. The cause is now
+  confirmed in Cyna's LLVM return conversion: it copied the scalar C result
+  into a larger result without initializing trace metadata, then released the
+  uninitialized handle on the error path. Cyna branch
+  `codex/hao-fs-result-bridge` fixes this in `a05414d` and passes its native
+  regression and C ABI suite. Hao retains the adapter while pinned to the
+  installed 0.5.1-beta.1 compiler.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,
