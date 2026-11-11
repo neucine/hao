@@ -1425,6 +1425,16 @@ result = subprocess.run([sys.argv[1], sys.argv[2]], capture_output=True, text=Tr
 assert result.returncode == 1 and result.stdout == '', result
 assert result.stderr == f'timer exploded\n    at <anonymous> ({sys.argv[2]}:2:8)\n\n', result
 PY
+cat > "$fixture_dir/timer-rejection.ts" <<'EOF'
+setTimeout(() => { Promise.reject(Error('timer rejected')); }, 0);
+setTimeout(() => { console.log('later timer'); }, 20);
+EOF
+python3 - "$runtime" "$fixture_dir/timer-rejection.ts" <<'PY'
+import subprocess, sys
+result = subprocess.run([sys.argv[1], sys.argv[2]], capture_output=True, text=True)
+assert result.returncode == 1 and result.stdout == '', result
+assert result.stderr == f'timer rejected\n    at <anonymous> ({sys.argv[2]}:2:17)\n\n', result
+PY
 
 cat > "$fixture_dir/timer-nested.ts" <<'EOF'
 const events: string[] = [];

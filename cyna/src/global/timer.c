@@ -51,6 +51,7 @@ static void hao_drain_timer_jobs(HaoRuntime *host) {
     int result;
     while ((result = JS_ExecutePendingJob(host->runtime, &job_ctx)) > 0) {}
     if (result < 0) hao_retain_timer_error(host, job_ctx);
+    if (host->has_callback_error || host->has_rejection) uv_stop(host->loop);
 }
 
 static void hao_timer_fired(uv_timer_t *handle) {

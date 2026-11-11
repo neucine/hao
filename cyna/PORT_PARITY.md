@@ -156,8 +156,13 @@ improvement, with a smoke check.
   libuv handle types and shutdown ordering still need comparison. A callback
   failure followed by a pending timer now matches Zig's stderr bytes and exits
   before the second timer fires. The port prints the exception message and
-  stack once; its telemetry timer wrapper avoids adding a frame when no trace
-  context is active. The smoke suite retains this case.
+  stack once. The native timer context path avoids adding an internal wrapper
+  frame. The smoke suite retains this case.
+  Draining Promise jobs inside a timer callback exposed a later timer firing
+  before an unhandled rejection reached the host. The timer now stops the
+  libuv turn when job draining records a rejection or callback error. A shared
+  rejection fixture exits before the later timer and matches Zig's stdout and
+  stderr bytes; the smoke suite retains it.
   Notebook Promise waiting now follows Zig's 64 idle turn cutoff and reports
   a libuv run failure. The kernel consumer checks that an unresolved Promise
   yields `Promise did not settle`, then accepts a later request. Its shared
