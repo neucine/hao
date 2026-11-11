@@ -4,7 +4,7 @@ function scalarLayout(type: string): { size: number; alignment: number } {
   if (['bool', 'i8', 'u8'].includes(type)) return { size: 1, alignment: 1 };
   if (['i16', 'u16'].includes(type)) return { size: 2, alignment: 2 };
   if (['i32', 'u32', 'f32'].includes(type)) return { size: 4, alignment: 4 };
-  if (['i64', 'u64', 'f64'].includes(type)) return { size: 8, alignment: 8 };
+  if (['i64', 'u64', 'f64', 'ptr', 'cstring'].includes(type)) return { size: 8, alignment: 8 };
   throw invalidArg(`unsupported POD field type: ${type}`, 'UnsupportedFeature');
 }
 export function podSpec(body: string, resolve: (name: string) => PodSpec | null): PodSpec {
@@ -13,10 +13,10 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
   for (const source of body.split(';')) {
     const declaration = source.trim();
     if (!declaration) continue;
-    const match = /^([\s\S]+?\s+)([A-Za-z_]\w*)$/.exec(declaration);
+    const match = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(declaration);
     if (!match) throw invalidArg(`invalid POD field: ${declaration}`);
     const name = match[1].trim();
-    const nested = resolve(name);
+    const nested = name.includes('*') ? null : resolve(name);
     const type = nested ? 'pod' : ffiType(name);
     const layout = nested ?? scalarLayout(type);
     size = Math.ceil(size / layout.alignment) * layout.alignment;
@@ -26,7 +26,8 @@ export function podSpec(body: string, resolve: (name: string) => PodSpec | null)
   }
   if (!fields.length) throw invalidArg('empty POD struct');
   return { fields, size: Math.ceil(size / alignment) * alignment, alignment,
-    invalidLayout: fields.some(field => field.pod && resolve(field.pod)?.invalidLayout) };
+    invalidLayout: fields.some(field => field.type === 'ptr' || field.type === 'cstring' ||
+      field.pod && resolve(field.pod)?.invalidLayout) };
 }
 
 export function ffiType(type: string, returning = false): string {

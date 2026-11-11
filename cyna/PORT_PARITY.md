@@ -192,8 +192,10 @@ improvement, with a smoke check.
   self-referential POD declaration during descriptor preparation. Cyna now
   accepts that declaration too, while rejecting a call that would require its
   impossible by-value layout before entering native code. The smoke suite
-  covers both outcomes. Pointer fields inside POD structs remain a separate
-  layout and marshaling gap.
+  covers both outcomes. A direct Zig/Cyna probe now also matches descriptor
+  preparation and the runtime `unsupported POD struct layout` error for
+  pointer fields inside POD structs. Native marshaling of such fields remains
+  unsupported in both runtimes.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from

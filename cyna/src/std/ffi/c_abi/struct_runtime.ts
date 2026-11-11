@@ -41,7 +41,7 @@ function podField(view: DataView, field: PodField, value?: any, base = 0): any {
   }
 }
 export function writePod(view: DataView, spec: PodSpec, object: any, pods: Record<string, PodSpec>, base = 0): void {
-  if (spec.invalidLayout) throw invalidArg('C: invalid POD struct layout', 'UnsupportedFeature');
+  if (spec.invalidLayout) throw invalidArg('C: unsupported POD struct layout for runtime marshaling');
   if (!object || typeof object !== 'object') throw invalidArg('POD argument must be an object');
   for (const field of spec.fields) {
     const value = object[field.name];
@@ -51,7 +51,7 @@ export function writePod(view: DataView, spec: PodSpec, object: any, pods: Recor
   }
 }
 export function readPod(view: DataView, spec: PodSpec, object: any, pods: Record<string, PodSpec>, base = 0): void {
-  if (spec.invalidLayout) throw invalidArg('C: invalid POD struct layout', 'UnsupportedFeature');
+  if (spec.invalidLayout) throw invalidArg('C: unsupported POD struct layout for runtime marshaling');
   for (const field of spec.fields) {
     if (field.pod) readPod(view, pods[field.pod], object[field.name], pods, base + field.offset);
     else object[field.name] = podField(view, field, undefined, base);
