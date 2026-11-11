@@ -1726,6 +1726,20 @@ for (const value of [Symbol('x'), { valueOf() { throw Error('boom'); } }, -1]) {
 EOF
 test "$("$runtime" "$fixture_dir/timer-clear-invalid.ts")" = "$(printf 'ok\nok\nok')"
 
+cat > "$fixture_dir/timer-callback-invalid.ts" <<'EOF'
+for (const value of [undefined, null, false, 0, '', {}, [], Symbol('callback')]) {
+  try { setTimeout(value as any, 0); console.log('unexpected'); }
+  catch (error) { console.log(error.name, error.message); }
+}
+setTimeout(() => console.log('recovered'), 1);
+EOF
+python3 - "$runtime" "$fixture_dir/timer-callback-invalid.ts" <<'PY'
+import subprocess, sys
+result = subprocess.run([sys.argv[1], sys.argv[2]], capture_output=True, text=True, timeout=10)
+assert result.returncode == 0 and result.stderr == '', result
+assert result.stdout.splitlines() == ['TypeError setTimeout requires a callback'] * 8 + ['recovered'], result
+PY
+
 cat > "$fixture_dir/timer-error.ts" <<'EOF'
 setTimeout(() => { throw Error('timer exploded'); }, 0);
 setTimeout(() => { console.log('later timer'); }, 20);

@@ -290,6 +290,11 @@ improvement, with a smoke check.
   ID whose numeric conversion fails, including a `Symbol` and a throwing
   `valueOf`. Cyna now consumes that conversion exception and returns
   `undefined`, while `setTimeout` still propagates invalid delay errors.
+  A direct callback argument probe found that Zig returns an unset QuickJS
+  exception for eight missing or nonfunction callbacks, leaving caught error
+  names and messages undefined. Cyna reports `TypeError: setTimeout requires a
+  callback`; the smoke suite retains this explicit error and verifies a later
+  valid timer still fires. This is a deliberate error reporting repair.
   Notebook Promise waiting now follows Zig's 64 idle turn cutoff and reports
   a libuv run failure. The kernel consumer checks that an unresolved Promise
   yields `Promise did not settle`, then accepts a later request. Its shared
