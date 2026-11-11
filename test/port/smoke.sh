@@ -667,6 +667,7 @@ for flag in ('1', 'true', 'yes', 'on'):
                    re.fullmatch('[0-9a-f]{16}', record['span_id']) for record in traces['records'])
         later = json.loads(get('/api/traces?since=1&limit=1'))
         assert later['records'][0]['sequence'] == 2 and later['next_cursor'] == 2
+        assert json.loads(get('/tracesXYZ?since=1&limit=1'))['records'][0]['sequence'] == 2
         assert '<title>Hao Telemetry</title>' in get('/')
         assert process.wait(timeout=5) == 0
     finally:

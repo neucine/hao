@@ -16,7 +16,7 @@ if (globalThis.__hao_telemetry_console_enabled) {
       headers: { 'content-type': 'text/html; charset=utf-8' } };
     if (path === '/health' || path === '/api/health') return { json: { ok: true } };
     if (path === '/metrics' || path === '/api/metrics') return { json: snapshotMetricsNative() };
-    if (path === '/traces' || path === '/api/traces') {
+    if (path.startsWith('/traces') || path.startsWith('/api/traces')) {
       const since = Number(/(?:\?|&)since=(\d+)/.exec(request.url)?.[1] ?? '0');
       const limit = Math.min(512, Math.max(1, Number(/(?:\?|&)limit=(\d+)/.exec(request.url)?.[1] ?? '100')));
       return { json: snapshotTraceRecordsNative(since, limit) };

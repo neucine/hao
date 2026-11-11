@@ -99,8 +99,8 @@ reject result.
   host memory metric names. Cyna also exposes QuickJS metrics supplied by
   `std.telemetry`; the smoke suite now guards the shared host metric set.
   `/api/traces` returned matching cursor and record shapes in the sampled
-  requests. Cyna returns 404 for `/tracesXYZ`, whereas Zig's prefix route
-  accepts it; Cyna keeps exact path matching.
+  requests. Cyna now follows Zig's prefix route for `/tracesXYZ`; the smoke suite
+  retains that case.
 
 A shared CLI argument probe matched `--version`, missing arguments, and invalid
 Jupyter subcommands. It found that bare `hao test` and a missing `--grep` value
