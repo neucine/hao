@@ -212,6 +212,11 @@ improvement, with a smoke check.
   `1.100000023841858` from `hao_echo_f32(1.1)`, while Zig's current trampoline
   returns `1.273197475e-314`. The Cyna smoke suite now retains this ABI check;
   the correct `f32` result is an intentional improvement over Zig's bug.
+  An extended unsigned input probe matched positive values, truncation, and
+  Symbol or throwing-object conversion errors. For `-1`, Zig silently returns
+  `undefined` because its unsigned conversion fails without setting a JavaScript
+  exception; Cyna throws `TypeError: FFI: invalid argument value`. The explicit
+  error is retained as an intentional improvement and has smoke coverage.
   Zig rejects a C function declaration with no final semicolon. Cyna's parser
   previously accepted `double sqrt(double x)`; it now rejects that form, and
   the smoke suite checks the rejected and accepted variants. Function pointer

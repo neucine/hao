@@ -1133,9 +1133,10 @@ const library = dlopen(`${path}/libhao_search_fixture.dylib`, {
 });
 console.log(library.hao_echo_i8(130), library.hao_echo_i8(-129), library.hao_echo_u8(258));
 console.log(library.hao_echo_f32(1.1));
+try { library.hao_echo_u8(-1); } catch (error) { console.log(error.name, error.message); }
 library.close();
 EOF
-test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-widths.ts")" = "$(printf '%s\n%s' '-126 127 2' '1.100000023841858')"
+test "$(HAO_FFI_TEST_PATH="$fixture_dir" "$runtime" "$fixture_dir/ffi-widths.ts")" = "$(printf '%s\n%s\n%s' '-126 127 2' '1.100000023841858' 'TypeError FFI: invalid argument value')"
 cat > "$fixture_dir/ffi-search.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';
