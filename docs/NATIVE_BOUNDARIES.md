@@ -7,12 +7,25 @@ The C boundary is limited to three kinds of work:
 
 | Surface | Files | Why the C boundary remains |
 | --- | --- | --- |
-| QuickJS host integration | `bridge.c`, `module.c`, `errors.c`, `global/console.c`, `global/timer.c`, `js/addon.c`, `std/fs/native.c`, `std/process/native.c`, `std/http/native.c`, `std/http/server_uv.c`, `std/ffi/native.c`, `telemetry/interface.c`, `telemetry/metrics.c` | QuickJS values, callbacks, module loading, and runtime ownership cross its C API. Application policy is in Cyna and TypeScript feature modules. |
-| Rust transpiler calls | `bridge.c`, `module.c` | These call the existing Rust archive through `libs/transpiler/include/hao_transpiler.h`. Rust owns TypeScript transformation. |
+| QuickJS host integration | `runtime.c`, `module.c`, `errors.c`, `global/console.c`, `global/timer.c`, `js/addon.c`, `jupyter/cell.c`, `test/runner.c`, `std/fs/native.c`, `std/process/native.c`, `std/http/native.c`, `std/http/server_uv.c`, `std/ffi/native.c`, `telemetry/interface.c`, `telemetry/metrics.c` | QuickJS values, callbacks, module loading, and runtime ownership cross its C API. Application policy is in Cyna and TypeScript feature modules. |
+| Rust transpiler calls | `runtime.c`, `module.c`, `jupyter/cell.c` | These call the existing Rust archive through `libs/transpiler/include/hao_transpiler.h`. Rust owns TypeScript transformation. |
 | Host and native APIs absent from Cyna std | `runtime_allocator.c`, `process_memory.c`, `std/fs/native.c`, `std/process/execute.c`, `std/http/native.c`, `std/http/server_uv.c`, `std/ffi/native.c`, `jupyter/zmq.c` | The port needs shared allocation counters, macOS memory counters, file size for `statSync`, bounded binary process capture and signal status, libcurl, libuv HTTP callbacks, libffi call layouts, and ZeroMQ frames with HMAC. The pinned Cyna std has bounded file reads and writes but no file size query. It has `std.process.command().output()`, but its `Output` exposes text streams and exit code rather than Hao's bounded byte streams and signal result. No claim of language impossibility is made for these integrations. |
 
-A source can appear in more than one row because one adapter crosses more than one native API. The current build compiles 17 project C sources. `src/bridge/jupyter/crypto.h` is shared by the native ZeroMQ adapter and its C consumer tests. `src/bridge/runtime_allocator.c` also supplies allocation statistics to telemetry and shares allocations with QuickJS and native libraries.
-The source inventory checks that both `cyna.toml` and `cyna.lib.toml` list exactly those 17 C sources under `src/bridge/`, with no duplicate or uncompiled project C source.
+The bridge translation units are grouped by the Cyna facade that consumes
+them. This is the ownership boundary; directories are an implementation detail
+inside that boundary.
+
+| Cyna facade | Bridge units | Ownership |
+| --- | --- | --- |
+| `qjs.cy` | `runtime.c`, `module.c`, `errors.c`, `global/`, `js/addon.c`, `jupyter/cell.c`, `test/runner.c`, `std/*/native.c`, `std/http/server_uv.c`, `telemetry/` | QuickJS values, installed callbacks, module loading, notebook packet construction, test hooks, and JavaScript-facing native adapters. |
+| `transpiler.cy` | `runtime.c`, `module.c`, `jupyter/cell.c` | The Rust archive remains the source transformer; these units own its call sites and free its returned buffers. |
+| `host.cy` | `runtime_allocator.c`, `process_memory.c`, `std/process/execute.c` | Process-wide allocation accounting and platform services without a matching pinned Cyna API. |
+| `uv.cy` | No project C wrapper | Cyna calls the libuv ABI directly. `async/uv.cy` owns loop operations. |
+| `jupyter.cy` | `jupyter/zmq.c` | ZeroMQ socket and frame handling. `jupyter/cell.c` is QuickJS evaluation and is therefore exposed through `qjs.cy`. |
+| `telemetry.cy` | `telemetry/interface.c`, `telemetry/metrics.c` | Native record storage and JavaScript access to telemetry metrics. |
+
+A source can appear in more than one row because one adapter crosses more than one native API. The current build compiles 19 project C sources. The bridge is split by owning lifecycle: `runtime.c` owns QuickJS lifetime, evaluation, rejection handling, generic job draining, and the embedding error channel; `jupyter/cell.c` owns notebook transpilation, async settling, result formatting, and cell packet construction; `test/runner.c` owns test globals, failure reporting, and the test-specific job drain. `runtime_internal.h` exposes the shared error printer only within the bridge. `src/bridge/jupyter/crypto.h` is shared by the native ZeroMQ adapter and its C consumer tests. `src/bridge/runtime_allocator.c` also supplies allocation statistics to telemetry and shares allocations with QuickJS and native libraries.
+The source inventory checks that both `cyna.toml` and `cyna.lib.toml` list exactly those 19 C sources under `src/bridge/`, with no duplicate or uncompiled project C source.
 
 The allocator boundary has a concrete ownership reason. Zig's `runtime_allocator.zig` wraps its backing allocator and counts Hao-owned Zig allocations. In the Cyna port, the native adapters use `hao_alloc` and its accounting header; `runtime_allocator.cy` exposes that allocator to Cyna callers. QuickJS uses its own allocator and is reported separately. Moving only the counters into Cyna would split allocations from their corresponding frees and change the reported scope. This is a Hao runtime allocator contract, not evidence that Cyna std needs a new allocator API.
 Zig resets its global counters when initializing a runtime. The C bridge keeps
