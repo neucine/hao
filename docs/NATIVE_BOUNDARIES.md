@@ -11,7 +11,7 @@ The async loop C ABI exports live in `async/uv.cy`. The module imports libuv's l
 
 ## Why C remains
 
-The current build contains 18 project C sources (4,611 lines). Hao now builds pinned Cyna source revision `f069052`, which includes the `std.fs.exists` result fix (LG-79) and bounded `std.fs.read_bytes_limited` (LG-82). `fs.cy` and `package.cy` use these APIs. `fs_limit.c` retains script error classification and the Jupyter connection reader, whose growth check still needs equivalent Cyna behavior before removal. Most remaining C code is native library and QuickJS integration; the table below records roles rather than language blockers.
+The current build contains 18 project C sources (4,592 lines). Hao now builds pinned Cyna source revision `e16127d`, which includes the `std.fs.exists` result fix (LG-79) and bounded `std.fs.read_bytes_limited` (LG-82). `fs.cy` and `package.cy` use these APIs. `fs_limit.c` retains script error classification. Jupyter connection reads now use `std.fs.read_bytes_limited_exact`, which rejects growth after the initially measured bytes. Most remaining C code is native library and QuickJS integration; the table below records roles rather than language blockers.
 
 | C sources | Current role | Blocker status |
 | --- | --- | --- |
@@ -19,6 +19,6 @@ The current build contains 18 project C sources (4,611 lines). Hao now builds pi
 | `std/fs/native.c`, `std/process/native.c`, `telemetry/interface.c`, `telemetry/metrics.c` | QuickJS adapters for standard modules and telemetry | C API integration choice; no Cyna impossibility established |
 | `std/ffi/native.c`, `std/http/native.c`, `std/http/server_uv.c`, `jupyter/zmq.c` | libffi, libcurl, libuv, and ZeroMQ calls and callbacks | Native library integration choice; no Cyna impossibility established |
 | `std/process/execute.c`, `process_memory.c`, `runtime_allocator.c` | POSIX subprocess and memory accounting, host memory counters, and allocator shared with C libraries | Host implementation choice; no Cyna impossibility established |
-| `fs_limit.c` | Script error classification and Jupyter connection read with growth detection | Equivalent Cyna behavior needs verification |
+| `fs_limit.c` | Script read error classification after a failed Cyna read | Exact error mapping and path checks still need a Cyna implementation |
 
 The removed `c_bytes.c` only wrapped pointer reads and `memcpy`. `c_bytes.cy` now performs those operations in an audited `unchecked` block. This passed the executable and static library builds, the port smoke suite, and 235 Zig/Cyna native value comparisons. Other C files need a behavior and API review before moving their implementations; this table is an ownership inventory, not a claim that Cyna cannot express their work.

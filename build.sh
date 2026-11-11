@@ -3,7 +3,7 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$repo_root"
-cyna_revision=f069052
+cyna_revision=e16127d
 cyna_source=${HAO_CYNA_SOURCE:-"$repo_root/.deps/cyna-source"}
 if ! git -C "$cyna_source" rev-parse --git-dir >/dev/null 2>&1; then
     git clone --quiet --branch codex/hao-bounded-read-current --single-branch \
@@ -12,8 +12,12 @@ if ! git -C "$cyna_source" rev-parse --git-dir >/dev/null 2>&1; then
 fi
 actual_revision=$(git -C "$cyna_source" rev-parse --short=7 HEAD)
 if [ "$actual_revision" != "$cyna_revision" ]; then
-    echo "Hao requires Cyna source $cyna_revision; found $actual_revision" >&2
-    exit 1
+    if [ -n "${HAO_CYNA_SOURCE:-}" ]; then
+        echo "Hao requires Cyna source $cyna_revision; found $actual_revision" >&2
+        exit 1
+    fi
+    git -C "$cyna_source" fetch --quiet origin codex/hao-bounded-read-current
+    git -C "$cyna_source" checkout --quiet --detach "$cyna_revision"
 fi
 zig_libs_revision=a91b58271be94a4e402a856403fe0fa83add1709
 zig_libs_source="$(dirname "$cyna_source")/zig-libs"

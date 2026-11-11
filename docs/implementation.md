@@ -139,7 +139,7 @@ Library searches accept `.dylib` and `.so` names in configured directories.
 
 Builds currently require Apple Silicon macOS, Zig 0.17.0, Rust,
 CMake, a C compiler, and the Homebrew curl, libffi, zeromq, and openssl@3
-libraries. `build.sh` fetches and builds pinned Cyna source revision `f069052`;
+libraries. `build.sh` fetches and builds pinned Cyna source revision `e16127d`;
 `HAO_CYNA_SOURCE` can point to an existing checkout at that revision.
 From the Hao repository root, run `sh build.sh`, then
 `./build/hao-cyna <file.ts>`. The script builds the QuickJS and Rust

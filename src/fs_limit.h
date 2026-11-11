@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int hao_fs_read_limited(const unsigned char *path, size_t length, unsigned char *output, size_t capacity);
 int hao_fs_script_read_error(const unsigned char *path, size_t length, size_t limit);
 
 #endif

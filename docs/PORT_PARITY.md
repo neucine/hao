@@ -12,7 +12,7 @@ unchanged `legacy` suite under the Cyna binary with
 `python3 test/port/legacy_e2e.py` also passes 67 cases with 7 skips. This
 directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
-Hao builds against pinned Cyna source revision `f069052` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
+Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
 
 Every legacy `src/**/*.zig` file except the following 16 has a same stem file
 under `src/` with a `.cy`, `.c`, or `.ts` extension. These exceptions have
@@ -206,7 +206,7 @@ improvement, with a smoke check.
   path or data `TypeError`. Cyna now consumes the conversion exception and
   reports Zig's error for Symbols and throwing `toString` methods.
   A path component of 256 bytes made the pinned Cyna `std.fs.exists` return a
-  typed error through Hao’s exported Cyna function. Cyna source revision `f069052` fixes the LLVM result conversion and provides `std.fs.read_bytes_limited`. Hao now uses both `std.fs.exists` and bounded reads in Cyna. The filesystem differential covers 84 path operations and 23 write values; the unchanged legacy suite passes 67 cases with 7 skips. The Jupyter connection reader still uses C for its additional growth check.
+  typed error through Hao’s exported Cyna function. Cyna source revision `e16127d` fixes the LLVM result conversion and provides `std.fs.read_bytes_limited`. Hao now uses both `std.fs.exists` and bounded reads in Cyna. The filesystem differential covers 84 path operations and 23 write values; the unchanged legacy suite passes 67 cases with 7 skips. The Jupyter connection reader uses Cyna `std.fs.read_bytes_limited_exact` to reject growth after the initially measured bytes.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,

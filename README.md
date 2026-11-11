@@ -88,7 +88,7 @@ hao test test/e2e/runtime
 
 Build Hao on macOS arm64:
 
-The build fetches and compiles pinned Cyna source revision `f069052` with Zig 0.17.0.
+The build fetches and compiles pinned Cyna source revision `e16127d` with Zig 0.17.0.
 See [Cyna build requirements](docs/implementation.md).
 
 ```bash
