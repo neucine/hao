@@ -206,6 +206,11 @@ improvement, with a smoke check.
   libuv turn when job draining records a rejection or callback error. A shared
   rejection fixture exits before the later timer and matches Zig's stdout and
   stderr bytes; the smoke suite retains it.
+  A shared script combined an in-process libuv HTTP server and client, a
+  subprocess, an independent timer, and a Promise continuation in the server
+  handler. Three runs of each binary produced identical output and completed
+  with status zero. The smoke suite retains completion and event membership
+  checks without depending on OS scheduling order.
   A same-turn probe found that draining Promise jobs inside a timer callback
   reordered timers from Zig's `first,second,job` to `first,job,second` when a
   trace span was active. A tracked patch to QuickJS now captures trace context

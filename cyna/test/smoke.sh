@@ -1536,6 +1536,26 @@ timer_turns_actual=$("$runtime" "$fixture_dir/timer-turns.ts")
 timer_turns_expected=$(printf 'first\njob\nsecond')
 test "$timer_turns_actual" = "$timer_turns_expected"
 
+cat > "$fixture_dir/async-mixed.ts" <<'EOF'
+import { serve, get } from 'std:http';
+import { run } from 'std:process';
+const events: string[] = [];
+const server = serve({ port: 0, async handler() {
+  events.push('handler');
+  await new Promise(resolve => setTimeout(resolve, 1));
+  events.push('handler resumed');
+  return { body: 'ok' };
+} });
+const client = get(`http://127.0.0.1:${server.port}/`);
+const child = run({ cmd: 'sh', args: ['-c', 'printf child'] });
+const timer = new Promise(resolve => setTimeout(() => { events.push('timer'); resolve(null); }, 1));
+const [response, result] = await Promise.all([client, child, timer]).then(values => [values[0], values[1]]);
+server.close();
+console.log(response.text(), result.stdout,
+  events.length === 3 && ['timer', 'handler', 'handler resumed'].every(event => events.includes(event)));
+EOF
+test "$("$runtime" "$fixture_dir/async-mixed.ts")" = 'ok child true'
+
 cat > "$fixture_dir/timer-same-turn.ts" <<'EOF'
 const events: string[] = [];
 setTimeout(() => { events.push('first'); Promise.resolve().then(() => events.push('job')); }, 0);
