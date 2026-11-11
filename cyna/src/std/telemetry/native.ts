@@ -141,7 +141,6 @@ export function snapshotTraceRecordsNative(since = 0, limit = 100) {
     missed, records: selected.map(record => ({ ...record, attributes: { ...record.attributes } })) };
 }
 function createSpan(name: string, parent: number | null, attributes: TraceAttributes = {}): number {
-  if (typeof name !== 'string' || !name || utf8Length(name) > 96) throw Error('invalid trace name');
   const id = nextSpanId++;
   const traceId = parent === null ? globalThis.__hao_telemetry_randomHexId(16) :
     parent === currentSpan && currentTraceId !== null ? currentTraceId :
@@ -165,8 +164,20 @@ function trimTraceIds(): void {
     if (spanTraceIds.size <= 512) break;
   }
 }
-export function startTraceNative(name: string, attributes: TraceAttributes = {}): number { return createSpan(name, currentSpan, attributes); }
-export function startRootTraceNative(name: string, attributes: TraceAttributes = {}): number { return createSpan(name, null, attributes); }
+export function startTraceNative(name: string, attributes: TraceAttributes = {}): number {
+  if (arguments.length < 1) throw new TypeError('startTrace requires a name');
+  if (typeof name === 'symbol') throw new TypeError('trace name must be a string');
+  const text = String(name);
+  if (utf8Length(text) > 96) throw new InternalError('failed to start trace span');
+  return createSpan(text, currentSpan, attributes);
+}
+export function startRootTraceNative(name: string, attributes: TraceAttributes = {}): number {
+  if (arguments.length < 1) throw new TypeError('startRootTrace requires a name');
+  if (typeof name === 'symbol') throw new TypeError('trace name must be a string');
+  const text = String(name);
+  if (utf8Length(text) > 96) throw new InternalError('failed to start root trace span');
+  return createSpan(text, null, attributes);
+}
 export function addTraceEventNative(id: number, name: string, attributes: TraceAttributes = {}): void {
   const span = spans.get(id);
   if (!span) throw Error('unknown trace span');

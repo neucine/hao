@@ -474,6 +474,17 @@ telemetry.startSpan('public-span').end('err');
 console.log(snapshotTraceRecordsNative().records.map(record => `${record.name}:${record.status}`).join(','));
 EOF
 test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-handles.ts")" = 'public-root:unset,public-root:ok,public-span:unset,public-span:err'
+cat > "$fixture_dir/telemetry-native-names.ts" <<'EOF'
+import { startTraceNative, startRootTraceNative, endTraceNative } from 'std:telemetry/native';
+for (const name of [42, '', 'x'.repeat(97)]) {
+  try { const id = startTraceNative(name); console.log('ok', id); endTraceNative(id); }
+  catch (error) { console.log(error.name, error.message); }
+}
+try { startRootTraceNative(); } catch (error) { console.log(error.name, error.message); }
+try { startRootTraceNative('x'.repeat(97)); } catch (error) { console.log(error.name, error.message); }
+try { startTraceNative(Symbol('name')); } catch (error) { console.log(error.name, error.message); }
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/telemetry-native-names.ts")" = "$(printf 'ok 1\nok 2\nInternalError failed to start trace span\nTypeError startRootTrace requires a name\nInternalError failed to start root trace span\nTypeError trace name must be a string')"
 cat > "$fixture_dir/telemetry-disabled.ts" <<'EOF'
 import { trace } from 'std:telemetry';
 import { snapshotTraceRecordsNative } from 'std:telemetry/native';
