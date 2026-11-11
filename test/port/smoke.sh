@@ -1109,6 +1109,9 @@ for (const declaration of [
   'char const *f(void);',
   'void f(char const *x);',
   'void f(uint8_t const *x);',
+  'void f(char volatile *x);',
+  'void f(uint8_t restrict *x);',
+  'void f(uint8_t static *x);',
 ]) {
   try { console.log(JSON.stringify(prepareNative('m', declaration))); }
   catch (error) { console.log(error.name, error.code, error.message); }
@@ -1119,6 +1122,9 @@ RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: U
 RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature
 RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: UnsupportedFeature
 {"descriptor":{"f":{"args":["ptr"],"returns":"void"}},"policies":{"handles":{},"functions":{}}}
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
+RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
 RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
 RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError
 RuntimeError invalid_arg prepareNative: unsupported or invalid C declarations: SyntaxError

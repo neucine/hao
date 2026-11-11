@@ -549,6 +549,11 @@ improvement, with a smoke check.
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for
   those forms; all 29 probe outputs match, and the smoke suite retains the
   three formerly mismatched cases.
+  A 73 case qualifier and pointer spelling matrix then found the same category
+  mismatch for postfixed `volatile`; five more postfixed qualifier probes
+  covered `restrict`, `signed`, `unsigned`, `static`, and `extern`. Cyna now
+  classifies those spellings as Zig's `SyntaxError`. Both complete probe outputs
+  match, and the smoke suite retains representative forms.
   `openNative` now returns normalized handle and function policies like Zig,
   which lets the public `cdecl` wrapper turn an opaque `Foo **out` result into
   a handle object. A shared native library probe returned `HaoBox 37` from
