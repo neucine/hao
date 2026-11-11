@@ -240,16 +240,16 @@ improvement, with a smoke check.
   throwing `toString`, rather than exposing the JavaScript conversion error.
 
 - The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
-  `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
+  `async/uv.cy`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a
   serviced turn even when its final handle closes. `Loop.run_until_idle` also
   drains QuickJS jobs between turns.
-  The `run_once` and `run_nowait` C ABI wrappers now reside in `async/uv.cy`
-  and call libuv directly; `async/uv.c` retains native loop allocation and
-  closure. The executable, embedding library, and async smoke fixtures passed
-  after moving these wrappers across the boundary.
+  Loop allocation, closure, `run_once`, and `run_nowait` C ABI exports now
+  reside in `async/uv.cy` and call libuv and the shared allocator directly.
+  `async/uv.h` declares them for C callers. The executable, embedding library,
+  and async smoke fixtures passed after removing `async/uv.c` from both builds.
   The remaining Zig `Loop` methods have explicit implementation locations:
   loop allocation, deinitialization, and nonblocking runs are in
-  `async/uv.c`; current-loop ownership is the `HaoRuntime` handle in
+  `async/uv.cy`; current-loop ownership is the `HaoRuntime` handle in
   `src/bridge.c` and `runtime_host.h`; timer start, cancellation, one-shot fire,
   and close callbacks are in `global/timer.c`; HTTP worker requests use
   libuv from `std/http/native.c`. Zig's `async/uv.zig` FFI declarations are
