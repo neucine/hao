@@ -57,6 +57,13 @@ pub fn telemetry_console_settings(): TelemetryConsoleSettings ! ConfigError {
     return TelemetryConsoleSettings { enabled: enabled, port: port };
 }
 
+pub fn native_stack_trace_enabled(): bool ! ConfigError {
+    if env_get("RUNTIME_NATIVE_STACK_TRACE") is raw {
+        return try parse_console_enabled(raw);
+    }
+    return false;
+}
+
 fn space(byte: u8): bool {
     return byte == 32 or byte == 9 or byte == 13;
 }

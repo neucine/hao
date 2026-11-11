@@ -30,6 +30,15 @@ that adapter.
 
 ## Open behavior checks
 
+- `RUNTIME_NATIVE_STACK_TRACE` now passes through Cyna `std.config` and makes
+  classified C FFI declaration errors carry a captured C stack in
+  `nativeStack`. With the flag enabled, Zig and Cyna both produce a string
+  beginning with `SyntaxError`; with it disabled, Cyna leaves the field
+  undefined. Other native error paths and exact stack frames remain to be
+  compared. A direct `std:util` fixture covering primitives, arrays, objects,
+  cycles, `repr()`, and inspect options produced identical output on both
+  runtimes.
+
 - The `std:fs` surface has matching public operations in the shared end to end
   suite: existence, read, write, and size. A direct Zig/Cyna comparison also
   matched file, symlink, missing path, and directory results. The smoke suite

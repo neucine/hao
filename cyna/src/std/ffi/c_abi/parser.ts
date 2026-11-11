@@ -23,7 +23,7 @@ function stripComments(source: string): string {
 export function parse(declarations: string, opts: any): Prepared {
   if (typeof declarations !== 'string' || !declarations.trim()) throw invalidArg('cdecl: declarations must be a non-empty string');
   const source = stripComments(declarations);
-  if (!source.trim().endsWith(';')) throw invalidArg('C declaration requires a terminating semicolon');
+  if (!source.trim().endsWith(';')) throw invalidArg('C declaration requires a terminating semicolon', 'SyntaxError');
   if (/#|\.\.\./.test(source)) throw invalidArg('unsupported C declarations');
   if (opts?.search != null) {
     const search = opts.search;

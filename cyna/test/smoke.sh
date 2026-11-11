@@ -714,6 +714,13 @@ for (const declaration of ['double sqrt(double x)', 'double sqrt(double x);']) {
 }
 EOF
 test "$("$runtime" "$fixture_dir/ffi-terminator.ts")" = "$(printf 'rejected\naccepted 2')"
+cat > "$fixture_dir/ffi-native-stack.ts" <<'EOF'
+import { cdecl } from 'std:ffi/c';
+try { cdecl('m', 'double sqrt(double x)'); }
+catch (error) { console.log(typeof error.nativeStack, error.nativeStack?.startsWith('SyntaxError\n')); }
+EOF
+test "$(RUNTIME_NATIVE_STACK_TRACE=1 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = 'string true'
+test "$(RUNTIME_NATIVE_STACK_TRACE=0 "$runtime" "$fixture_dir/ffi-native-stack.ts")" = 'undefined undefined'
 cat > "$fixture_dir/ffi-char.ts" <<'EOF'
 import { cdecl } from 'std:ffi/c';
 import { getEnv } from 'std:process';

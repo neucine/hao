@@ -56,6 +56,10 @@ void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t p
     JS_FreeValue(host->context, global);
 }
 
+void hao_runtime_set_native_stack_trace(uintptr_t handle, int enabled) {
+    ((HaoRuntime *)handle)->native_stack_trace_enabled = enabled != 0;
+}
+
 static void hao_print_value(JSContext *ctx, JSValueConst error) {
     JSValue stack = JS_GetPropertyStr(ctx, error, "stack");
     const char *text = JS_ToCString(ctx, error);

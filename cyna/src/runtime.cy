@@ -3,7 +3,7 @@ import { Loop } from .async.loop;
 import { install as install_console } from .global.console;
 import { install as install_timer } from .global.timer;
 import { eval as eval_module, register_source } from .modules;
-import { telemetry_console_settings } from .config;
+import { telemetry_console_settings, native_stack_trace_enabled } from .config;
 import { host as telemetry_host } from .telemetry.interface;
 import { Backend } from std.telemetry;
 
@@ -16,12 +16,16 @@ extern c("hao_runtime_set_executable") fn runtime_set_executable(handle: c_size_
 extern c("hao_runtime_eval_cell") fn runtime_eval_cell(handle: c_size_t, source: *const c_uchar, source_len: c_size_t, filename: *const c_uchar, filename_len: c_size_t): ?*const c_uchar;
 extern c("hao_runtime_free_text") fn runtime_free_text(text: *const c_uchar): void;
 extern c("hao_runtime_set_telemetry_console") fn runtime_set_telemetry_console(handle: c_size_t, enabled: c_int, port: c_ushort): void;
+extern c("hao_runtime_set_native_stack_trace") fn runtime_set_native_stack_trace(handle: c_size_t, enabled: c_int): void;
 
 pub struct Runtime {
     pub handle: c_size_t;
 
     pub fn init(): ?Runtime {
         const console = telemetry_console_settings() catch (code) {
+            return none;
+        };
+        const native_stack = native_stack_trace_enabled() catch (code) {
             return none;
         };
         const handle = runtime_new();
@@ -37,6 +41,9 @@ pub struct Runtime {
             console_enabled = 1;
         }
         runtime_set_telemetry_console(handle, console_enabled, console.port as c_ushort);
+        var stack_enabled: c_int = 0;
+        if native_stack { stack_enabled = 1; }
+        runtime_set_native_stack_trace(handle, stack_enabled);
         return Runtime {
             handle: handle
         };

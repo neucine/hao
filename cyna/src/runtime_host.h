@@ -65,6 +65,7 @@ typedef struct HaoRuntime {
     HaoTelemetryItem *telemetry_head, *telemetry_tail;
     HaoNativeSpan *telemetry_spans;
     bool telemetry_trace_enabled;
+    bool native_stack_trace_enabled;
 } HaoRuntime;
 
 void hao_telemetry_cleanup(HaoRuntime *host);
