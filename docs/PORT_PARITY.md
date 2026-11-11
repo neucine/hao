@@ -329,6 +329,14 @@ improvement, with a smoke check.
   received as Zig does, while downloads reject with `TruncatedDownload` and
   preserve the destination. The client smoke fixture checks these paths, and
   the shared probe's 12 request and download outcomes now match.
+  A second shared client probe covered ten failure and decoding paths. Cyna now
+  maps connection refusal, malformed URLs, and unsupported URI schemes to
+  Zig's `InternalError` messages. Libcurl reports a missing final chunk as a
+  partial file; Cyna now distinguishes chunked responses from truncated
+  Content-Length responses and reports `HttpChunkTruncated` for both requests
+  and downloads. Successful compressed and chunked responses still match.
+  The smoke suite retains the failure categories and verifies that a failed
+  chunked download preserves its destination.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes

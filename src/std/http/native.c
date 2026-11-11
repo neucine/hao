@@ -28,6 +28,7 @@ typedef struct {
     char status_text[128];
     int failed;
     int skip_body;
+    bool chunked;
     bool manual_redirect;
     FILE *download_file;
     EVP_MD_CTX *digest;
@@ -129,6 +130,7 @@ static size_t receive_header(char *data, size_t size, size_t count, void *opaque
     size_t length = size * count;
     if (length >= 5 && memcmp(data, "HTTP/", 5) == 0) {
         response->skip_body = 0;
+        response->chunked = false;
         char *space = memchr(data, ' ', length);
         if (space) {
             long status = strtol(space + 1, NULL, 10);
@@ -158,6 +160,22 @@ static size_t receive_header(char *data, size_t size, size_t count, void *opaque
     size_t value_length = (size_t)(data + length - value);
     while (value_length && isspace((unsigned char)*value)) { value++; value_length--; }
     while (value_length && isspace((unsigned char)value[value_length - 1])) value_length--;
+    if (name_length == 17 && strncasecmp(data, "Transfer-Encoding", 17) == 0) {
+        const char *token = value;
+        size_t remaining = value_length;
+        while (remaining) {
+            while (remaining && (*token == ',' || isspace((unsigned char)*token))) {
+                token++; remaining--;
+            }
+            size_t token_length = 0;
+            while (token_length < remaining && token[token_length] != ',') token_length++;
+            size_t trimmed = token_length;
+            while (trimmed && isspace((unsigned char)token[trimmed - 1])) trimmed--;
+            if (trimmed == 7 && strncasecmp(token, "chunked", 7) == 0) response->chunked = true;
+            token += token_length;
+            remaining -= token_length;
+        }
+    }
     HaoHeader *header = hao_calloc(1, sizeof(*header));
     if (!header) { response->failed = 2; return 0; }
     header->name = hao_alloc(name_length + 1);
@@ -241,12 +259,17 @@ static void perform_http(uv_work_t *work) {
             goto done;
         }
         if (code == CURLE_PARTIAL_FILE) {
-            if (job->download_path) {
-                set_legacy_error(job, "TruncatedDownload");
+            if (response->chunked || job->download_path) {
+                set_legacy_error(job, response->chunked ? "HttpChunkTruncated" : "TruncatedDownload");
                 goto done;
             }
         } else {
-            set_error(job, curl_easy_strerror(code));
+            const char *legacy_name = NULL;
+            if (code == CURLE_COULDNT_CONNECT) legacy_name = "ConnectionRefused";
+            if (code == CURLE_URL_MALFORMAT) legacy_name = "InvalidFormat";
+            if (code == CURLE_UNSUPPORTED_PROTOCOL) legacy_name = "UnsupportedUriScheme";
+            if (legacy_name) set_legacy_error(job, legacy_name);
+            else set_error(job, curl_easy_strerror(code));
             goto done;
         }
     }

@@ -376,9 +376,16 @@ console.log(manualBody.status, manualBody.text());
 try { await get('http://127.0.0.1:$server_port/large', { maxBytes: 10 }); } catch (error) { console.log(error.name, error.message); }
 const truncated = await get('http://127.0.0.1:$server_port/truncated');
 console.log(truncated.status, truncated.bytes().length);
+for (const url of [
+  'http://127.0.0.1:$server_port/chunked-truncated',
+  'http://127.0.0.1:1/', 'http://', 'file:///etc/hosts',
+]) {
+  try { await get(url); }
+  catch (error) { console.log(error.name, error.message); }
+}
 EOF
 http_actual=$("$runtime" "$fixture_dir/http.ts")
-http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\n302 redirect body\nInternalError http.request error: ResponseTooLarge\n200 5')
+http_expected=$(printf '200 /json?q=hello%%20world application/json\n{"answer":42}\n0,1,2,255\n302 /large\n302 redirect body\nInternalError http.request error: ResponseTooLarge\n200 5\nInternalError http.request error: HttpChunkTruncated\nInternalError http.request error: ConnectionRefused\nInternalError http.request error: InvalidFormat\nInternalError http.request error: UnsupportedUriScheme')
 test "$http_actual" = "$http_expected"
 cat > "$fixture_dir/http-native-body.ts" <<EOF
 import { requestNative } from 'std:http/native';
@@ -428,12 +435,13 @@ console.log(result.status, result.bytesWritten, result.sha256, fs.statSync(path)
 try { await download('http://127.0.0.1:$server_port/large', path, { maxBytes: 10 }); } catch (error) { console.log('limited', error.name, error.message, fs.statSync(path).size); }
 try { await download('http://127.0.0.1:$server_port/missing', path); } catch (_) { console.log('missing', fs.statSync(path).size); }
 try { await download('http://127.0.0.1:$server_port/truncated', path); } catch (error) { console.log('truncated', error.name, error.message, fs.statSync(path).size); }
+try { await download('http://127.0.0.1:$server_port/chunked-truncated', path); } catch (error) { console.log('chunked', error.name, error.message, fs.statSync(path).size); }
 try { await download('http://127.0.0.1:$server_port/empty', '$fixture_dir/absent/file'); } catch (_) { console.log('parent', fs.statSync(path).size); }
 const compressed = await download('http://127.0.0.1:$server_port/compressed', path, { maxBytes: 200000 });
 console.log('compressed', compressed.bytesWritten, fs.statSync(path).size);
 EOF
 download_actual=$("$runtime" "$fixture_dir/download.ts")
-download_expected=$(printf '200 4194304 2b07811057df887086f06a67edc6ebf911de8b6741156e7a2eb1416a4b8b1b2e 4194304\nlimited InternalError http.request error: DownloadTooLarge 4194304\nmissing 4194304\ntruncated InternalError http.request error: TruncatedDownload 4194304\nparent 4194304\ncompressed 200000 200000')
+download_expected=$(printf '200 4194304 2b07811057df887086f06a67edc6ebf911de8b6741156e7a2eb1416a4b8b1b2e 4194304\nlimited InternalError http.request error: DownloadTooLarge 4194304\nmissing 4194304\ntruncated InternalError http.request error: TruncatedDownload 4194304\nchunked InternalError http.request error: HttpChunkTruncated 4194304\nparent 4194304\ncompressed 200000 200000')
 test "$download_actual" = "$download_expected"
 test "$(find "$fixture_dir" -name 'download.bin.hao-*' | wc -l | tr -d ' ')" = 0
 python3 "$repo_root/test/port/http_server.py" "$runtime" > "$fixture_dir/server-behavior"
