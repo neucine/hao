@@ -6,8 +6,8 @@ export function openNative(name: string, descriptor: Descriptor): number {
   if (typeof name === 'symbol') throw new TypeError('dlopen: invalid library name');
   try { name = String(name); }
   catch (_) { throw new TypeError('dlopen: invalid library name'); }
-  if (!descriptor || typeof descriptor !== 'object' || Array.isArray(descriptor)) {
-    throw Error('dlopen: descriptor must be an object');
+  if (!descriptor || typeof descriptor !== 'object') {
+    throw new TypeError('dlopen: descriptor must be an object');
   }
   const handle = globalThis.__hao_ffi_open(name);
   try {

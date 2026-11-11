@@ -621,6 +621,12 @@ improvement, with a smoke check.
   Cyna now validates handle policy shapes before lowering and normalizes an
   empty handle list to an empty object. The retained matrix covers these seven
   additional forms; all 288 results match.
+  The direct `openNative` descriptor boundary now accepts Zig's empty array
+  descriptor and throws Zig's `TypeError` for scalar descriptors. A retained
+  18-form comparison checks descriptor shape, argument and return types, and
+  missing symbols through both executables. Zig silently produces an undefined
+  exception for a null descriptor entry; Cyna retains an explicit `TypeError`
+  for that malformed entry.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for
