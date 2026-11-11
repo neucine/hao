@@ -605,6 +605,7 @@ improvement, with a smoke check.
   resulting `prepareNative` and `openNative` error categories. Other C
   declaration and policy combinations still need comparison.
   A retained 169-form declaration matrix now checks return and parameter types, POD typedefs, and qualifier placement through `prepareNative`. It found that Cyna classified nine rejected forms differently because it checked parameters before the return type and did not classify leading `inline` or `restrict` as syntax errors. The parser now follows Zig's return-first error precedence and all 169 results match. Run `python3 test/port/ffi_declaration_differential.py <legacy-binary> <cyna-binary>`.
+  The retained declaration matrix now covers 460 forms. An expanded pointer, qualifier, typedef, and comment sweep found a named `const void` parameter that Cyna accepted and Zig rejected. Zig also treats a lone `const void` parameter list as empty and validates named parameter types before reporting a missing name in mixed lists. The Cyna parser now follows those rules; all 460 outcomes match.
   A further 29 declaration probe found that postfixed `const` on a base type
   (`char const *` and `uint8_t const *`) was classified as `SyntaxError` by Zig
   but `UnsupportedFeature` by Cyna. The parser now reports Zig's category for

@@ -25,6 +25,30 @@ def declarations() -> list[str]:
         for type_name in ('int', 'double', 'int32_t', 'char *'):
             forms.extend((f'{qualifier} {type_name} f(void);',
                           f'void f({qualifier} {type_name} x);'))
+    for base in ('char', 'uint8_t', 'int32_t', 'double', 'void', 'Foo'):
+        for modifier in ('', 'const ', 'volatile ', 'restrict ', 'static ',
+                         'extern ', 'inline '):
+            for pointer in ('', ' *', ' **', ' * const', ' const *', ' volatile *'):
+                forms.append(f'void f({modifier}{base}{pointer} value);')
+    for source in ('void f(void);', 'int32_t f(int32_t x);',
+                   'typedef struct { int32_t x; } Foo; void f(Foo *x);'):
+        for start, end in (('/*hi*/', ''), ('//hi\n', ''), ('', '/*tail*/'),
+                           ('', '//tail\n'), ('/*unterminated', ''),
+                           ('#include <x>', '')):
+            forms.append(start + source + end)
+    forms.extend(('void f(void value);', 'void f(const void value);',
+                  'void f(volatile void value);', 'void f(void *value);',
+                  'void f(const void *value);', 'const void f(void);',
+                  'volatile void f(void);', 'void f(const void);',
+                  'void f(void const);', 'void f(void *);',
+                  'void f(const void *);', 'void f(void, const void value);',
+                  'void f(void, void value);',
+                  'void f(void, volatile void value);',
+                  'void f(void, char *value);', 'void f(void, int value);',
+                  'void f(void, static int value);',
+                  'void f(void, const void);', 'void f(void, void);',
+                  'void f(const void, int x);',
+                  'void f(const void, const void value);'))
     return forms
 
 

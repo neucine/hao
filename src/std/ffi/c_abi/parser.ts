@@ -92,12 +92,23 @@ export function parse(declarations: string, opts: any): Prepared {
     const returnType = functionType(match[1], true);
     const params: Parameter[] = [];
     const rawParams: { name: string; type: string }[] = [];
-    if (match[3].trim() && match[3].trim() !== 'void') {
-      for (const rawParam of match[3].split(',')) {
+    if (match[3].trim() && match[3].trim() !== 'void' && match[3].trim() !== 'const void') {
+      const declarations = match[3].split(',');
+      // Zig validates named parameter types before reporting a missing name.
+      for (const rawParam of declarations) {
+        const candidate = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
+        if (candidate) {
+          if (/^(?:const\s+)?void$/.test(candidate[1].trim())) {
+            throw invalidArg(`invalid C parameter: ${rawParam}`);
+          }
+          functionType(candidate[1]);
+        }
+      }
+      for (const rawParam of declarations) {
         const param = /^([\s\S]+?[\s*])([A-Za-z_]\w*)$/.exec(rawParam.trim());
         if (rawParam.trim() === 'void') throw invalidArg('missing C parameter name');
         if (!param) throw invalidArg(`invalid C parameter: ${rawParam}`);
-        if (param[1].trim() === 'void') throw invalidArg(`invalid C parameter: ${rawParam}`);
+        if (/^(?:const\s+)?void$/.test(param[1].trim())) throw invalidArg(`invalid C parameter: ${rawParam}`);
         if (params.some(item => item.name === param[2])) throw invalidArg(`duplicate C parameter: ${param[2]}`);
         const namedPointer = /^\s*([A-Za-z_]\w*)\s*\*\s*$/.exec(param[1]);
         const pod = namedPointer && pods[namedPointer[1]] ? namedPointer[1] : undefined;
