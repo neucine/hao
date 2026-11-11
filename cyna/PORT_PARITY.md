@@ -104,7 +104,8 @@ that adapter.
   latter, matching Zig's early return before execution count changes.
   A shared mode of the C kernel consumer now runs unchanged against both
   binaries and passes kernel info, a simple execute result with idle status,
-  stdout stream, rich SVG display, an execution error with its IOPub error
+  an empty string result with no output packet, stdout stream, rich SVG display,
+  an execution error with its IOPub error
   packet, and control shutdown. The wider Cyna test still exercises Cyna
   additions; broader message and scheduling combinations remain open.
 - Compare FFI declaration, marshaling, handle lifecycle, and error cases beyond

@@ -106,6 +106,16 @@ int main(int argc, char **argv) {
             if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
         }
         if (!status && (!result_seen || !idle_seen)) status = 72;
+        if (!status && (send_request(shell, "execute_request", "{\"code\":\"''\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "\"status\"") || !strstr(content, "\"ok\""))) status = 85;
+        idle_seen = 0;
+        for (int i = 0; !status && i < 8 && !idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 86; break; }
+            if (strstr(content, "\"text/plain\"") || strstr(content, "\"display_data\"")) { status = 87; break; }
+            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+        }
+        if (!status && !idle_seen) status = 88;
         if (!status && (send_request(shell, "execute_request",
             "{\"code\":\"console.log('hao-stream'); 3\"}") < 0 ||
             receive_content(shell, content, sizeof(content)) < 0 ||

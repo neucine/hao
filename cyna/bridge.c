@@ -613,7 +613,15 @@ char *hao_runtime_eval_cell(uintptr_t handle, const char *source, size_t source_
     JS_SetPropertyStr(ctx, packet, "value", value ? JS_NewString(ctx, value) : JS_NULL);
     if (!JS_IsUndefined(mime)) JS_SetPropertyStr(ctx, packet, "mime", mime);
     JS_SetPropertyStr(ctx, packet, "error", JS_NewBool(ctx, !JS_IsUndefined(exception)));
-    JS_SetPropertyStr(ctx, packet, "has_value", JS_NewBool(ctx, JS_IsUndefined(exception) && !JS_IsUndefined(result) && !JS_IsNull(result)));
+    /* Zig's notebook formatter omits an empty primitive string result. */
+    bool has_value = JS_IsUndefined(exception) && !JS_IsUndefined(result) && !JS_IsNull(result);
+    if (has_value && JS_IsString(result)) {
+        size_t string_len = 0;
+        const char *string_value = JS_ToCStringLen(ctx, &string_len, result);
+        if (string_value && string_len == 0) has_value = false;
+        if (string_value) JS_FreeCString(ctx, string_value);
+    }
+    JS_SetPropertyStr(ctx, packet, "has_value", JS_NewBool(ctx, has_value));
     if (value) JS_FreeCString(ctx, value);
     JS_FreeValue(ctx, display);
     JS_FreeValue(ctx, result);
