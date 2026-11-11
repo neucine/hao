@@ -164,6 +164,16 @@ int main(int argc, char **argv) {
             if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
         }
         if (!status && !idle_seen) status = 95;
+        if (!status && (send_request(shell, "execute_request",
+            "{\"code\":\"new Promise(() => { setTimeout(() => { throw new Error('pending timer failure') }, 1) })\"}") < 0 ||
+            receive_content(shell, content, sizeof(content)) < 0 ||
+            !strstr(content, "pending timer failure"))) status = 96;
+        idle_seen = 0;
+        for (int i = 0; !status && i < 8 && !idle_seen; i++) {
+            if (receive_content(iopub, content, sizeof(content)) < 0) { status = 97; break; }
+            if (strstr(content, "execution_state") && strstr(content, "idle")) idle_seen = 1;
+        }
+        if (!status && !idle_seen) status = 98;
         if (!status && (send_request(control, "shutdown_request", "{\"restart\":false}") < 0 ||
             receive_content(control, content, sizeof(content)) < 0 ||
             !strstr(content, "status") || !strstr(content, "ok"))) status = 73;

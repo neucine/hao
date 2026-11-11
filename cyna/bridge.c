@@ -489,9 +489,10 @@ static JSValue hao_cell_await(JSContext *ctx, HaoRuntime *host, JSValueConst pro
     JS_SetPropertyStr(ctx, global, "__hao_nb_async_state", JS_DupValue(ctx, state));
     JS_SetPropertyStr(ctx, global, "__hao_nb_async_promise", JS_DupValue(ctx, promise));
     static const char bootstrap[] =
-        "Promise.resolve(globalThis.__hao_nb_async_promise).then("
-        "value => { const s = globalThis.__hao_nb_async_state; s.value = value; s.ok = true; s.settled = true; },"
-        "error => { const s = globalThis.__hao_nb_async_state; s.value = error; s.settled = true; });";
+        "((s, p) => Promise.resolve(p).then("
+        "value => { s.value = value; s.ok = true; s.settled = true; },"
+        "error => { s.value = error; s.settled = true; }))"
+        "(globalThis.__hao_nb_async_state, globalThis.__hao_nb_async_promise);";
     JSValue setup = JS_Eval(ctx, bootstrap, sizeof(bootstrap) - 1,
                             "<hao-jupyter-await>", JS_EVAL_TYPE_GLOBAL);
     JSValue outcome = JS_UNDEFINED;
@@ -524,9 +525,33 @@ static JSValue hao_cell_await(JSContext *ctx, HaoRuntime *host, JSValueConst pro
                 completed = true;
                 break;
             }
+            if (host->has_rejection) {
+                JS_Throw(ctx, JS_DupValue(host->rejection_context, host->rejection));
+                JS_FreeValue(host->rejection_context, host->rejection);
+                host->has_rejection = false;
+                outcome = JS_EXCEPTION;
+                completed = true;
+                break;
+            }
             int ran_io = hao_async_uv_run_nowait(host->loop);
             if (ran_io < 0) {
                 JS_ThrowInternalError(ctx, "libuv run failed");
+                outcome = JS_EXCEPTION;
+                completed = true;
+                break;
+            }
+            if (host->has_callback_error) {
+                JS_Throw(ctx, JS_DupValue(ctx, host->callback_error));
+                JS_FreeValue(ctx, host->callback_error);
+                host->has_callback_error = false;
+                outcome = JS_EXCEPTION;
+                completed = true;
+                break;
+            }
+            if (host->has_rejection) {
+                JS_Throw(ctx, JS_DupValue(host->rejection_context, host->rejection));
+                JS_FreeValue(host->rejection_context, host->rejection);
+                host->has_rejection = false;
                 outcome = JS_EXCEPTION;
                 completed = true;
                 break;

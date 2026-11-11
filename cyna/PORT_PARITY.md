@@ -82,6 +82,11 @@ improvement, with a smoke check.
   a libuv run failure. The kernel consumer checks that an unresolved Promise
   yields `Promise did not settle`, then accepts a later request. Its shared
   mode passes with both the Zig and Cyna binaries.
+  A shared kernel probe also confirmed that a timer callback failure must
+  interrupt a pending Promise. Cyna now forwards pending callback failures and
+  unhandled rejections during notebook waiting. The Promise handlers retain
+  their state after an early error, so a later cell does not receive a stray
+  callback failure when the old Promise eventually settles.
 
 - HTTP client trace context was a confirmed difference: with the same local
   HTTP server, `await trace('parent', async () => { await get(url);
