@@ -1,7 +1,7 @@
-#include "runtime.h"
 #include "support.h"
 #include "telemetry.h"
 #include <math.h>
+#include <pthread.h>
 #include <quickjs.h>
 #include <stdatomic.h>
 #include <stddef.h>
@@ -278,6 +278,10 @@ void hao_install_telemetry_globals(JSContext *ctx, JSValue global) {
 enum { METRIC_ADD = 1, METRIC_SET = 2, SPAN_START = 3, SPAN_EVENT = 4, SPAN_END = 5 };
 enum { ATTRIBUTE_BOOL = 0, ATTRIBUTE_INT = 1, ATTRIBUTE_FLOAT = 2, ATTRIBUTE_TEXT = 3 };
 
+typedef struct HaoTelemetryItem HaoTelemetryItem;
+typedef struct HaoNativeSpan HaoNativeSpan;
+typedef struct HaoTelemetry HaoTelemetry;
+
 typedef struct {
     char *key;
     size_t key_len;
@@ -306,13 +310,60 @@ struct HaoTelemetryItem {
 
 struct HaoNativeSpan {
     struct HaoNativeSpan *next;
-    HaoRuntime *host;
+    HaoTelemetry *host;
     HaoTelemetryItem *pending;
     uint64_t trace_id, span_id, parent_id;
     char *name;
     size_t name_len;
     bool sampled;
 };
+
+struct HaoTelemetry {
+    uintptr_t runtime;
+    pthread_mutex_t mutex;
+    HaoTelemetryItem *head;
+    HaoTelemetryItem *tail;
+    HaoNativeSpan *spans;
+    bool enabled;
+    struct HaoTelemetry *next;
+};
+
+static pthread_mutex_t runtimes_mutex = PTHREAD_MUTEX_INITIALIZER;
+static HaoTelemetry *runtimes;
+
+uintptr_t hao_telemetry_open(uintptr_t runtime) {
+    if (!runtime) return 0;
+    HaoTelemetry *telemetry = hao_calloc(1, sizeof(*telemetry));
+    if (!telemetry) return 0;
+    if (pthread_mutex_init(&telemetry->mutex, NULL) != 0) {
+        hao_free(telemetry);
+        return 0;
+    }
+    telemetry->runtime = runtime;
+    pthread_mutex_lock(&runtimes_mutex);
+    telemetry->next = runtimes;
+    runtimes = telemetry;
+    pthread_mutex_unlock(&runtimes_mutex);
+    return (uintptr_t)telemetry;
+}
+
+static HaoTelemetry *telemetry_for(uintptr_t runtime) {
+    HaoTelemetry *result = NULL;
+    pthread_mutex_lock(&runtimes_mutex);
+    for (HaoTelemetry *telemetry = runtimes; telemetry; telemetry = telemetry->next) {
+        if (telemetry->runtime == runtime) {
+            result = telemetry;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&runtimes_mutex);
+    return result;
+}
+
+void hao_telemetry_set_enabled(uintptr_t handle, int enabled) {
+    HaoTelemetry *telemetry = (HaoTelemetry *)handle;
+    if (telemetry) telemetry->enabled = enabled != 0;
+}
 
 static char *copy_text(const unsigned char *text, size_t length) {
     if (!text && length) return NULL;
@@ -345,13 +396,13 @@ static HaoTelemetryItem *new_item(int kind, const unsigned char *name, size_t le
     return item;
 }
 
-static void enqueue(HaoRuntime *host, HaoTelemetryItem *item) {
+static void enqueue(HaoTelemetry *telemetry, HaoTelemetryItem *item) {
     if (!item || item->invalid) { free_item(item); return; }
-    pthread_mutex_lock(&host->telemetry_mutex);
-    if (host->telemetry_tail) host->telemetry_tail->next = item;
-    else host->telemetry_head = item;
-    host->telemetry_tail = item;
-    pthread_mutex_unlock(&host->telemetry_mutex);
+    pthread_mutex_lock(&telemetry->mutex);
+    if (telemetry->tail) telemetry->tail->next = item;
+    else telemetry->head = item;
+    telemetry->tail = item;
+    pthread_mutex_unlock(&telemetry->mutex);
 }
 
 void hao_telemetry_metric(uintptr_t handle, const unsigned char *scope, size_t scope_len,
@@ -365,7 +416,9 @@ void hao_telemetry_metric(uintptr_t handle, const unsigned char *scope, size_t s
     item->metric_unit = unit;
     item->value = (double)value;
     if (!item->scope) { free_item(item); return; }
-    enqueue((HaoRuntime *)handle, item);
+    HaoTelemetry *telemetry = telemetry_for(handle);
+    if (telemetry) enqueue(telemetry, item);
+    else free_item(item);
 }
 
 static uint64_t random_id(void) {
@@ -379,14 +432,15 @@ uintptr_t hao_telemetry_span_start(uintptr_t handle, uint64_t parent_trace, uint
                                     const unsigned char *name, size_t name_len, int span_kind) {
     (void)span_kind;
     if (!handle || name_len > 96) return 0;
-    HaoRuntime *host = (HaoRuntime *)handle;
+    HaoTelemetry *telemetry = telemetry_for(handle);
+    if (!telemetry) return 0;
     HaoNativeSpan *span = hao_calloc(1, sizeof(*span));
     if (!span) return 0;
-    span->host = host;
+    span->host = telemetry;
     span->span_id = random_id();
     span->trace_id = parent_span ? parent_trace : random_id();
     span->parent_id = parent_span;
-    span->sampled = host->telemetry_trace_enabled && parent_sampled != 0;
+    span->sampled = telemetry->enabled && parent_sampled != 0;
     span->name = copy_text(name, name_len);
     span->name_len = name_len;
     if (!span->span_id || !span->trace_id || !span->name) {
@@ -402,10 +456,10 @@ uintptr_t hao_telemetry_span_start(uintptr_t handle, uint64_t parent_trace, uint
             span->pending->parent_id = parent_span;
         }
     }
-    pthread_mutex_lock(&host->telemetry_mutex);
-    span->next = host->telemetry_spans;
-    host->telemetry_spans = span;
-    pthread_mutex_unlock(&host->telemetry_mutex);
+    pthread_mutex_lock(&telemetry->mutex);
+    span->next = telemetry->spans;
+    telemetry->spans = span;
+    pthread_mutex_unlock(&telemetry->mutex);
     return (uintptr_t)span;
 }
 
@@ -466,7 +520,7 @@ void hao_telemetry_record_finish(uintptr_t handle, uintptr_t record) {
 void hao_telemetry_span_end(uintptr_t handle, int64_t timestamp, int status) {
     HaoNativeSpan *span = (HaoNativeSpan *)handle;
     if (!span) return;
-    HaoRuntime *host = span->host;
+    HaoTelemetry *telemetry = span->host;
     if (span->pending) hao_telemetry_record_finish(handle, (uintptr_t)span->pending);
     if (span->sampled) {
         HaoTelemetryItem *item = new_item(SPAN_END, (const unsigned char *)span->name, span->name_len);
@@ -475,25 +529,32 @@ void hao_telemetry_span_end(uintptr_t handle, int64_t timestamp, int status) {
             item->trace_id = span->trace_id;
             item->span_id = span->span_id;
             item->status = status;
-            enqueue(host, item);
+            enqueue(telemetry, item);
         }
     }
-    pthread_mutex_lock(&host->telemetry_mutex);
-    HaoNativeSpan **link = &host->telemetry_spans;
+    pthread_mutex_lock(&telemetry->mutex);
+    HaoNativeSpan **link = &telemetry->spans;
     while (*link && *link != span) link = &(*link)->next;
     if (*link) *link = span->next;
-    pthread_mutex_unlock(&host->telemetry_mutex);
+    pthread_mutex_unlock(&telemetry->mutex);
     hao_free(span->name);
     hao_free(span);
 }
 
-void hao_telemetry_cleanup(HaoRuntime *host) {
-    pthread_mutex_lock(&host->telemetry_mutex);
-    HaoTelemetryItem *items = host->telemetry_head;
-    HaoNativeSpan *spans = host->telemetry_spans;
-    host->telemetry_head = host->telemetry_tail = NULL;
-    host->telemetry_spans = NULL;
-    pthread_mutex_unlock(&host->telemetry_mutex);
+void hao_telemetry_close(uintptr_t handle) {
+    HaoTelemetry *telemetry = (HaoTelemetry *)handle;
+    if (!telemetry) return;
+    pthread_mutex_lock(&runtimes_mutex);
+    HaoTelemetry **runtime_link = &runtimes;
+    while (*runtime_link && *runtime_link != telemetry) runtime_link = &(*runtime_link)->next;
+    if (*runtime_link) *runtime_link = telemetry->next;
+    pthread_mutex_unlock(&runtimes_mutex);
+    pthread_mutex_lock(&telemetry->mutex);
+    HaoTelemetryItem *items = telemetry->head;
+    HaoNativeSpan *spans = telemetry->spans;
+    telemetry->head = telemetry->tail = NULL;
+    telemetry->spans = NULL;
+    pthread_mutex_unlock(&telemetry->mutex);
     while (items) { HaoTelemetryItem *next = items->next; free_item(items); items = next; }
     while (spans) {
         HaoNativeSpan *next = spans->next;
@@ -502,6 +563,8 @@ void hao_telemetry_cleanup(HaoRuntime *host) {
         hao_free(spans);
         spans = next;
     }
+    pthread_mutex_destroy(&telemetry->mutex);
+    hao_free(telemetry);
 }
 
 static void hex64(uint64_t value, char out[17]) {
@@ -540,11 +603,12 @@ static JSValue record_js(JSContext *ctx, HaoTelemetryItem *item) {
 
 static JSValue drain_js(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val; (void)argc; (void)argv;
-    HaoRuntime *host = JS_GetContextOpaque(ctx);
-    pthread_mutex_lock(&host->telemetry_mutex);
-    HaoTelemetryItem *items = host->telemetry_head;
-    host->telemetry_head = host->telemetry_tail = NULL;
-    pthread_mutex_unlock(&host->telemetry_mutex);
+    HaoTelemetry *telemetry = telemetry_for((uintptr_t)JS_GetContextOpaque(ctx));
+    if (!telemetry) return JS_NewArray(ctx);
+    pthread_mutex_lock(&telemetry->mutex);
+    HaoTelemetryItem *items = telemetry->head;
+    telemetry->head = telemetry->tail = NULL;
+    pthread_mutex_unlock(&telemetry->mutex);
     JSValue records = JS_NewArray(ctx);
     uint32_t index = 0;
     while (items) {

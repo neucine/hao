@@ -1,5 +1,3 @@
-#include "cyna_exports.h"
-#include "runtime.h"
 #include "support.h"
 #include "telemetry.h"
 #include "../../libs/transpiler/include/hao_transpiler.h"
@@ -24,7 +22,70 @@
 #include <unistd.h>
 #include <uv.h>
 
+typedef struct HaoSourceModule {
+    char *name;
+    char *source;
+    size_t source_len;
+    struct HaoSourceModule *next;
+} HaoSourceModule;
+
+typedef struct HaoNativeModule {
+    char *name;
+    void *(*load)(void *context, const char *module_name);
+    struct HaoNativeModule *next;
+} HaoNativeModule;
+
+typedef struct HaoPackageCallbacks {
+    char *name;
+    int (*install)(uintptr_t runtime, void *userdata);
+    void (*deinit)(uintptr_t runtime, void *userdata);
+    void *userdata;
+    struct HaoPackageCallbacks *prev;
+    struct HaoPackageCallbacks *next;
+} HaoPackageCallbacks;
+
+typedef struct HaoTimer HaoTimer;
+
+typedef struct HaoRuntime {
+    JSRuntime *runtime;
+    JSContext *context;
+    uv_loop_t *loop;
+    JSContext *rejection_context;
+    JSValue rejection;
+    bool has_rejection;
+    JSValue callback_error;
+    bool has_callback_error;
+    uint32_t next_timer_id;
+    HaoTimer *timers;
+    HaoSourceModule *modules;
+    HaoNativeModule *native_modules;
+    HaoPackageCallbacks *packages;
+    HaoPackageCallbacks *last_package;
+    bool capture_active;
+    int capture_target;
+    char *capture_stdout;
+    char *capture_stderr;
+    size_t capture_stdout_len, capture_stderr_len;
+    size_t capture_stdout_cap, capture_stderr_cap;
+    char *embed_error;
+    uintptr_t telemetry;
+    bool native_stack_trace_enabled;
+} HaoRuntime;
+
 /* Cyna exports called back through this translation unit. */
+int hao_resolve_package(const unsigned char *base, const unsigned char *specifier,
+                        unsigned char *output, size_t capacity);
+unsigned char *hao_module_lexical_absolute(const unsigned char *path);
+unsigned char *hao_module_relative(const unsigned char *base, const unsigned char *specifier);
+size_t hao_addon_name_length(const unsigned char *specifier, const unsigned char *path);
+int hao_addon_write_name(const unsigned char *specifier, const unsigned char *path,
+                         unsigned char *output, size_t capacity);
+int hao_fs_exists(const unsigned char *path);
+unsigned char *hao_fs_read_alloc(const unsigned char *path, size_t length, size_t limit);
+int hao_fs_write(const unsigned char *path, const unsigned char *data, size_t length);
+int hao_process_run_json(const unsigned char *options, size_t options_len,
+                         unsigned char *stdout_output, unsigned char *stderr_output,
+                         size_t capacity, HaoRunResult *result);
 int hao_install_runtime_error(void *ctx);
 int hao_http_valid_method(const unsigned char *method);
 int hao_http_url_error(const unsigned char *url);
@@ -34,6 +95,10 @@ int hao_ffi_type_code(const unsigned char *name);
 int hao_ffi_parse_unsigned(const unsigned char *text, size_t length, uint64_t *output);
 size_t hao_jupyter_rewrite_cell(const unsigned char *source, size_t length,
                                 unsigned char *output, size_t capacity);
+uv_loop_t *hao_async_uv_new(void);
+void hao_async_uv_free(uv_loop_t *loop);
+int hao_async_uv_run_once(uv_loop_t *loop);
+int hao_async_uv_run_nowait(uv_loop_t *loop);
 
 /* Single-unit phases are forward declared for runtime initialization. */
 void hao_install_fs_globals(JSContext *ctx, JSValue global);
@@ -47,6 +112,11 @@ void hao_addon_cleanup(JSContext *ctx);
 void hao_cleanup_timers(HaoRuntime *host);
 JSModuleDef *hao_load_addon(JSContext *ctx, const char *name);
 void hao_test_print_failure(JSContext *ctx, JSValueConst error, const char *path);
+char *hao_normalize_module(JSContext *ctx, const char *base, const char *specifier, void *opaque);
+JSModuleDef *hao_load_module(JSContext *ctx, const char *name, void *opaque);
+void hao_module_cleanup(HaoRuntime *host);
+int hao_package_install(HaoRuntime *host);
+void hao_package_cleanup(HaoRuntime *host);
 
 /* Runtime lifetime, evaluation, and errors. */
 void hao_runtime_free(uintptr_t handle);
@@ -116,7 +186,7 @@ static void hao_job_trace_release(JSRuntime *rt, void *job_context, void *opaque
 
 void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t port) {
     HaoRuntime *host = (HaoRuntime *)handle;
-    host->telemetry_trace_enabled = enabled != 0;
+    hao_telemetry_set_enabled(host->telemetry, enabled);
     JSValue global = JS_GetGlobalObject(host->context);
     if (!enabled) JS_SetPropertyStr(host->context, global, "__hao_trace_capacity", JS_NewUint32(host->context, 0));
     JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_enabled", JS_NewBool(host->context, enabled));
@@ -228,13 +298,14 @@ uintptr_t hao_runtime_new(size_t stack_size, size_t gc_threshold, size_t thread_
     }
     HaoRuntime *host = hao_calloc(1, sizeof(*host));
     if (!host) return 0;
-    if (pthread_mutex_init(&host->telemetry_mutex, NULL) != 0) {
+    host->telemetry = hao_telemetry_open((uintptr_t)host);
+    if (!host->telemetry) {
         hao_free(host);
         return 0;
     }
     host->runtime = JS_NewRuntime();
     if (!host->runtime) {
-        pthread_mutex_destroy(&host->telemetry_mutex);
+        hao_telemetry_close(host->telemetry);
         hao_free(host);
         return 0;
     }
@@ -246,7 +317,7 @@ uintptr_t hao_runtime_new(size_t stack_size, size_t gc_threshold, size_t thread_
     host->context = JS_NewContext(host->runtime);
     if (!host->context) {
         JS_FreeRuntime(host->runtime);
-        pthread_mutex_destroy(&host->telemetry_mutex);
+        hao_telemetry_close(host->telemetry);
         hao_free(host);
         return 0;
     }
@@ -254,7 +325,7 @@ uintptr_t hao_runtime_new(size_t stack_size, size_t gc_threshold, size_t thread_
     if (!host->loop) {
         JS_FreeContext(host->context);
         JS_FreeRuntime(host->runtime);
-        pthread_mutex_destroy(&host->telemetry_mutex);
+        hao_telemetry_close(host->telemetry);
         hao_free(host);
         return 0;
     }
@@ -287,7 +358,7 @@ void hao_runtime_free(uintptr_t handle) {
     hao_addon_cleanup(host->context);
     hao_package_cleanup(host);
     hao_metric_cleanup(host->context);
-    hao_telemetry_cleanup(host);
+    hao_telemetry_close(host->telemetry);
     hao_cleanup_timers(host);
     hao_async_uv_free(host->loop);
     hao_free(host->capture_stdout);
@@ -298,7 +369,6 @@ void hao_runtime_free(uintptr_t handle) {
     JS_FreeContext(host->context);
     JS_FreeRuntime(host->runtime);
     hao_module_cleanup(host);
-    pthread_mutex_destroy(&host->telemetry_mutex);
     hao_free(host);
 }
 

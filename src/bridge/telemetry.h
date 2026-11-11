@@ -20,5 +20,9 @@ int hao_metric_observe(JSContext *ctx, uint32_t id, double value);
 int hao_metric_value(JSContext *ctx, uint32_t id, double *value);
 void hao_metric_cleanup(JSContext *ctx);
 void hao_install_telemetry_globals(JSContext *ctx, JSValue global);
+void hao_install_telemetry_interface(JSContext *ctx, JSValue global);
+uintptr_t hao_telemetry_open(uintptr_t runtime);
+void hao_telemetry_set_enabled(uintptr_t telemetry, int enabled);
+void hao_telemetry_close(uintptr_t telemetry);
 
 #endif

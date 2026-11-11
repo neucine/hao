@@ -77,6 +77,20 @@ bridge_sources = {
     candidate.relative_to(port).as_posix()
     for candidate in (port / "src/bridge").rglob("*.c")
 }
+bridge_headers = {
+    candidate.relative_to(port).as_posix()
+    for candidate in (port / "src/bridge").rglob("*.h")
+}
+expected_headers = {
+    "src/bridge/support.h",
+    "src/bridge/telemetry.h",
+}
+if bridge_headers != expected_headers:
+    errors.append(
+        "unexpected private bridge headers: "
+        f"missing {sorted(expected_headers - bridge_headers)}, "
+        f"extra {sorted(bridge_headers - expected_headers)}"
+    )
 declared_sources: dict[str, set[str]] = {}
 for manifest_path in sorted(port.glob("cyna*.toml")):
     manifest_name = manifest_path.name
@@ -154,4 +168,4 @@ for path in sorted(declaration_files | shared_files):
             errors.append(f"unexpected content drift: src/{path}")
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(bridge_sources)} shared C bridge sources, {len(declaration_files)} TypeScript declarations, {len(shared_files)} TypeScript sources and assets")
+print(f"source inventory: {len(zig_files)} Zig files mapped, {len(exceptions)} layout exceptions, {len(bridge_sources)} shared C bridge sources, {len(bridge_headers)} shared C bridge headers, {len(declaration_files)} TypeScript declarations, {len(shared_files)} TypeScript sources and assets")
