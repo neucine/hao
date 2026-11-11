@@ -220,8 +220,11 @@ improvement, with a smoke check.
   output order. Raw socket probes under both runtimes matched rejection statuses
   for missing Host, duplicate Content-Length, chunked transfer encoding,
   Expect, oversized body declaration, and oversized headers. Both served only
-  the first of two pipelined requests before closing the connection. Other
-  protocol framing and shutdown cases remain open.
+  the first of two pipelined requests before closing the connection. A second
+  shared framing matrix matched HTTP/1.0 without Host; duplicate and empty
+  Host; folded headers; malformed method and version; Content-Length spacing,
+  signs, and conflicts with Transfer-Encoding. The deterministic cases are in
+  the server consumer. Other protocol framing and shutdown cases remain open.
 - Compare the embedding surface and native addon ABI with the Zig host exports,
   including lifecycle and error propagation, using independent consumers.
   Zig exposes a Zig `RuntimeEnvironment` and `Package` API; the Cyna port exposes

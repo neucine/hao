@@ -50,7 +50,16 @@ try:
     for index, (status, _, body) in enumerate(results):
         assert status == 200 and f'"request":{index}'.encode() in body
     framing = [
+        (b'GET / HTTP/1.0\r\n\r\n', 200),
         (b'GET / HTTP/1.1\r\n\r\n', 400),
+        (b'GET / HTTP/1.1\r\nHost: x\r\nHost: y\r\n\r\n', 400),
+        (b'GET / HTTP/1.1\r\nHost:\r\n\r\n', 400),
+        (b'GET / HTTP/1.1\r\nHost: x\r\nX-Test: a\r\n b\r\n\r\n', 400),
+        (b'G@T / HTTP/1.1\r\nHost: x\r\n\r\n', 400),
+        (b'GET / HTTP/2.0\r\nHost: x\r\n\r\n', 400),
+        (b'POST / HTTP/1.1\r\nHost: x\r\nContent-Length:  0 \r\n\r\n', 200),
+        (b'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\nContent-Length: 0\r\n\r\n', 400),
+        (b'POST / HTTP/1.1\r\nHost: x\r\nContent-Length: +0\r\n\r\n', 400),
         (b'GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n', 400),
         (b'POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n', 501),
         (b'POST / HTTP/1.1\r\nHost: localhost\r\nExpect: 100-continue\r\n\r\n', 417),
