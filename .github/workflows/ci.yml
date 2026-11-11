@@ -29,3 +29,35 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin legacy:refs/remotes/origin/legacy
           python3 cyna/test/source_inventory.py
+
+  native-cyna:
+    if: github.ref_name == 'cyna-port'
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native libraries
+        run: brew install curl libffi zeromq openssl@3
+      - name: Install verified Cyna beta artifact
+        run: |
+          mkdir -p "$RUNNER_TEMP/cyna-artifact" "$RUNNER_TEMP/cyna-install"
+          gh run download 42959589490 -R neucine/cyna \
+            -n cyna-release-0.5.1-beta.1-macos -D "$RUNNER_TEMP/cyna-artifact"
+          archive=$(find "$RUNNER_TEMP/cyna-artifact/distributions" -name '*.tar.gz' -print -quit)
+          test -n "$archive"
+          printf '%s  %s\n' 'ced661fecd90007e1bcc0b158e2b8d5f26af755b4de60efd01a44b1b8a6b8598' "$archive" | shasum -a 256 -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP/cyna-install"
+          compiler=$(find "$RUNNER_TEMP/cyna-install" -path '*/bin/cyna' -type f -print -quit)
+          test -n "$compiler"
+          echo "$(dirname "$compiler")" >> "$GITHUB_PATH"
+          "$compiler" version
+      - name: Build and run native parity checks
+        run: |
+          sh cyna/build.sh
+          sh cyna/test/smoke.sh
+          git fetch --no-tags --depth=1 origin legacy:refs/remotes/origin/legacy
+          python3 cyna/test/legacy_e2e.py
