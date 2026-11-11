@@ -16,6 +16,12 @@ extern int hao_process_run_json(const unsigned char *options, size_t options_len
                                 unsigned char *stdout_output, unsigned char *stderr_output,
                                 size_t capacity, HaoRunResult *result);
 
+static JSValue option_type_error(JSContext *ctx, const char *message) {
+    JSValue pending = JS_GetException(ctx);
+    JS_FreeValue(ctx, pending);
+    return JS_ThrowTypeError(ctx, "%s", message);
+}
+
 static int copy_string_option(JSContext *ctx, JSValue target, JSValueConst source,
                               const char *name, int required) {
     JSValue value = JS_GetPropertyStr(ctx, source, name);
@@ -34,13 +40,16 @@ static JSValue normalized_options(JSContext *ctx, JSValueConst options) {
     JSValue normalized = JS_NewObject(ctx);
     if (JS_IsException(normalized)) return normalized;
     int status = copy_string_option(ctx, normalized, options, "cmd", 1);
-    if (status == 0) status = copy_string_option(ctx, normalized, options, "cwd", 0);
     if (status != 0) {
         JS_FreeValue(ctx, normalized);
-        return status > 0 ? JS_ThrowTypeError(ctx, "process.run requires options.cmd") : JS_EXCEPTION;
+        return status > 0 ? JS_ThrowTypeError(ctx, "process.run requires options.cmd")
+                          : option_type_error(ctx, "process.run requires options.cmd");
     }
     JSValue args = JS_GetPropertyStr(ctx, options, "args");
-    if (JS_IsException(args)) { JS_FreeValue(ctx, normalized); return JS_EXCEPTION; }
+    if (JS_IsException(args)) {
+        JS_FreeValue(ctx, normalized);
+        return option_type_error(ctx, "process.run args must be a string array");
+    }
     if (!JS_IsNull(args) && !JS_IsUndefined(args)) {
         if (!JS_IsArray(args)) {
             JS_FreeValue(ctx, args);
@@ -53,30 +62,38 @@ static JSValue normalized_options(JSContext *ctx, JSValueConst options) {
             JS_FreeValue(ctx, length_value);
             JS_FreeValue(ctx, args);
             JS_FreeValue(ctx, normalized);
-            return JS_EXCEPTION;
+            return option_type_error(ctx, "process.run args must be a string array");
         }
         JS_FreeValue(ctx, length_value);
         JSValue converted = JS_NewArray(ctx);
         if (JS_IsException(converted)) { JS_FreeValue(ctx, args); JS_FreeValue(ctx, normalized); return converted; }
         for (uint32_t i = 0; i < length; ++i) {
             JSValue value = JS_GetPropertyUint32(ctx, args, i);
-            if (JS_IsException(value)) { JS_FreeValue(ctx, converted); JS_FreeValue(ctx, args); JS_FreeValue(ctx, normalized); return JS_EXCEPTION; }
+            if (JS_IsException(value)) {
+                JS_FreeValue(ctx, converted); JS_FreeValue(ctx, args); JS_FreeValue(ctx, normalized);
+                return option_type_error(ctx, "process.run args must be a string array");
+            }
             JSValue text = JS_ToString(ctx, value);
             JS_FreeValue(ctx, value);
             if (JS_IsException(text) || JS_SetPropertyUint32(ctx, converted, i, text) < 0) {
                 JS_FreeValue(ctx, converted);
                 JS_FreeValue(ctx, args);
                 JS_FreeValue(ctx, normalized);
-                return JS_EXCEPTION;
+                return option_type_error(ctx, "process.run args must be a string array");
             }
         }
         if (JS_SetPropertyStr(ctx, normalized, "args", converted) < 0) {
             JS_FreeValue(ctx, args);
             JS_FreeValue(ctx, normalized);
-            return JS_EXCEPTION;
+            return option_type_error(ctx, "process.run args must be a string array");
         }
     }
     JS_FreeValue(ctx, args);
+    status = copy_string_option(ctx, normalized, options, "cwd", 0);
+    if (status != 0) {
+        JS_FreeValue(ctx, normalized);
+        return option_type_error(ctx, "process.run cwd must be a string");
+    }
     return normalized;
 }
 
@@ -97,24 +114,29 @@ static JSValue hao_run_native(JSContext *ctx, JSValueConst this_val,
     if (argc < 1 || !JS_IsObject(argv[0])) {
         return JS_ThrowTypeError(ctx, "process.run requires an options object");
     }
+    JSValue prepared = normalized_options(ctx, argv[0]);
+    if (JS_IsException(prepared)) return prepared;
     size_t capacity = 1024 * 1024;
     JSValue max_value = JS_GetPropertyStr(ctx, argv[0], "maxOutputBytes");
-    if (JS_IsException(max_value)) return max_value;
+    if (JS_IsException(max_value)) {
+        JS_FreeValue(ctx, prepared);
+        return option_type_error(ctx, "process.run maxOutputBytes must be positive");
+    }
     if (!JS_IsUndefined(max_value) && !JS_IsNull(max_value)) {
         int32_t requested = 0;
         if (JS_ToInt32(ctx, &requested, max_value) < 0) {
             JS_FreeValue(ctx, max_value);
-            return JS_EXCEPTION;
+            JS_FreeValue(ctx, prepared);
+            return option_type_error(ctx, "process.run maxOutputBytes must be positive");
         }
         if (requested < 1) {
             JS_FreeValue(ctx, max_value);
+            JS_FreeValue(ctx, prepared);
             return JS_ThrowTypeError(ctx, "process.run maxOutputBytes must be positive");
         }
         capacity = (size_t)requested;
     }
     JS_FreeValue(ctx, max_value);
-    JSValue prepared = normalized_options(ctx, argv[0]);
-    if (JS_IsException(prepared)) return prepared;
     JSValue json = JS_JSONStringify(ctx, prepared, JS_UNDEFINED, JS_UNDEFINED);
     JS_FreeValue(ctx, prepared);
     if (JS_IsException(json)) return json;

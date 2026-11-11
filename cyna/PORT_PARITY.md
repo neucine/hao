@@ -146,8 +146,11 @@ improvement, with a smoke check.
   malformed options, argument arrays, working directories, output limits,
   exit codes, and environment lookup. The smoke suite now retains the
   representative option errors alongside its existing subprocess and NUL
-  cases. The Cyna console preserves the embedded NUL in a printed input
-  label where Zig truncates it; both lookups return the same environment value.
+  cases. A shared options getter probe now observes Zig's `cmd`, `args`, `cwd`,
+  `maxOutputBytes` access order under Cyna too. Conversion failures for these
+  four options now use Zig's public `TypeError` messages. The Cyna console
+  preserves the embedded NUL in a printed input label where Zig truncates it;
+  both lookups return the same environment value.
 
 - The `async/loop.zig` turn boundary has a direct port in `async/loop.cy` and
   `async/uv.c`: both check `uv_loop_alive` before `UV_RUN_ONCE` and report a

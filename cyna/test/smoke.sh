@@ -1403,6 +1403,33 @@ for (const invoke of [() => getEnvNative(), () => runNative(null), () => runNati
 }
 EOF
 test "$("$runtime" "$fixture_dir/process-errors.ts")" = "$(printf 'TypeError getEnvNative expects a variable name\nTypeError process.run requires an options object\nTypeError process.run requires options.cmd\nTypeError process.run args must be a string array\nInternalError process.run failed\nTypeError process.run maxOutputBytes must be positive\nInternalError process.run failed\nInternalError process.run failed\nInternalError process.run failed')"
+cat > "$fixture_dir/process-getters.ts" <<'EOF'
+import { runNative } from 'std:process/native';
+const seen: string[] = [];
+const options: any = {};
+for (const [name, value] of Object.entries({ cmd: '/bin/echo', args: ['x'], cwd: '.', maxOutputBytes: 1000 }))
+  Object.defineProperty(options, name, { get() { seen.push(name); return value; } });
+console.log(runNative(options).stdout.trim(), seen.join(','));
+EOF
+test "$("$runtime" "$fixture_dir/process-getters.ts")" = 'x cmd,args,cwd,maxOutputBytes'
+cat > "$fixture_dir/process-conversion-errors.ts" <<'EOF'
+import { runNative } from 'std:process/native';
+const bad: any = { toString() { throw Error('conversion failed'); }, valueOf() { throw Error('conversion failed'); } };
+for (const options of [
+  { cmd: bad },
+  { cmd: '/bin/echo', args: [bad] },
+  { cmd: '/bin/echo', cwd: bad },
+  { cmd: '/bin/echo', maxOutputBytes: bad },
+]) {
+  try { runNative(options); console.log('ok'); }
+  catch (error) { console.log((error as any).name, (error as any).message); }
+}
+EOF
+test "$("$runtime" "$fixture_dir/process-conversion-errors.ts")" = "$(printf '%s\n%s\n%s\n%s' \
+  'TypeError process.run requires options.cmd' \
+  'TypeError process.run args must be a string array' \
+  'TypeError process.run cwd must be a string' \
+  'TypeError process.run maxOutputBytes must be positive')"
 cat > "$fixture_dir/process-large-env.ts" <<'EOF'
 import { getEnvNative } from 'std:process/native';
 console.log(getEnvNative('HAO_BIG_ENV')?.length);
