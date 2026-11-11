@@ -37,7 +37,13 @@ export function inspect(value: unknown, options?: InspectOptions): string {
   if (arguments.length === 0) return undefined as any;
   const opts = merge(options);
   const seen = new Set<object>();
-  const truncate = (text: string) => {
+  const cString = (text: string) => {
+    // Legacy QuickJS inspection converts strings and property names through C strings.
+    const nul = text.indexOf("\0");
+    return nul >= 0 ? text.slice(0, nul) : text;
+  };
+  const truncate = (input: string) => {
+    const text = cString(input);
     if (opts.maxStringLength === Infinity || !/[^\x00-\x7f]/.test(text)) {
       return text.length > opts.maxStringLength ? text.slice(0, opts.maxStringLength) + "..." : text;
     }
@@ -86,7 +92,7 @@ export function inspect(value: unknown, options?: InspectOptions): string {
       catch (_) { return failed; }
     };
     if (property('dtype') != null && property('shape') != null && typeof property('toString') === "function") {
-      try { return String(item); }
+      try { return cString(String(item)); }
       catch (_) { return ""; }
     }
     if (typeof item === "function") {
@@ -104,9 +110,10 @@ export function inspect(value: unknown, options?: InspectOptions): string {
       const entries: string[] = [];
       for (let index = 0; index < count; index++) {
         let rendered = "";
-        try { rendered = format(item[array ? index : keys[index]], depth + 1); }
+        const key = array ? index : cString(keys[index]);
+        try { rendered = format(item[key], depth + 1); }
         catch (_) { /* Zig appends no value on conversion failure. */ }
-        entries.push(array ? rendered : `${keys[index]}: ${rendered}`);
+        entries.push(array ? rendered : `${key}: ${rendered}`);
       }
       if (keys.length > count) entries.push(`... ${keys.length - count} more items`);
       return array ? `[ ${entries.join(", ")} ]` : `{ ${entries.join(", ")} }`;

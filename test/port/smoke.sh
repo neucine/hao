@@ -374,7 +374,7 @@ python3 - "$runtime" "$fixture_dir/console-inspect.ts" <<'PY'
 import subprocess, sys
 result = subprocess.run(sys.argv[1:], capture_output=True, check=True)
 assert result.stdout == b'{ value: 3 } [ 1, 2 ]\n', result.stdout
-assert result.stderr == b'nul\0kept\n', result.stderr
+assert result.stderr == b'nul\n', result.stderr
 PY
 
 server_info=$(python3 "$repo_root/test/e2e/http/server.py")

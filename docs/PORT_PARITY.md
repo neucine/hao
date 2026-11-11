@@ -3,7 +3,7 @@
 Reference: `legacy` at `e1f4b59`. Port: `main` (`cyna-port` also points to the
 cutover commit). A matching path means an
 implementation location, not proof of equivalent behavior. The end to end suite
-currently exercises 20 files and 83 cases; it does not cover every Zig source
+currently exercises 20 files; it does not cover every Zig source
 boundary.
 On the current trees, `hao test test/e2e` passed 67 Zig cases with 7 skips and
 76 Cyna cases with 7 skips. The Cyna branch adds nine cases, so these totals
@@ -14,7 +14,7 @@ directly checks legacy suite behavior under Cyna while leaving untested source
 boundaries in the open list below.
 Run the retained public comparisons together with
 `python3 test/port/run_differentials.py <legacy-binary> <cyna-binary>`.
-All 20 differential programs passed against the current local binaries. They
+All 21 differential programs passed against the current local binaries. They
 cover the cases recorded below; they do not establish behavior for every
 possible input or every source boundary.
 Hao builds against pinned Cyna source revision `e16127d` from branch `codex/hao-bounded-read-current`. This revision includes the `std.fs.exists` result fix (LG-79), bounded byte reads (LG-82), and `std.telemetry.int_attribute`. `build.sh` fetches the source and its pinned `zig-libs` sibling and builds the compiler with Zig 0.17.0. The older 0.5.1-beta.1 distribution was used for earlier parity checks, but lacks these fixes.
@@ -42,7 +42,7 @@ while behavior parity still requires the comparisons below.
 | `transpiler.zig` | `src/bridge/bridge.c`, `src/bridge/module.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
 
 The legacy TypeScript standard modules are byte identical in the port except
-`std/http/index.ts`: the Cyna tree separates its HTTP server into
+`std/http/index.ts` and `std/util/native.ts`: the Cyna tree separates its HTTP server into
 `std/http/server.ts`, while the legacy tree keeps client and server in one file.
 The Cyna HTTP client also captures a trace context before deferring its native
 request. `std/telemetry/native.ts` contains the host context helpers needed by
@@ -53,8 +53,11 @@ A retained 38-case `test/port/http_server_limits_differential.py` compares nativ
 
 The 18 legacy `std/**/*.d.ts` declarations and all 12 legacy TypeScript source
 and asset files now have matching port locations. The inventory checks them;
-it requires byte identity for all except the HTTP index split and TypeScript
-configuration described above.
+it requires byte identity for all except the HTTP index split, utility inspector,
+and TypeScript configuration described above. The Cyna utility inspector truncates strings at
+an embedded NUL before formatting, matching Zig's QuickJS C string conversion;
+the retained console differential checks plain, nested, array, `repr`, custom
+`toString`, and property name values.
 TypeScript 5.9.3 checks the port's modules and declarations with the port's
 `src/tsconfig.json`. The port config adds its separate HTTP server module and
 telemetry paths and uses the shared QuickJS host declarations.
@@ -229,7 +232,7 @@ improvement, with a smoke check.
   path or data `TypeError`. Cyna now consumes the conversion exception and
   reports Zig's error for Symbols and throwing `toString` methods.
   A path component of 256 bytes made the pinned Cyna `std.fs.exists` return a
-  typed error through Hao’s exported Cyna function. Cyna source revision `e16127d` fixes the LLVM result conversion and provides `std.fs.read_bytes_limited`. Hao now uses both `std.fs.exists` and bounded reads in Cyna. The filesystem differential covers 84 argument forms, 23 write values, and 36 file, directory, symlink, missing path, and embedded NUL operations; the unchanged legacy suite passes 67 cases with 7 skips. The path kind probe prints case indexes because the known console NUL rendering difference would otherwise obscure matching filesystem results. The Jupyter connection reader uses Cyna `std.fs.read_bytes_limited_exact` to reject growth after the initially measured bytes. `fs.cy` also classifies failed script reads; `fs_limit.c/.h/.cy` are removed. The CLI diagnostics fixtures cover missing files, directories, and oversized input.
+  typed error through Hao’s exported Cyna function. Cyna source revision `e16127d` fixes the LLVM result conversion and provides `std.fs.read_bytes_limited`. Hao now uses both `std.fs.exists` and bounded reads in Cyna. The filesystem differential covers 84 argument forms, 23 write values, and 36 file, directory, symlink, missing path, and embedded NUL operations; the unchanged legacy suite passes 67 cases with 7 skips. The Jupyter connection reader uses Cyna `std.fs.read_bytes_limited_exact` to reject growth after the initially measured bytes. `fs.cy` also classifies failed script reads; `fs_limit.c/.h/.cy` are removed. The CLI diagnostics fixtures cover missing files, directories, and oversized input.
 
 - The `std:process` native boundary matched Zig in a direct matrix covering
   malformed options, argument arrays, working directories, output limits,
@@ -237,9 +240,9 @@ improvement, with a smoke check.
   representative option errors alongside its existing subprocess and NUL
   cases. A shared options getter probe now observes Zig's `cmd`, `args`, `cwd`,
   `maxOutputBytes` access order under Cyna too. Conversion failures for these
-  four options now use Zig's public `TypeError` messages. The Cyna console
-  preserves the embedded NUL in a printed input label where Zig truncates it;
-  both lookups return the same environment value.
+  four options now use Zig's public `TypeError` messages. Console inspection
+  now truncates embedded NUL in printed labels as Zig does; both environment
+  lookups return the same value.
   The retained `test/port/process_differential.py` compares 21 command conversions, 34 argument forms (including sparse arrays and throwing proxies), and nine paired stdout/stderr output limits against the Zig executable. All exit statuses, stdout, and stderr matched. Each binary runs in its own fixture directory.
   The retained process differential also matches two continuously writing
   children that exceed a 1024 byte output limit, and TERM, KILL, and INT

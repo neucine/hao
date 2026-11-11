@@ -35,15 +35,15 @@ for (let i = 0; i < values.length; i++) {
 PATH_KIND_SOURCE = r'''import { existsSync, readFileSync, statSync, writeFileSync } from 'std:fs';
 const paths = ['file', 'dir', 'link-file', 'link-dir', 'broken-link', 'missing',
   'file\0suffix', 'dir/file', 'file/child'];
-for (const [index, path] of paths.entries()) {
+for (const path of paths) {
   for (const [name, operation] of Object.entries({
     existsSync: () => existsSync(path),
     readFileSync: () => readFileSync(path),
     statSync: () => statSync(path).size,
     writeFileSync: () => writeFileSync(path, 'new'),
   })) {
-    try { console.log(index, name, JSON.stringify(operation())); }
-    catch (error) { console.log(index, name, error.name, error.message); }
+    try { console.log(path, name, JSON.stringify(operation())); }
+    catch (error) { console.log(path, name, error.name, error.message); }
   }
 }
 '''

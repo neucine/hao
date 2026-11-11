@@ -122,7 +122,7 @@ for path in sorted(shared_files):
     if not destination.is_file():
         errors.append(f"missing TypeScript source or asset: src/{path}")
 for path in sorted(declaration_files | shared_files):
-    if path in {"std/http/index.ts", "tsconfig.json"}:
+    if path in {"std/http/index.ts", "std/util/native.ts", "tsconfig.json"}:
         continue
     destination = port / "src" / path
     if destination.is_file():
