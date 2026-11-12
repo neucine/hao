@@ -123,73 +123,52 @@ void hao_package_cleanup(HaoRuntime *host);
 void hao_runtime_free(uintptr_t handle);
 
 typedef struct {
-    JSValue captured;
-    JSValue previous;
+    HaoTraceContext captured;
+    HaoTraceContext previous;
+    bool entered;
 } HaoJobTrace;
 
-static JSValue hao_trace_call(JSContext *ctx, const char *name,
-                              int argc, JSValueConst *argv) {
-    JSValue global = JS_GetGlobalObject(ctx);
-    JSValue function = JS_GetPropertyStr(ctx, global, name);
-    JSValue result = JS_UNDEFINED;
-    if (JS_IsFunction(ctx, function)) result = JS_Call(ctx, function, global, argc, argv);
-    JS_FreeValue(ctx, function);
-    JS_FreeValue(ctx, global);
-    return result;
-}
-
 static void *hao_job_trace_capture(JSContext *ctx, void *opaque) {
-    (void)opaque;
-    JSValue context = hao_trace_call(ctx, "__hao_telemetry_captureContext", 0, NULL);
-    if (!JS_IsObject(context)) {
-        JS_FreeValue(ctx, context);
-        return NULL;
-    }
-    JSValue span = JS_GetPropertyStr(ctx, context, "span");
-    bool active = !JS_IsNull(span) && !JS_IsUndefined(span);
-    JS_FreeValue(ctx, span);
-    if (!active) {
-        JS_FreeValue(ctx, context);
-        return NULL;
-    }
+    HaoRuntime *host = opaque;
+    if (!host || !host->telemetry) return NULL;
+    HaoTraceContext captured;
+    hao_telemetry_context_capture(host->telemetry, &captured);
+    if (!captured.span_id) return NULL;
     HaoJobTrace *trace = malloc(sizeof(*trace));
-    if (!trace) {
-        JS_FreeValue(ctx, context);
-        return NULL;
-    }
-    trace->captured = context;
-    trace->previous = JS_UNDEFINED;
+    if (!trace) return NULL;
+    trace->captured = captured;
+    memset(&trace->previous, 0, sizeof(trace->previous));
+    trace->entered = false;
+    (void)ctx;
     return trace;
 }
 
 static void hao_job_trace_enter(JSContext *ctx, void *job_context, void *opaque) {
-    (void)opaque;
+    HaoRuntime *host = opaque;
     HaoJobTrace *trace = job_context;
-    trace->previous = hao_trace_call(ctx, "__hao_telemetry_enterContext", 1, &trace->captured);
+    if (!host || !host->telemetry || !trace) return;
+    trace->entered = hao_telemetry_context_enter(host->telemetry, &trace->captured,
+                                                  &trace->previous);
+    (void)ctx;
 }
 
 static void hao_job_trace_leave(JSContext *ctx, void *job_context, void *opaque) {
-    (void)opaque;
+    HaoRuntime *host = opaque;
     HaoJobTrace *trace = job_context;
-    if (JS_IsObject(trace->previous)) {
-        JSValue restored = hao_trace_call(ctx, "__hao_telemetry_enterContext", 1, &trace->previous);
-        JS_FreeValue(ctx, restored);
-    }
+    if (host && host->telemetry && trace && trace->entered)
+        hao_telemetry_context_restore(host->telemetry, &trace->previous);
+    (void)ctx;
 }
 
 static void hao_job_trace_release(JSRuntime *rt, void *job_context, void *opaque) {
-    (void)opaque;
-    HaoJobTrace *trace = job_context;
-    JS_FreeValueRT(rt, trace->captured);
-    JS_FreeValueRT(rt, trace->previous);
-    free(trace);
+    (void)rt; (void)opaque;
+    free(job_context);
 }
 
 void hao_runtime_set_telemetry_console(uintptr_t handle, int enabled, uint16_t port) {
     HaoRuntime *host = (HaoRuntime *)handle;
     hao_telemetry_set_enabled(host->telemetry, enabled);
     JSValue global = JS_GetGlobalObject(host->context);
-    if (!enabled) JS_SetPropertyStr(host->context, global, "__hao_trace_capacity", JS_NewUint32(host->context, 0));
     JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_enabled", JS_NewBool(host->context, enabled));
     JS_SetPropertyStr(host->context, global, "__hao_telemetry_console_port", JS_NewUint32(host->context, port));
     JS_FreeValue(host->context, global);
@@ -299,7 +278,7 @@ uintptr_t hao_runtime_new(size_t stack_size, size_t gc_threshold, size_t thread_
     }
     HaoRuntime *host = hao_calloc(1, sizeof(*host));
     if (!host) return 0;
-    host->telemetry = hao_telemetry_open((uintptr_t)host);
+    host->telemetry = hao_telemetry_open((uintptr_t)host, trace_records, console_enabled);
     if (!host->telemetry) {
         hao_free(host);
         return 0;
@@ -334,13 +313,11 @@ uintptr_t hao_runtime_new(size_t stack_size, size_t gc_threshold, size_t thread_
     JS_SetContextOpaque(host->context, host);
     JS_SetModuleLoaderFunc(host->runtime, hao_normalize_module, hao_load_module, host);
     JSValue global = JS_GetGlobalObject(host->context);
-    JS_SetPropertyStr(host->context, global, "__hao_trace_capacity", JS_NewUint32(host->context, (uint32_t)trace_records));
     hao_install_fs_globals(host->context, global);
     hao_install_process_globals(host->context, global);
     hao_install_http_globals(host->context, global);
     hao_install_http_server_globals(host->context, global);
     hao_install_telemetry_globals(host->context, global);
-    hao_install_telemetry_interface(host->context, global);
     hao_install_ffi_globals(host->context, global);
     JS_FreeValue(host->context, global);
     if (hao_install_runtime_error(host->context) != 0) {
@@ -1051,7 +1028,8 @@ struct HaoTimer {
     uv_timer_t handle;
     HaoRuntime *host;
     JSValue callback;
-    JSValue trace_context;
+    HaoTraceContext trace_context;
+    bool has_trace_context;
     uint32_t id;
     HaoTimer *next;
 };
@@ -1072,16 +1050,6 @@ static void hao_timer_closed(uv_handle_t *handle) {
     hao_free(timer);
 }
 
-static JSValue hao_enter_trace_context(JSContext *ctx, JSValueConst context) {
-    JSValue global = JS_GetGlobalObject(ctx);
-    JSValue enter = JS_GetPropertyStr(ctx, global, "__hao_telemetry_enterContext");
-    JSValue previous = JS_UNDEFINED;
-    if (JS_IsFunction(ctx, enter)) previous = JS_Call(ctx, enter, global, 1, &context);
-    JS_FreeValue(ctx, enter);
-    JS_FreeValue(ctx, global);
-    return previous;
-}
-
 static void hao_retain_timer_error(HaoRuntime *host, JSContext *ctx) {
     JSValue error = JS_GetException(ctx);
     if (!host->has_callback_error) {
@@ -1094,21 +1062,17 @@ static void hao_timer_fired(uv_timer_t *handle) {
     HaoTimer *timer = handle->data;
     HaoRuntime *host = timer->host;
     hao_unlink_timer(host, timer);
-    JSValue previous = JS_UNDEFINED;
-    if (!JS_IsUndefined(timer->trace_context)) previous = hao_enter_trace_context(host->context, timer->trace_context);
+    HaoTraceContext previous;
+    bool restored_trace = timer->has_trace_context && host->telemetry &&
+        hao_telemetry_context_enter(host->telemetry, &timer->trace_context, &previous);
     JSValue result = JS_Call(host->context, timer->callback, JS_UNDEFINED, 0, NULL);
     if (JS_IsException(result)) {
         hao_retain_timer_error(host, host->context);
     }
     if (host->has_callback_error || host->has_rejection) uv_stop(host->loop);
-    if (!JS_IsUndefined(previous)) {
-        JSValue restored = hao_enter_trace_context(host->context, previous);
-        JS_FreeValue(host->context, restored);
-    }
-    JS_FreeValue(host->context, previous);
+    if (restored_trace) hao_telemetry_context_restore(host->telemetry, &previous);
     JS_FreeValue(host->context, result);
     JS_FreeValue(host->context, timer->callback);
-    JS_FreeValue(host->context, timer->trace_context);
     uv_close((uv_handle_t *)handle, hao_timer_closed);
 }
 
@@ -1131,20 +1095,10 @@ static JSValue hao_set_timeout(JSContext *ctx, JSValueConst this_val,
     timer->host = host;
     timer->handle.data = timer;
     timer->callback = JS_DupValue(ctx, argv[0]);
-    timer->trace_context = JS_UNDEFINED;
-    JSValue global = JS_GetGlobalObject(ctx);
-    JSValue capture = JS_GetPropertyStr(ctx, global, "__hao_telemetry_captureContext");
-    if (JS_IsFunction(ctx, capture)) {
-        JSValue context = JS_Call(ctx, capture, global, 0, NULL);
-        if (JS_IsObject(context)) {
-            JSValue span = JS_GetPropertyStr(ctx, context, "span");
-            if (!JS_IsNull(span) && !JS_IsUndefined(span)) timer->trace_context = context;
-            else JS_FreeValue(ctx, context);
-            JS_FreeValue(ctx, span);
-        } else JS_FreeValue(ctx, context);
+    if (host->telemetry) {
+        hao_telemetry_context_capture(host->telemetry, &timer->trace_context);
+        timer->has_trace_context = timer->trace_context.span_id != 0;
     }
-    JS_FreeValue(ctx, capture);
-    JS_FreeValue(ctx, global);
     timer->id = host->next_timer_id++;
     if (host->next_timer_id == 0 || host->next_timer_id > INT32_MAX) host->next_timer_id = 1;
     timer->next = host->timers;
@@ -1152,7 +1106,6 @@ static JSValue hao_set_timeout(JSContext *ctx, JSValueConst this_val,
     if (uv_timer_start(&timer->handle, hao_timer_fired, delay == 0 ? 1 : (uint64_t)delay, 0) != 0) {
         hao_unlink_timer(host, timer);
         JS_FreeValue(ctx, timer->callback);
-        JS_FreeValue(ctx, timer->trace_context);
         uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
         return JS_ThrowInternalError(ctx, "Timer scheduling failed");
     }
@@ -1176,7 +1129,6 @@ static JSValue hao_clear_timeout(JSContext *ctx, JSValueConst this_val,
             hao_unlink_timer(host, timer);
             uv_timer_stop(&timer->handle);
             JS_FreeValue(ctx, timer->callback);
-            JS_FreeValue(ctx, timer->trace_context);
             uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
             break;
         }
@@ -1205,7 +1157,6 @@ void hao_cleanup_timers(HaoRuntime *host) {
         hao_unlink_timer(host, timer);
         uv_timer_stop(&timer->handle);
         JS_FreeValue(host->context, timer->callback);
-        JS_FreeValue(host->context, timer->trace_context);
         uv_close((uv_handle_t *)&timer->handle, hao_timer_closed);
     }
 }
@@ -1307,6 +1258,108 @@ static int api_metric_add(JsContext *ctx, uint32_t id, double value) { return ha
 static int api_metric_set(JsContext *ctx, uint32_t id, double value) { return hao_metric_set(frame_of(ctx)->ctx, id, value); }
 static int api_metric_observe(JsContext *ctx, uint32_t id, double value) { return hao_metric_observe(frame_of(ctx)->ctx, id, value); }
 static int api_metric_value(JsContext *ctx, uint32_t id, double *value) { return hao_metric_value(frame_of(ctx)->ctx, id, value); }
+static HaoTelemetry *addon_telemetry(JsContext *ctx) {
+    HaoRuntime *host = JS_GetContextOpaque(frame_of(ctx)->ctx);
+    return host ? (HaoTelemetry *)host->telemetry : NULL;
+}
+static int api_trace_capture(JsContext *ctx, JsTraceContext *out) {
+    HaoTelemetry *telemetry = addon_telemetry(ctx);
+    if (!telemetry || !out) return -1;
+    HaoTraceContext context;
+    hao_telemetry_context_capture((uintptr_t)telemetry, &context);
+    *out = (JsTraceContext) {
+        .trace_id = context.trace_id,
+        .span_id = context.span_id,
+        .sampled = context.sampled
+    };
+    return 0;
+}
+static JsSpanHandle api_trace_enter(JsContext *ctx, const JsTraceContext *context) {
+    HaoTelemetry *telemetry = addon_telemetry(ctx);
+    if (!telemetry || !context) return 0;
+    HaoTraceContext value = {
+        .trace_id = context->trace_id,
+        .span_id = context->span_id,
+        .sampled = context->sampled
+    };
+    return hao_telemetry_scope_enter((uintptr_t)telemetry, &value);
+}
+static int api_trace_exit(JsContext *ctx, JsSpanHandle scope) {
+    HaoTelemetry *telemetry = addon_telemetry(ctx);
+    if (!telemetry || !scope) return -1;
+    return hao_telemetry_scope_exit((uintptr_t)telemetry, scope) ? 0 : -1;
+}
+static int valid_addon_attributes(const JsTraceAttribute *attributes, size_t count) {
+    if (count > 16 || (count && !attributes)) return 0;
+    for (size_t i = 0; i < count; i++) {
+        const JsTraceAttribute *attribute = &attributes[i];
+        if (!attribute->key || strlen(attribute->key) > 64 ||
+            attribute->kind > 3 ||
+            (attribute->kind == 2 && !isfinite(attribute->floating)) ||
+            (attribute->kind == 3 && (!attribute->text || strlen(attribute->text) > 256)))
+            return 0;
+    }
+    return 1;
+}
+static void addon_attributes(uintptr_t record, const JsTraceAttribute *attributes,
+                             size_t count) {
+    for (size_t i = 0; i < count; i++) {
+        const JsTraceAttribute *attribute = &attributes[i];
+        size_t text_len = attribute->kind == 3 && attribute->text ?
+            strlen(attribute->text) : 0;
+        hao_telemetry_attribute(record,
+            (const unsigned char *)attribute->key, strlen(attribute->key),
+            (int)attribute->kind, attribute->boolean, attribute->integer,
+            attribute->floating,
+            (const unsigned char *)attribute->text, text_len);
+    }
+}
+static int api_trace_span_start(JsContext *ctx, const char *name,
+                                const JsTraceSpanOptions *options, JsSpanHandle *out) {
+    if (!name || strlen(name) > 96 || !out) return -1;
+    JsTraceSpanOptions defaults = {0};
+    if (!options) options = &defaults;
+    if (options->kind > JS_SPAN_CONSUMER ||
+        !valid_addon_attributes(options->attributes, options->attribute_count)) return -1;
+    HaoTelemetry *telemetry = addon_telemetry(ctx);
+    if (!telemetry) return -1;
+    HaoTraceContext current;
+    hao_telemetry_context_capture((uintptr_t)telemetry, &current);
+    uint64_t parent_trace = options->root ? 0 : current.trace_id;
+    uint64_t parent_span = options->root ? 0 : current.span_id;
+    int sampled = options->root || current.span_id == 0 ? 1 : current.sampled;
+    const char *source = options->source ? options->source : "";
+    uintptr_t span = hao_telemetry_source_span_start(
+        (uintptr_t)telemetry, parent_trace, parent_span, sampled,
+        (int64_t)uv_hrtime(), (const unsigned char *)name, strlen(name),
+        (int)options->kind, "addon", source);
+    if (!span) return -1;
+    uintptr_t pending = hao_telemetry_span_pending(span);
+    if (pending) {
+        addon_attributes(pending, options->attributes, options->attribute_count);
+        hao_telemetry_record_finish(span, pending);
+    }
+    *out = span;
+    return 0;
+}
+static int api_trace_span_event(JsContext *ctx, JsSpanHandle span, const char *name,
+                                const JsTraceAttribute *attributes,
+                                size_t attribute_count) {
+    if (!span || !name || !*name || strlen(name) > 96 ||
+        !valid_addon_attributes(attributes, attribute_count)) return -1;
+    uintptr_t record = hao_telemetry_event_start(
+        span, (int64_t)uv_hrtime(), (const unsigned char *)name, strlen(name));
+    if (!record) return addon_telemetry(ctx) ? 0 : -1;
+    addon_attributes(record, attributes, attribute_count);
+    hao_telemetry_record_finish(span, record);
+    return 0;
+}
+static int api_trace_span_end(JsContext *ctx, JsSpanHandle span, uint32_t status) {
+    if (!span || status > JS_TRACE_STATUS_ERR) return -1;
+    hao_telemetry_span_end(span, (int64_t)uv_hrtime(), (int)status);
+    (void)ctx;
+    return 0;
+}
 
 static const JsContextApi context_api = {
     .abi_version = JS_ADDON_ABI_VERSION, .undefined = api_undefined, .null_value = api_null,
@@ -1321,6 +1374,9 @@ static const JsContextApi context_api = {
     .metric_register = api_metric_register, .metric_add = api_metric_add,
     .metric_set = api_metric_set, .metric_observe = api_metric_observe,
     .metric_value = api_metric_value,
+    .trace_capture = api_trace_capture, .trace_enter = api_trace_enter,
+    .trace_exit = api_trace_exit, .trace_span_start = api_trace_span_start,
+    .trace_span_event = api_trace_span_event, .trace_span_end = api_trace_span_end,
 };
 
 static JSValue call_addon(JSContext *ctx, JSValueConst this_value, int argc,
@@ -1938,7 +1994,8 @@ typedef struct {
     JSContext *ctx;
     JSValue resolve;
     JSValue reject;
-    JSValue trace_context;
+    HaoTraceContext trace_context;
+    bool has_trace_context;
     char *url;
     char *method;
     char *download_path;
@@ -1976,17 +2033,7 @@ static void destroy_job(HaoHttpJob *job) {
     curl_slist_free_all(job->request_headers);
     JS_FreeValue(job->ctx, job->resolve);
     JS_FreeValue(job->ctx, job->reject);
-    JS_FreeValue(job->ctx, job->trace_context);
     hao_free(job);
-}
-static JSValue telemetry_enter_context(JSContext *ctx, JSValueConst context) {
-    JSValue global = JS_GetGlobalObject(ctx);
-    JSValue enter = JS_GetPropertyStr(ctx, global, "__hao_telemetry_enterContext");
-    JSValue previous = JS_UNDEFINED;
-    if (JS_IsFunction(ctx, enter)) previous = JS_Call(ctx, enter, global, 1, &context);
-    JS_FreeValue(ctx, enter);
-    JS_FreeValue(ctx, global);
-    return previous;
 }
 static void retain_callback_error(HaoRuntime *host, JSContext *ctx) {
     JSValue error = JS_GetException(ctx);
@@ -2411,19 +2458,12 @@ static void finish_http(uv_work_t *work, int status) {
             callback = job->reject;
         } else callback = job->resolve;
     }
-    JSValue previous = JS_UNDEFINED;
-    if (!JS_IsUndefined(job->trace_context)) {
-        previous = telemetry_enter_context(ctx, job->trace_context);
-        if (JS_IsException(previous)) retain_callback_error(host, ctx);
-    }
+    HaoTraceContext previous;
+    bool restored_trace = job->has_trace_context && host->telemetry &&
+        hao_telemetry_context_enter(host->telemetry, &job->trace_context, &previous);
     JSValue result = JS_Call(ctx, callback, JS_UNDEFINED, 1, &value);
     if (JS_IsException(result)) retain_callback_error(host, ctx);
-    if (!JS_IsUndefined(previous) && !JS_IsException(previous)) {
-        JSValue restored = telemetry_enter_context(ctx, previous);
-        if (JS_IsException(restored)) retain_callback_error(host, ctx);
-        JS_FreeValue(ctx, restored);
-    }
-    JS_FreeValue(ctx, previous);
+    if (restored_trace) hao_telemetry_context_restore(host->telemetry, &previous);
     JS_FreeValue(ctx, result);
     JS_FreeValue(ctx, value);
     destroy_job(job);
@@ -2533,7 +2573,13 @@ static JSValue request_native(JSContext *ctx, JSValueConst this_val, int argc, J
     job->ctx = ctx;
     job->resolve = JS_UNDEFINED;
     job->reject = JS_UNDEFINED;
-    job->trace_context = JS_UNDEFINED;
+    if (JS_GetContextOpaque(ctx)) {
+        HaoRuntime *host = JS_GetContextOpaque(ctx);
+        if (host->telemetry) {
+            hao_telemetry_context_capture(host->telemetry, &job->trace_context);
+            job->has_trace_context = job->trace_context.span_id != 0;
+        }
+    }
     if (!parse_options(job, argv[0])) {
         destroy_job(job);
         return JS_ThrowTypeError(ctx, "http.request options are invalid");
@@ -2543,12 +2589,6 @@ static JSValue request_native(JSContext *ctx, JSValueConst this_val, int argc, J
     if (JS_IsException(promise)) { destroy_job(job); return promise; }
     job->resolve = functions[0];
     job->reject = functions[1];
-    job->trace_context = JS_GetPropertyStr(ctx, argv[0], "__haoTraceContext");
-    if (JS_IsException(job->trace_context)) {
-        JS_FreeValue(ctx, promise);
-        destroy_job(job);
-        return JS_EXCEPTION;
-    }
     job->work.data = job;
     uv_loop_t *loop = hao_runtime_loop(ctx);
     int status = loop ? uv_queue_work(loop, &job->work, perform_http, finish_http) : UV_EINVAL;

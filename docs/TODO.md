@@ -23,9 +23,8 @@ dependency used by Affon and other hosts.
 
 ## Tracing
 
-- Add async context propagation across promises, timers, and native callbacks.
-- Define the host consumer/export policy before exposing tracing through the
-  addon ABI.
+- Add an external exporter, such as OTLP, as a filtered consumer of the native
+  trace ring; the in-process console remains the only exporter today.
 - Clarify trace record identity: `sequence` is currently the global record ID;
   decide whether events also need a separate event ID.
 

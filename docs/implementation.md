@@ -48,8 +48,9 @@ extension policy. It limits parsed manifests to 256 KiB, disallows entries
 containing `..`, and reports unresolved packages through the QuickJS loader.
 Addon entries (`.dylib`, `.so`, `.dll`, `.node`) load through the stable ABI in
 `include/addon.h`; package specifiers select among modules registered by one
-library. Addon metric callbacks and `std:telemetry` share one registry per
-runtime.
+library. Addon metric and trace callbacks and `std:telemetry` share one
+observation core per runtime. ABI version 4 adds trace context, span, event,
+and end operations while preserving the metric field offsets.
 The Cyna host currently targets macOS arm64.
 HTTP download hashing and Jupyter HMAC signatures use OpenSSL 3 through a
 shared C adapter.
@@ -105,19 +106,23 @@ successfully loaded files still run, and a load failure sets the command's
 exit status. The runner loads `std:test` before test files so its automatic
 mock cleanup hook survives a failed file import.
 
-`std:telemetry` retains Hao's metric and trace APIs. Metric registration lives
-in the C bridge, while bounded trace records live in its standard module. QuickJS memory gauges use
+`std:telemetry` retains Hao's metric and trace APIs. `src/bridge/telemetry.c`
+owns metric registration, trace context, active spans, source metadata, the
+bounded record ring, sequence cursors, and filtered snapshots. JavaScript
+validates and converts arguments, while Cyna `std.telemetry` and native addons
+call the same native core. QuickJS memory gauges use
 `JS_ComputeMemoryUsage`; `allocator_active_bytes` and `allocator_peak_bytes`
-use the macOS malloc zone totals. HTTP client completions restore the trace
-parent through their Promise jobs.
-`setTimeout` callbacks retain the trace parent active when scheduled. Set
+use the macOS malloc zone totals. QuickJS job hooks, HTTP worker completions,
+and timer callbacks capture and restore native trace context.
+Set
 `RUNTIME_TELEMETRY_CONSOLE=1` to start an in-process console on loopback;
 `RUNTIME_TELEMETRY_CONSOLE_PORT` selects the port and defaults to an available
 port. The console serves Hao's dashboard, health, metrics, and trace endpoints.
-The Cyna trace endpoint retains a configured ring of start, event, and end
-records (4096 by default, at most 1,048,576) with sequence cursors and reports
-overwritten history. Native and JavaScript span events and attributes are
-included in these records.
+The trace endpoint retains a configured ring of start, event, and end records
+(4096 by default, at most 1,048,576) with sequence cursors and reports
+overwritten history. Records can be filtered by source kind, source, trace or
+span ID, name, status, and timestamp. JavaScript, Cyna, and native addon
+observations use the same records.
 On glibc Linux, allocator gauges use `mallinfo2`; the peak is the highest
 sampled active value.
 

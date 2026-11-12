@@ -140,6 +140,64 @@ import { metrics } from "std:telemetry"
 console.log(metrics())
 ```
 
+## Traces
+
+ABI version 4 adds native trace context and span operations. A callback can
+continue the JavaScript caller's trace, create a child span, add a structured
+event, and end the span without constructing JavaScript objects:
+
+```c
+static JsValue work(JsContext* ctx, int argc, const JsValue* argv) {
+    (void)argc;
+    (void)argv;
+
+    JsTraceContext captured;
+    if (js_trace_capture(ctx, &captured) < 0) {
+        return js_throw_error(ctx, "trace capture failed");
+    }
+    JsSpanHandle scope = js_trace_enter(ctx, &captured);
+    if (!scope) return js_throw_error(ctx, "trace enter failed");
+
+    const JsTraceAttribute attributes[] = {
+        {"queued", 1, 1, 0, 0.0, NULL},
+    };
+    const JsTraceSpanOptions options = {
+        .root = 0,
+        .kind = JS_SPAN_CLIENT,
+        .source = "foo:native",
+        .attributes = attributes,
+        .attribute_count = 1,
+    };
+    JsSpanHandle span = 0;
+    if (js_trace_span_start(ctx, "foo.work", &options, &span) < 0) {
+        js_trace_exit(ctx, scope);
+        return js_throw_error(ctx, "span start failed");
+    }
+
+    js_trace_span_event(ctx, span, "foo.invoke", NULL, 0);
+    js_trace_span_end(ctx, span, JS_TRACE_STATUS_OK);
+    js_trace_exit(ctx, scope);
+    return js_undefined(ctx);
+}
+```
+
+`js_trace_capture`, `js_trace_enter`, and `js_trace_exit` preserve context
+around native work. `js_trace_span_start` creates a child of the active span
+unless `root` is set. Attribute kinds are boolean, integer, float, and text,
+with the same limits as JavaScript spans. ABI 4 appends these fields to
+`JsContextApi`; existing metric fields retain their offsets.
+
+Use filtered trace snapshots to inspect addon observations:
+
+```ts
+import { snapshotTraceRecordsNative } from "std:telemetry/native"
+
+const addon = snapshotTraceRecordsNative(0, 100, {
+  source_kind: "addon",
+  source: "foo:native",
+})
+```
+
 ## Example
 
 See `examples/native-addon/native.c` for a complete addon with string, number,

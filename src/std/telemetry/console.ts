@@ -17,9 +17,20 @@ if (globalThis.__hao_telemetry_console_enabled) {
     if (path === '/health' || path === '/api/health') return { json: { ok: true } };
     if (path === '/metrics' || path === '/api/metrics') return { json: snapshotMetricsNative() };
     if (path.startsWith('/traces') || path.startsWith('/api/traces')) {
-      const since = Number(/(?:\?|&)since=(\d+)/.exec(request.url)?.[1] ?? '0');
-      const limit = Math.min(512, Math.max(1, Number(/(?:\?|&)limit=(\d+)/.exec(request.url)?.[1] ?? '100')));
-      return { json: snapshotTraceRecordsNative(since, limit) };
+      const query = (name: string) => {
+        const value = new RegExp(`(?:\\?|&)${name}=([^&]*)`).exec(request.url)?.[1];
+        return value === undefined ? undefined : decodeURIComponent(value);
+      };
+      const since = Number(query('since') ?? '0');
+      const limit = Math.min(512, Math.max(1, Number(query('limit') ?? '100')));
+      const filter: Record<string, string | number> = {};
+      for (const name of ['source_kind', 'source', 'trace_id', 'span_id', 'name', 'status']) {
+        const value = query(name);
+        if (value !== undefined) filter[name] = value;
+      }
+      const sinceNs = query('since_ns');
+      if (sinceNs !== undefined) filter.since_ns = Number(sinceNs);
+      return { json: snapshotTraceRecordsNative(since, limit, filter) };
     }
     return { status: 404, json: { error: 'not_found' } };
   } });

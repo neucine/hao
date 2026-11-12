@@ -14,11 +14,21 @@
 extern "C" {
 #endif
 
-#define JS_ADDON_ABI_VERSION 3
+#define JS_ADDON_ABI_VERSION 4
 
 #define JS_METRIC_COUNTER 1
 #define JS_METRIC_GAUGE 2
 #define JS_METRIC_HISTOGRAM 3
+
+#define JS_SPAN_INTERNAL 0
+#define JS_SPAN_SERVER 1
+#define JS_SPAN_CLIENT 2
+#define JS_SPAN_PRODUCER 3
+#define JS_SPAN_CONSUMER 4
+
+#define JS_TRACE_STATUS_UNSET 0
+#define JS_TRACE_STATUS_OK 1
+#define JS_TRACE_STATUS_ERR 2
 
 /*
  * Hao addon ABI notes:
@@ -69,6 +79,31 @@ typedef struct JsMetricDefinition {
     const char* unit;
 } JsMetricDefinition;
 
+typedef struct JsTraceContext {
+    uint64_t trace_id;
+    uint64_t span_id;
+    int sampled;
+} JsTraceContext;
+
+typedef uintptr_t JsSpanHandle;
+
+typedef struct JsTraceAttribute {
+    const char* key;
+    uint32_t kind;
+    int boolean;
+    int64_t integer;
+    double floating;
+    const char* text;
+} JsTraceAttribute;
+
+typedef struct JsTraceSpanOptions {
+    int root;
+    uint32_t kind;
+    const char* source;
+    const JsTraceAttribute* attributes;
+    size_t attribute_count;
+} JsTraceSpanOptions;
+
 typedef struct JsRegistryApi {
     uint32_t abi_version;
     int (*add_module)(JsRegistry* registry, const JsModule* module);
@@ -110,6 +145,23 @@ typedef struct JsContextApi {
     int (*metric_set)(JsContext* ctx, uint32_t id, double value);
     int (*metric_observe)(JsContext* ctx, uint32_t id, double value);
     int (*metric_value)(JsContext* ctx, uint32_t id, double* out);
+    int (*trace_capture)(JsContext* ctx, JsTraceContext* out);
+    JsSpanHandle (*trace_enter)(JsContext* ctx, const JsTraceContext* context);
+    int (*trace_exit)(JsContext* ctx, JsSpanHandle scope);
+    int (*trace_span_start)(
+        JsContext* ctx,
+        const char* name,
+        const JsTraceSpanOptions* options,
+        JsSpanHandle* out
+    );
+    int (*trace_span_event)(
+        JsContext* ctx,
+        JsSpanHandle span,
+        const char* name,
+        const JsTraceAttribute* attributes,
+        size_t attribute_count
+    );
+    int (*trace_span_end)(JsContext* ctx, JsSpanHandle span, uint32_t status);
 } JsContextApi;
 
 struct JsContext {
@@ -147,7 +199,13 @@ HAO_STATIC_ASSERT(offsetof(JsContextApi, null_value) == sizeof(void*) * 2, "JsCo
 HAO_STATIC_ASSERT(offsetof(JsContextApi, array_set) == sizeof(void*) * 24, "JsContextApi.array_set offset changed");
 HAO_STATIC_ASSERT(offsetof(JsContextApi, metric_register) == sizeof(void*) * 25, "JsContextApi.metric_register offset changed");
 HAO_STATIC_ASSERT(offsetof(JsContextApi, metric_value) == sizeof(void*) * 29, "JsContextApi.metric_value offset changed");
-HAO_STATIC_ASSERT(sizeof(JsContextApi) == sizeof(void*) * 30, "JsContextApi size changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, trace_capture) == sizeof(void*) * 30, "JsContextApi.trace_capture offset changed");
+HAO_STATIC_ASSERT(offsetof(JsContextApi, trace_span_start) == sizeof(void*) * 33, "JsContextApi.trace_span_start offset changed");
+HAO_STATIC_ASSERT(sizeof(JsContextApi) == sizeof(void*) * 36, "JsContextApi size changed");
+HAO_STATIC_ASSERT(offsetof(JsTraceContext, trace_id) == 0, "JsTraceContext.trace_id offset changed");
+HAO_STATIC_ASSERT(offsetof(JsTraceContext, span_id) == 8, "JsTraceContext.span_id offset changed");
+HAO_STATIC_ASSERT(offsetof(JsTraceContext, sampled) == 16, "JsTraceContext.sampled offset changed");
+HAO_STATIC_ASSERT(sizeof(JsTraceContext) == 24, "JsTraceContext size changed");
 
 static inline int js_add_module(
     JsRegistry* registry,
@@ -284,6 +342,48 @@ static inline int js_metric_observe(JsContext* ctx, uint32_t id, double value) {
 
 static inline int js_metric_value(JsContext* ctx, uint32_t id, double* out) {
     return ctx->api->metric_value(ctx, id, out);
+}
+
+static inline int js_trace_capture(JsContext* ctx, JsTraceContext* out) {
+    return ctx->api->trace_capture(ctx, out);
+}
+
+static inline JsSpanHandle js_trace_enter(
+    JsContext* ctx,
+    const JsTraceContext* context
+) {
+    return ctx->api->trace_enter(ctx, context);
+}
+
+static inline int js_trace_exit(JsContext* ctx, JsSpanHandle scope) {
+    return ctx->api->trace_exit(ctx, scope);
+}
+
+static inline int js_trace_span_start(
+    JsContext* ctx,
+    const char* name,
+    const JsTraceSpanOptions* options,
+    JsSpanHandle* out
+) {
+    return ctx->api->trace_span_start(ctx, name, options, out);
+}
+
+static inline int js_trace_span_event(
+    JsContext* ctx,
+    JsSpanHandle span,
+    const char* name,
+    const JsTraceAttribute* attributes,
+    size_t attribute_count
+) {
+    return ctx->api->trace_span_event(ctx, span, name, attributes, attribute_count);
+}
+
+static inline int js_trace_span_end(
+    JsContext* ctx,
+    JsSpanHandle span,
+    uint32_t status
+) {
+    return ctx->api->trace_span_end(ctx, span, status);
 }
 
 #undef HAO_STATIC_ASSERT

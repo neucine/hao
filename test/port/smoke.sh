@@ -236,6 +236,28 @@ EOF
 metric_actual=$("$runtime" "$fixture_dir/addon_metric.ts")
 test "$metric_actual" = "$(printf '1 2\n2 counter count')"
 
+mkdir -p "$fixture_dir/node_modules/trace"
+clang -dynamiclib -I "$repo_root/include" "$repo_root/test/port/telemetry_addon.c" -o "$fixture_dir/node_modules/trace/native.dylib"
+cat > "$fixture_dir/node_modules/trace/package.json" <<'EOF'
+{"type":"module","exports":{"./native":"./native.dylib"}}
+EOF
+cat > "$fixture_dir/addon_trace.ts" <<'EOF'
+import native from 'trace:native';
+import { trace } from 'std:telemetry';
+import { snapshotTraceRecordsNative } from 'std:telemetry/native';
+trace('addon-parent', () => native.emit());
+const records = snapshotTraceRecordsNative(0, 100).records;
+const parent = records.find(record => record.kind === 'span_start' && record.name === 'addon-parent')!;
+const child = records.find(record => record.kind === 'span_start' && record.name === 'addon-work')!;
+const event = records.find(record => record.name === 'addon-event')!;
+const addon = snapshotTraceRecordsNative(0, 100, { source_kind: 'addon' });
+const sameTrace = snapshotTraceRecordsNative(0, 100, { trace_id: parent.trace_id });
+console.log(child.trace_id === parent.trace_id, child.parent_span_id === parent.span_id);
+console.log(addon.records.map(record => record.kind).join(','), event.attributes.records);
+console.log(child.source, sameTrace.records.length);
+EOF
+test "$(RUNTIME_TELEMETRY_CONSOLE=1 "$runtime" "$fixture_dir/addon_trace.ts")" = "$(printf 'true true\nspan_start,event,span_end 2\ntelemetry:native 5')"
+
 printf 'import runtime, { name, namespace } from "std:runtime"; console.log(name, namespace, runtime.name);\n' > "$fixture_dir/standard.ts"
 standard_actual=$("$runtime" "$fixture_dir/standard.ts")
 test "$standard_actual" = 'hao std: hao'
@@ -688,6 +710,8 @@ for flag in ('1', 'true', 'yes', 'on'):
         later = json.loads(get('/api/traces?since=1&limit=1'))
         assert later['records'][0]['sequence'] == 2 and later['next_cursor'] == 2
         assert json.loads(get('/tracesXYZ?since=1&limit=1'))['records'][0]['sequence'] == 2
+        addon = json.loads(get('/api/traces?source_kind=javascript&name=fixture-received'))
+        assert len(addon['records']) == 1 and addon['records'][0]['kind'] == 'event'
         assert '<title>Hao Telemetry</title>' in get('/')
         assert process.wait(timeout=5) == 0
     finally:

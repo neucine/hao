@@ -131,11 +131,7 @@ function decorateResponse(raw: any) {
   };
 }
 
-let dispatch = (request: any) => {
-  if (typeof globalThis.__hao_telemetry_captureContext === 'function')
-    request.__haoTraceContext = globalThis.__hao_telemetry_captureContext();
-  return Promise.resolve().then(() => requestNative(request));
-};
+let dispatch = (request: any) => Promise.resolve().then(() => requestNative(request));
 
 function request(url: string, opts?: any) {
   const normalized = normalize(url, opts);

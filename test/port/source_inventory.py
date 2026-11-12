@@ -175,8 +175,12 @@ for path in sorted(shared_files):
     destination = port / "src" / path
     if not destination.is_file():
         errors.append(f"missing TypeScript source or asset: src/{path}")
+intentional_content_extensions = {
+    # Telemetry declarations expose the Cyna-native filtered trace view.
+    "std/telemetry/native.d.ts",
+}
 for path in sorted(declaration_files | shared_files):
-    if path in {"std/http/index.ts", "std/util/native.ts", "tsconfig.json"}:
+    if path in {"std/http/index.ts", "std/util/native.ts", "tsconfig.json"} | intentional_content_extensions:
         continue
     destination = port / "src" / path
     if destination.is_file():

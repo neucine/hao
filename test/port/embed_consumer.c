@@ -224,8 +224,10 @@ int main(int argc, char **argv) {
         "const metric = metrics().find(item => item.scope === 'cyna.probe' && item.name === 'runs');"
         "const worker = metrics().find(item => item.scope === 'cyna.worker' && item.name === 'runs');"
         "const records = snapshotTraceRecordsNative().records.filter(item => item.name.startsWith('cyna.'));"
+        "const cyna = snapshotTraceRecordsNative(0, 100, { source_kind: 'cyna' }).records;"
         "if (metric?.value !== 3 || worker?.value !== 2 || records.map(item => item.kind).join(',') !== 'span_start,event,span_end'"
-        " || records[0].attributes.step !== 42 || records[1].attributes.step !== 42)"
+        " || records[0].attributes.step !== 42 || records[1].attributes.step !== 42"
+        " || cyna.length !== 3 || cyna.some(item => item.source_kind !== 'cyna'))"
         " throw new Error('Cyna telemetry backend mismatch');";
     if (!status) status = hao_embed_eval(runtime, (const unsigned char *)telemetry_source,
         strlen(telemetry_source), (const unsigned char *)"<telemetry-probe>", 17);

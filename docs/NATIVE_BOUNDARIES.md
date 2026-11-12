@@ -10,7 +10,7 @@ All project C sources live directly under `src/bridge/`. There are five C transl
 | `allocator.c` | Hao allocation accounting shared by every project C unit. |
 | `host.c` | Process execution and process memory counters. |
 | `jupyter.c` | ZeroMQ transport, multipart framing, and Jupyter HMAC verification. |
-| `telemetry.c` | Telemetry metrics, host memory gauges, native spans, records, and JavaScript telemetry callbacks. |
+| `telemetry.c` | Shared telemetry core, host memory gauges, trace context, spans, records, filters, and every native/JavaScript projection. |
 
 The Cyna import facades name the foreign contracts:
 
@@ -19,7 +19,7 @@ The Cyna import facades name the foreign contracts:
 | `qjs.cy` | `qjs.c` | QuickJS-facing adapters and JavaScript callbacks. |
 | `host.cy` | `host.c`, `allocator.c` | Platform services absent from the pinned Cyna std: tracked allocation, bounded binary process capture, signal status, and process memory counters. |
 | `jupyter.cy` | `jupyter.c` | ZeroMQ sockets and frames with HMAC. |
-| `telemetry.cy` | `telemetry.c` | Native telemetry storage and callbacks. |
+| `telemetry.cy` | `telemetry.c` | Cyna `std.telemetry` span and metric callbacks into the shared core. |
 | `transpiler.cy` | No project C wrapper | Cyna declares the existing Rust archive ABI directly. QuickJS integration calls it from `qjs.c`. |
 | `uv.cy` | No project C wrapper | Cyna declares the libuv entry points directly. `async/uv.cy` owns loop operations. |
 
@@ -40,7 +40,9 @@ There are no semantic subdirectories in `src/bridge/`. Three private headers rem
 
 The allocator boundary has a concrete ownership reason. Zig's `runtime_allocator.zig` wraps its backing allocator and counts Hao-owned Zig allocations. In the Cyna port, native adapters use `hao_alloc` and `allocator.h`; `runtime_allocator.cy` exposes that allocator to Cyna callers through `host.cy`. QuickJS uses its own allocator and is reported separately. Moving only the counters into Cyna would split allocations from their corresponding frees and change the reported scope. This is a Hao runtime allocator contract, not evidence that Cyna std needs a new allocator API. Zig resets its global counters when initializing a runtime. `allocator.c` keeps process-wide counters across embedded runtime creation because those runtimes can overlap and free allocations after another runtime is created.
 
-`qjs.c` owns the QuickJS error callback, stack capture, runtime lifetime, evaluation, rejection handling, generic and test job drains, notebook cell translation and settling, console and timer installation, module loading, addon loading, filesystem/process/HTTP/FFI adapters, and telemetry callbacks installed into QuickJS.
+`qjs.c` owns the QuickJS error callback, stack capture, runtime lifetime, evaluation, rejection handling, generic and test job drains, notebook cell translation and settling, console and timer installation, module loading, addon loading, and filesystem/process/HTTP/FFI adapters. Its job, timer, and HTTP restart hooks call the native trace context in `telemetry.c`; it no longer stores trace state in JavaScript globals.
+
+`telemetry.c` owns the observation plane. It stores the per-runtime active context, restoration scopes, active spans, normalized trace records, the bounded sequence ring, metric queue, and source metadata. Cyna, JavaScript, native addons, QuickJS continuations, timers, and HTTP completions enter through this one contract. JavaScript validation and console routing remain adapters. A native addon uses the ABI 4 trace fields in `include/addon.h` and can create spans, events, and context scopes without crossing QuickJS.
 
 Cyna owns HTTP URL and server limit policy (`std/http/native.cy`, `std/http/server_uv.cy`), FFI descriptor and decimal pointer policy (`std/ffi/native.cy`), metric policy (`telemetry/metrics.cy`), filesystem limits and recursive directory creation (`fs.cy`), package resolution (`package.cy`), notebook declaration rewriting (`jupyter/cell.cy`), runtime configuration (`config.cy`), and process result conversion (`std/process/native.cy`). `async/uv.cy` calls libuv loop entry points through `bridge/uv.cy`. Feature modules import bridge declarations and keep application policy in Cyna.
 

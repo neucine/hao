@@ -38,16 +38,17 @@ while behavior parity still requires the comparisons below.
 | `qjs.zig` | `src/runtime.cy`, `src/bridge/qjs.c` | Runtime ownership is in Cyna; QuickJS calls use its C API. |
 | `std/ffi/Library.zig`, `std/ffi/runtime.zig`, `std/ffi/trampoline.zig`, `std/ffi/types.zig` | `src/bridge/qjs.c`, `src/std/ffi/native.ts` | One libffi adapter replaces the Zig library and call trampoline layers. |
 | `std/test/registry.zig`, `std/test/runner.zig` | `src/std/test/native.ts`, `src/bridge/qjs.c` | The registry and runner operate on JavaScript callbacks in the same QuickJS context. |
-| `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/bridge/telemetry.c`, `src/std/telemetry/native.ts` | Cyna `std.telemetry` supplies the host backend; JavaScript keeps the public trace ring and cursor API. |
+| `telemetry/index.zig`, `telemetry/store.zig`, `telemetry/trace.zig` | `src/telemetry/interface.cy`, `src/bridge/telemetry.c`, `src/std/telemetry/native.ts` | The native core owns context, spans, records, cursors, and filters; Cyna and JavaScript are projections, and addon ABI 4 enters the same core. |
 | `telemetry/server.zig` | `src/std/telemetry/console.ts`, `src/telemetry/dashboard.html` | The telemetry console uses the ported HTTP server and existing dashboard. |
 | `transpiler.zig` | `src/bridge/qjs.c`, `libs/transpiler/src/` | The Zig wrapper is replaced by direct calls to the existing Rust archive. |
 
 The legacy TypeScript standard modules are byte identical in the port except
-`std/http/index.ts` and `std/util/native.ts`: the Cyna tree separates its HTTP server into
-`std/http/server.ts`, while the legacy tree keeps client and server in one file.
-The Cyna HTTP client also captures a trace context before deferring its native
-request. `std/telemetry/native.ts` contains the host context helpers needed by
-that adapter.
+`std/http/index.ts`, `std/util/native.ts`, and `std/telemetry/native.d.ts`.
+The Cyna tree separates its HTTP server into `std/http/server.ts`, while the
+legacy tree keeps client and server in one file. Native HTTP request creation
+captures the active context, so the JavaScript HTTP adapter no longer copies
+context through request properties. The telemetry declaration adds the native
+filtered trace types used by the shared C core.
 A retained 38-case `test/port/http_server_limits_differential.py` compares native server port, connection, timeout, and hostname validation with Zig, including nonfinite and fractional numbers, BigInt, Symbol and object conversion, and embedded NUL in the hostname. The C ABI checks floating point validity before Cyna receives the values; Cyna owns the server limit policy in `std/http/server_uv.cy`.
 
 `std/ffi/native.cy` now owns the 15 descriptor type names and unsigned decimal pointer parsing; `abi.cy` exports both policies to the libffi adapter. The unchanged legacy FFI end to end cases pass after this move. All C sources now live under `src/bridge/`; this layout result is separate from behavior parity.
@@ -123,6 +124,11 @@ reject result.
   `/api/traces` returned matching cursor and record shapes in the sampled
   requests. Cyna now follows Zig's prefix route for `/tracesXYZ`; the smoke suite
   retains that case.
+  The trace collector was subsequently centralized in `telemetry.c`. JavaScript
+  no longer owns a context stack, span table, sequence counter, or record ring.
+  QuickJS jobs, timers, HTTP workers, Cyna, and native addons call the same
+  context and span API. The smoke suite checks timer, HTTP, addon parentage,
+  record ordering, cursor loss, source metadata, and filtered snapshot views.
 
 A shared CLI argument probe matched `--version`, missing arguments, and invalid
 Jupyter subcommands. It found that bare `hao test` and a missing `--grep` value
