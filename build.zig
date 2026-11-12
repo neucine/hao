@@ -181,7 +181,7 @@ pub fn build(b: *std.Build) void {
     runtime.root_module.addImport("hao_c", hao_c);
     const windows = target.result.os.tag == .windows;
     const build_transpiler = b.addSystemCommand(if (windows)
-        &.{ "cargo", "build", "--release", "--quiet", "--target", "x86_64-pc-windows-gnu" }
+        &.{ "cargo", "build", "--release", "--quiet", "--target", "x86_64-pc-windows-gnullvm" }
     else
         &.{ "cargo", "build", "--release", "--quiet" });
     build_transpiler.setCwd(b.path("libs/transpiler"));
@@ -202,7 +202,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addIncludePath(b.path("include"));
     exe.root_module.linkLibrary(libuv);
     exe.root_module.linkLibrary(quickjs);
-    exe.root_module.addLibraryPath(b.path(if (windows) "libs/transpiler/target/x86_64-pc-windows-gnu/release" else "libs/transpiler/target/release"));
+    exe.root_module.addLibraryPath(b.path(if (windows) "libs/transpiler/target/x86_64-pc-windows-gnullvm/release" else "libs/transpiler/target/release"));
     exe.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     exe.root_module.addImport("hao_c", hao_c);
     exe.root_module.linkSystemLibrary("hao_transpiler", .{});
@@ -237,7 +237,7 @@ pub fn build(b: *std.Build) void {
     tests.root_module.addIncludePath(b.path("include"));
     tests.root_module.linkLibrary(libuv);
     tests.root_module.linkLibrary(quickjs);
-    tests.root_module.addLibraryPath(b.path(if (windows) "libs/transpiler/target/x86_64-pc-windows-gnu/release" else "libs/transpiler/target/release"));
+    tests.root_module.addLibraryPath(b.path(if (windows) "libs/transpiler/target/x86_64-pc-windows-gnullvm/release" else "libs/transpiler/target/release"));
     tests.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     tests.root_module.addImport("hao_c", hao_c);
     tests.root_module.linkSystemLibrary("hao_transpiler", .{});
