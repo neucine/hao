@@ -1061,11 +1061,11 @@ static JSValue trace_snapshot_js(JSContext *ctx, JSValueConst this_val,
                 size_t slot = (telemetry->record_head + i) % telemetry->capacity;
                 HaoTraceRecord *record = &telemetry->records[slot];
                 if (record->sequence <= (uint64_t)since) continue;
+                next_cursor = record->sequence;
                 if (!record_matches_filter(record, source_kind, source, trace_id, span_id,
                                            name, status, since_ns, has_since_ns)) continue;
                 JS_SetPropertyUint32(ctx, records, output_count++,
                                      trace_record_js(ctx, record));
-                next_cursor = record->sequence;
             }
         }
         pthread_mutex_unlock(&telemetry->mutex);

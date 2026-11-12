@@ -135,7 +135,9 @@ addon module or other producer.
 `snapshotTraceRecordsNative(since, limit, filter)` returns records after a
 sequence cursor. Filters can select `source_kind`, `source`, `trace_id`,
 `span_id`, `name`, `status`, and `since_ns`. A page contains `next_cursor` and
-`missed`; `missed` is true when older matching history has been overwritten.
+`missed`; `next_cursor` is the last sequence examined, including when the
+filter returns no records, and `missed` is true when older matching history
+has been overwritten.
 
 The ring retains 4096 records by default. Set
 `RUNTIME_TELEMETRY_TRACE_RECORDS` to a positive capacity up to 1,048,576 before

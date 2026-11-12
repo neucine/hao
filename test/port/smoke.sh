@@ -885,6 +885,8 @@ if RUNTIME_TELEMETRY_TRACE_RECORDS=0 "$runtime" "$fixture_dir/main.ts" > "$fixtu
     echo 'expected zero trace capacity to fail' >&2
     exit 1
 fi
+sh "$repo_root/test/port/telemetry.sh" "$runtime" "$repo_root/build/modules" \
+    "$embed_library" "$cyna_bin"
 ffi_summary=$("$runtime" test "$repo_root/test/e2e/ffi" 2>&1)
 case "$ffi_summary" in *'Tests:'*'8 passed, 0 failed, 0 skipped'*) ;; *) exit 1 ;; esac
 python3 "$repo_root/test/port/ffi_pointer_lifetime.py" "$runtime"
