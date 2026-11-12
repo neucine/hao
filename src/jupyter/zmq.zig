@@ -37,7 +37,7 @@ pub const zmq_pollitem_t = extern struct {
 // ============================================================
 
 pub const Zmq = struct {
-    lib: std.DynLib,
+    lib: @import("../dynlib.zig").DynLib,
 
     // Context
     ctx_new: *const fn () callconv(.c) ?*anyopaque,
@@ -72,11 +72,11 @@ pub const Zmq = struct {
         else
             "libzmq.so.5";
 
-        var lib = std.DynLib.open(lib_name) catch blk: {
+        var lib = @import("../dynlib.zig").DynLib.open(lib_name) catch blk: {
             // On macOS, try Homebrew paths as fallback
             if (builtin.os.tag == .macos) {
-                break :blk std.DynLib.open("/opt/homebrew/lib/libzmq.5.dylib") catch {
-                    break :blk std.DynLib.open("/usr/local/lib/libzmq.5.dylib") catch {
+                break :blk @import("../dynlib.zig").DynLib.open("/opt/homebrew/lib/libzmq.5.dylib") catch {
+                    break :blk @import("../dynlib.zig").DynLib.open("/usr/local/lib/libzmq.5.dylib") catch {
                         std.debug.print("Error: libzmq not found. Install with:\n  brew install zmq\n", .{});
                         return error.LibraryNotFound;
                     };

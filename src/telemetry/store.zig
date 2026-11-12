@@ -13,9 +13,7 @@ var next_scope_id: u32 = 1;
 var scopes: std.AutoHashMapUnmanaged(u32, trace.Context) = .empty;
 
 fn nanoTimestamp() i128 {
-    var ts: std.c.timespec = undefined;
-    if (std.c.clock_gettime(.MONOTONIC, &ts) != 0) return 0;
-    return @as(i128, ts.sec) * std.time.ns_per_s + ts.nsec;
+    return @import("../time_compat.zig").monotonicNanoseconds();
 }
 
 pub fn buffer() *trace.Buffer {

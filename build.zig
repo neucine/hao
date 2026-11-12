@@ -37,7 +37,7 @@ pub fn build(b: *std.Build) void {
     });
     libuv.root_module.addIncludePath(libuv_dep.path("include"));
     libuv.root_module.addIncludePath(libuv_dep.path("src"));
-    libuv.root_module.addIncludePath(libuv_dep.path("src/unix"));
+    if (target.result.os.tag != .windows) libuv.root_module.addIncludePath(libuv_dep.path("src/unix"));
     libuv.root_module.addCSourceFiles(.{
         .root = libuv_dep.path("."),
         .files = &.{
@@ -53,24 +53,6 @@ pub fn build(b: *std.Build) void {
             "src/uv-common.c",
             "src/uv-data-getter-setters.c",
             "src/version.c",
-            "src/unix/async.c",
-            "src/unix/core.c",
-            "src/unix/dl.c",
-            "src/unix/fs.c",
-            "src/unix/getaddrinfo.c",
-            "src/unix/getnameinfo.c",
-            "src/unix/loop-watcher.c",
-            "src/unix/loop.c",
-            "src/unix/pipe.c",
-            "src/unix/poll.c",
-            "src/unix/process.c",
-            "src/unix/random-devurandom.c",
-            "src/unix/signal.c",
-            "src/unix/stream.c",
-            "src/unix/tcp.c",
-            "src/unix/thread.c",
-            "src/unix/tty.c",
-            "src/unix/udp.c",
         },
         .flags = &.{
             "-std=gnu11",
@@ -78,6 +60,37 @@ pub fn build(b: *std.Build) void {
             "-D_LARGEFILE_SOURCE",
             "-D_GNU_SOURCE",
         },
+    });
+    if (target.result.os.tag == .windows) {
+        libuv.root_module.addCSourceFiles(.{
+            .root = libuv_dep.path("."),
+            .files = &.{
+                "src/win/async.c", "src/win/core.c", "src/win/detect-wakeup.c",
+                "src/win/dl.c", "src/win/error.c", "src/win/fs.c",
+                "src/win/fs-event.c", "src/win/getaddrinfo.c", "src/win/getnameinfo.c",
+                "src/win/handle.c", "src/win/loop-watcher.c", "src/win/pipe.c",
+                "src/win/thread.c", "src/win/poll.c", "src/win/process.c",
+                "src/win/process-stdio.c", "src/win/signal.c", "src/win/snprintf.c",
+                "src/win/stream.c", "src/win/tcp.c", "src/win/tty.c",
+                "src/win/udp.c", "src/win/util.c", "src/win/winapi.c",
+                "src/win/winsock.c",
+            },
+            .flags = &.{ "-std=gnu11", "-DWIN32_LEAN_AND_MEAN", "-D_WIN32_WINNT=0x0A00", "-D_CRT_DECLARE_NONSTDC_NAMES=0" },
+        });
+        for ([_][]const u8{ "psapi", "user32", "advapi32", "iphlpapi", "userenv", "ws2_32", "dbghelp", "ole32", "shell32" }) |library| {
+            libuv.root_module.linkSystemLibrary(library, .{});
+        }
+    } else libuv.root_module.addCSourceFiles(.{
+        .root = libuv_dep.path("."),
+        .files = &.{
+            "src/unix/async.c", "src/unix/core.c", "src/unix/dl.c",
+            "src/unix/fs.c", "src/unix/getaddrinfo.c", "src/unix/getnameinfo.c",
+            "src/unix/loop-watcher.c", "src/unix/loop.c", "src/unix/pipe.c",
+            "src/unix/poll.c", "src/unix/process.c", "src/unix/random-devurandom.c",
+            "src/unix/signal.c", "src/unix/stream.c", "src/unix/tcp.c",
+            "src/unix/thread.c", "src/unix/tty.c", "src/unix/udp.c",
+        },
+        .flags = &.{ "-std=gnu11", "-D_FILE_OFFSET_BITS=64", "-D_LARGEFILE_SOURCE", "-D_GNU_SOURCE" },
     });
     if (target.result.os.tag == .macos) {
         libuv.root_module.addCSourceFiles(.{
@@ -144,6 +157,7 @@ pub fn build(b: *std.Build) void {
         .flags = &.{
             "-std=gnu11",
             "-fwrapv",
+            "-fno-sanitize=function",
             "-D_GNU_SOURCE",
             "-DCONFIG_VERSION=\"0.13.0\"",
         },
@@ -165,13 +179,13 @@ pub fn build(b: *std.Build) void {
     // the Rust transpiler archive explicitly, as `exe` does below.
     runtime.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     runtime.root_module.addImport("hao_c", hao_c);
-    const build_transpiler = b.addSystemCommand(&.{
-        "cargo",
-        "build",
-        "--release",
-        "--quiet",
-    });
+    const windows = target.result.os.tag == .windows;
+    const build_transpiler = b.addSystemCommand(if (windows)
+        &.{ "cargo", "build", "--release", "--quiet", "--target", "x86_64-pc-windows-gnu" }
+    else
+        &.{ "cargo", "build", "--release", "--quiet" });
     build_transpiler.setCwd(b.path("libs/transpiler"));
+    if (windows) build_transpiler.setEnvironmentVariable("RUSTFLAGS", "-C panic=abort");
     runtime.step.dependOn(&build_transpiler.step);
 
     const exe = b.addExecutable(.{
@@ -188,7 +202,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addIncludePath(b.path("include"));
     exe.root_module.linkLibrary(libuv);
     exe.root_module.linkLibrary(quickjs);
-    exe.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
+    exe.root_module.addLibraryPath(b.path(if (windows) "libs/transpiler/target/x86_64-pc-windows-gnu/release" else "libs/transpiler/target/release"));
     exe.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     exe.root_module.addImport("hao_c", hao_c);
     exe.root_module.linkSystemLibrary("hao_transpiler", .{});
@@ -223,7 +237,7 @@ pub fn build(b: *std.Build) void {
     tests.root_module.addIncludePath(b.path("include"));
     tests.root_module.linkLibrary(libuv);
     tests.root_module.linkLibrary(quickjs);
-    tests.root_module.addLibraryPath(b.path("libs/transpiler/target/release"));
+    tests.root_module.addLibraryPath(b.path(if (windows) "libs/transpiler/target/x86_64-pc-windows-gnu/release" else "libs/transpiler/target/release"));
     tests.root_module.addImport("zig_libs", zig_libs_dep.module("zig_libs"));
     tests.root_module.addImport("hao_c", hao_c);
     tests.root_module.linkSystemLibrary("hao_transpiler", .{});

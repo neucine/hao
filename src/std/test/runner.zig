@@ -131,9 +131,7 @@ fn writeLabel(label: []const u8) void {
 }
 
 fn nanoTimestamp() i128 {
-    var ts: std.c.timespec = undefined;
-    if (std.c.clock_gettime(.MONOTONIC, &ts) != 0) return 0;
-    return @as(i128, ts.sec) * std.time.ns_per_s + ts.nsec;
+    return @import("../../time_compat.zig").monotonicNanoseconds();
 }
 
 fn selfExePathAlloc(allocator: std.mem.Allocator, io: ?std.Io) ![]u8 {
@@ -214,14 +212,12 @@ fn pathLessThan(_: void, a: []const u8, b: []const u8) bool {
     return std.mem.lessThan(u8, a, b);
 }
 
-fn appendDiscoveredTestDir(allocator: std.mem.Allocator, out: *std.ArrayList([]const u8), dir_path: []const u8) !void {
-    if (!@hasDecl(std.fs, "cwd")) return appendDiscoveredTestDirCompat(allocator, out, dir_path);
-
-    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
-    defer dir.close();
+fn appendDiscoveredTestDir(io: std.Io, allocator: std.mem.Allocator, out: *std.ArrayList([]const u8), dir_path: []const u8) !void {
+    var dir = try std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true });
+    defer dir.close(io);
 
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         const child_path = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
         switch (entry.kind) {
             .file => {
@@ -232,7 +228,7 @@ fn appendDiscoveredTestDir(allocator: std.mem.Allocator, out: *std.ArrayList([]c
                 }
             },
             .directory => {
-                try appendDiscoveredTestDir(allocator, out, child_path);
+                try appendDiscoveredTestDir(io, allocator, out, child_path);
                 allocator.free(child_path);
             },
             else => allocator.free(child_path),
@@ -240,42 +236,13 @@ fn appendDiscoveredTestDir(allocator: std.mem.Allocator, out: *std.ArrayList([]c
     }
 }
 
-fn appendDiscoveredTestDirCompat(allocator: std.mem.Allocator, out: *std.ArrayList([]const u8), dir_path: []const u8) !void {
-    const dir_path_z = try allocator.dupeSentinel(u8, dir_path, 0);
-    defer allocator.free(dir_path_z);
-    const dir = std.c.opendir(dir_path_z.ptr) orelse return error.NotDir;
-    defer _ = std.c.closedir(dir);
-
-    while (std.c.readdir(dir)) |entry_ptr| {
-        const entry = entry_ptr.*;
-        const name = if (@hasField(std.c.dirent, "namlen"))
-            entry.name[0..entry.namlen]
-        else
-            std.mem.sliceTo(&entry.name, 0);
-        if (std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, "..")) continue;
-
-        const child_path = try std.fs.path.join(allocator, &.{ dir_path, name });
-        if (isDirectoryCompat(child_path)) {
-            try appendDiscoveredTestDirCompat(allocator, out, child_path);
-            allocator.free(child_path);
-        } else if (isTestFile(child_path)) {
-            try out.append(allocator, child_path);
-        } else {
-            allocator.free(child_path);
-        }
-    }
-}
-
-fn isDirectoryCompat(path: []const u8) bool {
-    const alloc = runtime_allocator.allocator();
-    const path_z = alloc.dupeSentinel(u8, path, 0) catch return false;
-    defer alloc.free(path_z);
-    const dir = std.c.opendir(path_z.ptr) orelse return false;
-    _ = std.c.closedir(dir);
+fn isDirectory(io: std.Io, path: []const u8) bool {
+    var dir = std.Io.Dir.cwd().openDir(io, path, .{}) catch return false;
+    dir.close(io);
     return true;
 }
 
-fn collectTestPaths(paths: [][]const u8, allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
+fn collectTestPaths(io: std.Io, paths: [][]const u8, allocator: std.mem.Allocator) !std.ArrayList([]const u8) {
     var out = std.ArrayList([]const u8).empty;
     errdefer {
         for (out.items) |path| allocator.free(path);
@@ -283,8 +250,8 @@ fn collectTestPaths(paths: [][]const u8, allocator: std.mem.Allocator) !std.Arra
     }
 
     for (paths) |path| {
-        if (isDirectoryCompat(path)) {
-            try appendDiscoveredTestDirCompat(allocator, &out, path);
+        if (isDirectory(io, path)) {
+            try appendDiscoveredTestDir(io, allocator, &out, path);
         } else if (fs.pathExists(path)) {
             try out.append(allocator, try allocator.dupe(u8, path));
         }
@@ -763,7 +730,7 @@ pub fn runWithPackageRegistrar(
         @import("zig_libs").telemetry.install(.{});
     }
 
-    var test_paths = try collectTestPaths(paths, allocator);
+    var test_paths = try collectTestPaths(io orelse return error.IoUnavailable, paths, allocator);
     defer {
         for (test_paths.items) |path| allocator.free(path);
         test_paths.deinit(allocator);

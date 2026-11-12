@@ -5,7 +5,7 @@ const runtime_allocator = @import("../../runtime_allocator.zig");
 const alloc = runtime_allocator.allocator();
 
 pub const Library = struct {
-    dynlib: std.DynLib,
+    dynlib: @import("../../dynlib.zig").DynLib,
     name: []const u8,
     closed: bool,
 
@@ -14,11 +14,11 @@ pub const Library = struct {
         const needs_free = path.ptr != lib_name.ptr;
         defer if (needs_free) alloc.free(path);
 
-        const dynlib = std.DynLib.open(path) catch |err| {
+        const dynlib = @import("../../dynlib.zig").DynLib.open(path) catch |err| {
             if (builtin.os.tag == .linux and needs_free) {
                 const soname = try std.fmt.allocPrint(alloc, "lib{s}.so.6", .{lib_name});
                 defer alloc.free(soname);
-                const soname_dynlib = std.DynLib.open(soname) catch return err;
+                const soname_dynlib = @import("../../dynlib.zig").DynLib.open(soname) catch return err;
                 return .{
                     .dynlib = soname_dynlib,
                     .name = lib_name,
@@ -35,7 +35,7 @@ pub const Library = struct {
     }
 
     pub fn openPath(path: []const u8, logical_name: []const u8) !Library {
-        const dynlib = try std.DynLib.open(path);
+        const dynlib = try @import("../../dynlib.zig").DynLib.open(path);
         return Library{
             .dynlib = dynlib,
             .name = logical_name,
@@ -64,6 +64,7 @@ pub const Library = struct {
             if (ch == '/' or ch == '.') return name;
         }
         // Platform-specific: prepend "lib", append ".dylib" or ".so"
+        if (builtin.os.tag == .windows) return std.fmt.allocPrint(alloc, "{s}.dll", .{name});
         const ext = if (builtin.os.tag == .macos) ".dylib" else ".so";
         return std.fmt.allocPrint(alloc, "lib{s}{s}", .{ name, ext });
     }

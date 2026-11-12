@@ -5,9 +5,7 @@ const zmq = @import("zmq.zig");
 const DELIMITER = "<IDS|MSG>";
 
 fn nanoTimestamp() u64 {
-    var ts: std.c.timespec = undefined;
-    if (std.c.clock_gettime(.MONOTONIC, &ts) != 0) return 0;
-    return @intCast(@as(i128, ts.sec) * std.time.ns_per_s + ts.nsec);
+    return @intCast(@import("../time_compat.zig").monotonicNanoseconds());
 }
 
 // ============================================================

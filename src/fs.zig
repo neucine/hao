@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const c = @import("hao_c");
 
@@ -55,8 +56,8 @@ pub fn makeDir(path: []const u8) !void {
     @memcpy(path_buf[0..path.len], path);
     path_buf[path.len] = 0;
 
-    const result = c.mkdir(&path_buf, 0o755);
-    if (result != 0 and std.posix.errno(result) != .EXIST) {
+    const result = if (builtin.os.tag == .windows) c.mkdir(&path_buf) else c.mkdir(&path_buf, 0o755);
+    if (result != 0 and !pathExists(path)) {
         return error.MakeDirFailed;
     }
 }

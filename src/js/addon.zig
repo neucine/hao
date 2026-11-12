@@ -7,7 +7,7 @@ pub const register_symbol_name = abi.register_symbol_name;
 
 const Extension = struct {
     path: []u8,
-    lib: std.DynLib,
+    lib: @import("../dynlib.zig").DynLib,
     modules: []abi.FunctionModule,
 };
 
@@ -76,7 +76,7 @@ pub fn rememberResolvedImport(return_allocator: std.mem.Allocator, path: []const
 fn loadExtension(path: []const u8) !*Extension {
     if (findLoaded(path)) |existing| return existing;
 
-    var lib = try std.DynLib.open(path);
+    var lib = try @import("../dynlib.zig").DynLib.open(path);
     errdefer lib.close();
 
     const register_fn = lib.lookup(abi.RegisterModulesFn, register_symbol_name) orelse return error.AddonSymbolNotFound;

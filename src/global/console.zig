@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const qjs = @import("../qjs.zig");
 const runtime_allocator = @import("../runtime_allocator.zig");
 const util_qjs = @import("../std/util/native.zig");
@@ -44,6 +45,7 @@ fn writeFile(file: *c.FILE, bytes: []const u8) void {
 }
 
 fn stdoutFile() *c.FILE {
+    if (builtin.os.tag == .windows) return __acrt_iob_func(1) orelse unreachable;
     return switch (@typeInfo(@TypeOf(c.stdout))) {
         .@"fn" => c.stdout(),
         else => c.stdout orelse unreachable,
@@ -51,11 +53,14 @@ fn stdoutFile() *c.FILE {
 }
 
 fn stderrFile() *c.FILE {
+    if (builtin.os.tag == .windows) return __acrt_iob_func(2) orelse unreachable;
     return switch (@typeInfo(@TypeOf(c.stderr))) {
         .@"fn" => c.stderr(),
         else => c.stderr orelse unreachable,
     };
 }
+
+extern "c" fn __acrt_iob_func(c_int) ?*c.FILE;
 
 fn writeStdout(bytes: []const u8) void {
     writeFile(stdoutFile(), bytes);

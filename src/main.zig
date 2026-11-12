@@ -1,10 +1,12 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const hao = @import("hao.zig");
 const config = @import("config.zig");
 
 const c = @import("hao_c");
 
 fn stdoutFile() *c.FILE {
+    if (builtin.os.tag == .windows) return __acrt_iob_func(1) orelse unreachable;
     return switch (@typeInfo(@TypeOf(c.stdout))) {
         .@"fn" => c.stdout(),
         else => c.stdout orelse unreachable,
@@ -12,11 +14,14 @@ fn stdoutFile() *c.FILE {
 }
 
 fn stderrFile() *c.FILE {
+    if (builtin.os.tag == .windows) return __acrt_iob_func(2) orelse unreachable;
     return switch (@typeInfo(@TypeOf(c.stderr))) {
         .@"fn" => c.stderr(),
         else => c.stderr orelse unreachable,
     };
 }
+
+extern "c" fn __acrt_iob_func(c_int) ?*c.FILE;
 
 fn writeStderr(bytes: []const u8) void {
     if (bytes.len == 0) return;
@@ -49,7 +54,8 @@ pub fn main(init: std.process.Init) !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var args = std.process.Args.Iterator.init(init.minimal.args);
+    var args = try std.process.Args.Iterator.initAllocator(init.minimal.args, allocator);
+    defer args.deinit();
     _ = args.next();
     try config.loadFromEnv();
     const path = args.next() orelse {
