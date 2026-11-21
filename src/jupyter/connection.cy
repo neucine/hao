@@ -1,5 +1,5 @@
 import { Value, parse as parse_json } from std.json;
-import { read_bytes_limited_exact } from std.fs;
+import { read_bytes_limited_exact } from .file_bytes;
 
 pub struct Connection {
     pub transport: string;
@@ -22,7 +22,9 @@ fn string_field(value: &const Value, key: string): ?string {
         .object(object) => {
             if object.contains(key) {
                 switch object[key] {
-                    .string(text) => { return text.clone(); }
+                    .string(text) => {
+                        return text.clone();
+                    }
                     _ => {}
                 }
             }
@@ -49,7 +51,9 @@ fn port_text(value: string): ?u16 {
             return none;
         }
     }
-    if not found { return none; }
+    if not found {
+        return none;
+    }
     return port as u16;
 }
 
@@ -58,7 +62,9 @@ fn port_field(value: &const Value, key: string): ?u16 {
         .object(object) => {
             if object.contains(key) {
                 switch object[key] {
-                    .number(number) => { return port_text(number.spelling); }
+                    .number(number) => {
+                        return port_text(number.spelling);
+                    }
                     _ => {}
                 }
             }
@@ -77,24 +83,42 @@ fn or_default(value: ?string, fallback: string): string {
 
 pub fn parse(path: string): ?Connection {
     const bytes = path.bytes();
-    if bytes.len() > 4096 { return none; }
-    for byte in bytes {
-        if byte == 0 { return none; }
+    if bytes.len() > 4096 {
+        return none;
     }
-    const content = read_bytes_limited_exact(path, (64 * 1024) as c_size_t) catch (code) { return none; };
+    for byte in bytes {
+        if byte == 0 {
+            return none;
+        }
+    }
+    const content = read_bytes_limited_exact(path, (64 * 1024) as c_size_t) catch (code) {
+        return none;
+    };
     const view = content[..];
     const source = string.from(view);
-    const value = parse_json(source) catch (code) { return none; };
+    const value = parse_json(source) catch (code) {
+        return none;
+    };
     const shell_port = port_field(&value, "shell_port");
     const control_port = port_field(&value, "control_port");
     const iopub_port = port_field(&value, "iopub_port");
     const stdin_port = port_field(&value, "stdin_port");
     const hb_port = port_field(&value, "hb_port");
-    if shell_port is none { return none; }
-    if control_port is none { return none; }
-    if iopub_port is none { return none; }
-    if stdin_port is none { return none; }
-    if hb_port is none { return none; }
+    if shell_port is none {
+        return none;
+    }
+    if control_port is none {
+        return none;
+    }
+    if iopub_port is none {
+        return none;
+    }
+    if stdin_port is none {
+        return none;
+    }
+    if hb_port is none {
+        return none;
+    }
     return Connection {
         transport: or_default(string_field(&value, "transport"), "tcp"),
         ip: or_default(string_field(&value, "ip"), "127.0.0.1"),
