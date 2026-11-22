@@ -41,3 +41,31 @@ The archive currently targets macOS arm64. Link it with the Cyna runtime and
 standard library archives, QuickJS, libuv, the Hao transpiler, libcurl, libffi,
 libzmq, and OpenSSL. The checked C consumer and its linker invocation are in
 `test/port/embed_consumer.c` and `test/port/smoke.sh`.
+
+## Cyna hosts
+
+A Cyna host can use Hao without going through the exported C API. Import
+`hao.runtime` for the owned runtime and `hao.native_api` for the direct host
+surface:
+
+```cyna
+import { Runtime } from hao.runtime;
+import hao.native_api as hao;
+
+const runtime = Runtime.init();
+if runtime is host {
+    defer host.deinit();
+    const status = hao.register_native_module(
+        &host,
+        "example:native",
+        loader
+    );
+    const ignored = status;
+}
+```
+
+The loader has the same QuickJS module signature as the C embedding callback.
+It receives the runtime context and requested specifier, creates a QuickJS
+module, and returns the module pointer. The host also owns source-module
+registration, standard-module installation, evaluation, idle draining, and
+runtime cleanup.
