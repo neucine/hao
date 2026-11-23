@@ -1,9 +1,45 @@
 import { exists } from std.fs;
 import { read_file_limited } from .fs;
 import { env_get, env_set } from std.process;
-import { parse_bool, parse_positive_usize, ConfigError } from std.config;
 
 import { script_read_error } from .fs;
+
+pub enum ConfigError: i32 {
+    invalid_value = 0,
+}
+
+fn parse_positive_usize(raw: string): usize ! ConfigError {
+    const bytes = raw.bytes();
+    if bytes.len() == 0 {
+        throw ConfigError.invalid_value;
+    }
+    var value: usize = 0;
+    const max_value: usize = 18446744073709551615;
+    for byte in bytes {
+        if byte < 48 or byte > 57 {
+            throw ConfigError.invalid_value;
+        }
+        const digit: usize = (byte - 48) as usize;
+        if value > (max_value - digit) / 10 {
+            throw ConfigError.invalid_value;
+        }
+        value = value * 10 + digit;
+    }
+    if value == 0 {
+        throw ConfigError.invalid_value;
+    }
+    return value;
+}
+
+fn parse_bool(raw: string): bool ! ConfigError {
+    if raw == "true" or raw == "yes" or raw == "1" or raw == "on" {
+        return true;
+    }
+    if raw == "false" or raw == "no" or raw == "0" or raw == "off" {
+        return false;
+    }
+    throw ConfigError.invalid_value;
+}
 
 pub struct RuntimeSizeSettings {
     pub stack_size: usize;
