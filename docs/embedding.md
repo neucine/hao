@@ -45,8 +45,8 @@ libzmq, and OpenSSL. The checked C consumer and its linker invocation are in
 ## Cyna hosts
 
 A Cyna host can use Hao without going through the exported C API. Import
-`hao.runtime` for the owned runtime and `hao.native_api` for the direct host
-surface:
+`hao.runtime` for the owned runtime, `hao.native_api` for runtime and native
+module registration, and `hao.js` to create or inspect JavaScript values:
 
 ```cyna
 import { Runtime } from hao.runtime;
@@ -64,8 +64,19 @@ if runtime is host {
 }
 ```
 
-The loader has the same QuickJS module signature as the C embedding callback.
-It receives the runtime context and requested specifier, creates a QuickJS
-module, and returns the module pointer. The host also owns source-module
+The loader receives Hao's JavaScript context and the requested specifier. Use
+`hao.js` to create the module, export values, and install callbacks. QuickJS
+symbols and `JSValue` declarations stay in Hao's bridge facade, so the importing
+project does not depend on the engine ABI. The host also owns source-module
 registration, standard-module installation, evaluation, idle draining, and
 runtime cleanup.
+
+```cyna
+import .js;
+
+fn initialize(context: js.Context, module_ptr: js.Module): c_int {
+    const exports = js.new_object(context);
+    js.set_number(context, exports, "answer", 42.0);
+    return js.set_module_export(context, module_ptr, "default", exports);
+}
+```

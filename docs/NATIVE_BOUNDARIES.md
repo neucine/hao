@@ -12,11 +12,15 @@ All project C sources live directly under `src/bridge/`. There are five C transl
 | `jupyter.c` | ZeroMQ transport, multipart framing, and Jupyter HMAC verification. |
 | `telemetry.c` | Shared telemetry core, host memory gauges, trace context, spans, records, filters, and every native/JavaScript projection. |
 
-The Cyna import facades name the foreign contracts:
+The Cyna import facades name the foreign contracts. `js.cy` is the public
+JavaScript API used by Cyna hosts and native modules. It delegates to the
+QuickJS declarations in `bridge/qjs.cy`, keeping engine details at that
+boundary.
 
 | Cyna facade | C implementation | Ownership |
 | --- | --- | --- |
 | `qjs.cy` | `qjs.c` | QuickJS-facing adapters and JavaScript callbacks. |
+| `js.cy` | `qjs.cy`, `qjs.c` | Public Cyna JavaScript value, callback, property, conversion, and native-module API. |
 | `host.cy` | `host.c`, `allocator.c` | Platform services absent from the pinned Cyna std: tracked allocation, bounded binary process capture, signal status, and process memory counters. |
 | `jupyter.cy` | `jupyter.c` | ZeroMQ sockets and frames with HMAC. |
 | `telemetry.cy` | `telemetry.c` | Cyna `std.telemetry` span and metric callbacks into the shared core. |

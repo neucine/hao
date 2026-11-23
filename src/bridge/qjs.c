@@ -88,6 +88,12 @@ int hao_process_run_json(const unsigned char *options, size_t options_len,
                          unsigned char *stdout_output, unsigned char *stderr_output,
                          size_t capacity, HaoRunResult *result);
 int hao_install_runtime_error(void *ctx);
+
+JSValue hao_js_new_number_bits(JSContext *ctx, int64_t bits) {
+    double value;
+    memcpy(&value, &bits, sizeof(value));
+    return JS_NewFloat64(ctx, value);
+}
 int hao_http_valid_method(const unsigned char *method);
 int hao_http_url_error(const unsigned char *url);
 unsigned char *hao_http_transport_url(const unsigned char *url);

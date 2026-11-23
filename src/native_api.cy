@@ -4,12 +4,12 @@ import { Runtime } from .runtime;
 // bridge calls these Cyna implementations even when the embedding host only
 // uses this Cyna API.
 import { abi_async_uv_new as retain_implementation_link } from .abi;
+import .js;
 import {
-    NativeModuleLoader as BridgeNativeModuleLoader,
     runtime_register_native
 } from .bridge.qjs;
 
-pub type NativeModuleLoader = BridgeNativeModuleLoader;
+pub type NativeModuleLoader = c fn (js.Context, *const c_char): js.Module;
 
 pub fn api_version(): u32 {
     return 1;
