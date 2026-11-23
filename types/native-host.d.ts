@@ -3,6 +3,7 @@ declare var __hao_ffi_open: (name: string) => number;
 declare var __hao_ffi_bind: (handle: number, symbol: string, args: string[], returns: string) => void;
 declare var __hao_ffi_call: (handle: number, symbol: string, args: unknown[], outIndex?: number) => any;
 declare var __hao_ffi_close: (handle: number) => void;
+declare var __hao_ffi_isArray: (value: unknown) => boolean;
 
 declare var __hao_fs_existsSync: (...args: any[]) => any;
 declare var __hao_fs_readFileSync: (...args: any[]) => any;
