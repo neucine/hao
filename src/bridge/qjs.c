@@ -6,7 +6,15 @@
 #include <arpa/inet.h>
 #include <curl/curl.h>
 #include <ctype.h>
-#include <ffi/ffi.h>
+#if defined(__has_include)
+#  if __has_include(<ffi/ffi.h>)
+#    include <ffi/ffi.h>
+#  else
+#    include <ffi.h>
+#  endif
+#else
+#  include <ffi/ffi.h>
+#endif
 #include <dlfcn.h>
 #include <execinfo.h>
 #include <limits.h>
