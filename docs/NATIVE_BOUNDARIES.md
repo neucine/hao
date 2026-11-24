@@ -40,6 +40,18 @@ Allocation and process execution were originally combined in `support.c`. They a
 
 This list is a review threshold, not a claim that every capability must remain in C. A new C unit needs a distinct foreign ABI or lifecycle that cannot be owned cleanly by an existing surface. A missing Cyna API is recorded and assessed in the Cyna language-gaps ledger before the project expands the C boundary.
 
+Windows uses the Win32 process, pipe, and dynamic-library APIs behind the same
+Hao interfaces. Process capture preserves bounded stdout and stderr plus the
+numeric exit code; Windows has no POSIX signal field and reports
+`has_signal = false`. Command arguments are quoted only when required so native
+programs such as `cmd.exe /c` receive their command text unchanged. Process
+capture waits for the child handle before reading its exit code, avoiding a race
+where a finished command could still report `STILL_ACTIVE`. Module resolution
+normalizes drive-letter roots and both slash styles so relative imports produced
+from a Windows working directory remain readable. The QuickJS bridge uses
+Winsock network types, Win32 file operations, and OpenSSL's random generator on
+Windows. The Unix implementations remain selected on macOS and Linux.
+
 There are no semantic subdirectories in `src/bridge/`. Three private headers remain because each interface is genuinely shared between C translation units: `allocator.h` for allocation accounting, `host.h` for the process result ABI, and `telemetry.h` for the QuickJS-to-telemetry contract. The QuickJS runtime structure and Cyna export declarations stay private to `qjs.c`; the libuv consumer declarations stay at the consuming boundary. Header files contain declarations and shared type definitions only; implementation code, including private helpers such as HMAC verification, stays in its owning `.c` file. The public embedding and addon contracts are in `include/hao.h` and `include/addon.h`.
 
 The allocator boundary has a concrete ownership reason. Zig's `runtime_allocator.zig` wraps its backing allocator and counts Hao-owned Zig allocations. In the Cyna port, native adapters use `hao_alloc` and `allocator.h`; `runtime_allocator.cy` exposes that allocator to Cyna callers through `host.cy`. QuickJS uses its own allocator and is reported separately. Moving only the counters into Cyna would split allocations from their corresponding frees and change the reported scope. This is a Hao runtime allocator contract, not evidence that Cyna std needs a new allocator API. Zig resets its global counters when initializing a runtime. `allocator.c` keeps process-wide counters across embedded runtime creation because those runtimes can overlap and free allocations after another runtime is created.

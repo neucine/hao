@@ -3,7 +3,33 @@
 #include "telemetry.h"
 #include "../../libs/transpiler/include/hao_transpiler.h"
 #include "../../include/hao.h"
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <windows.h>
+#include <direct.h>
+#include <fcntl.h>
+#include <io.h>
+#include <process.h>
+#include <sys/stat.h>
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define close _close
+#define fsync _commit
+#define fileno _fileno
+#define setenv(name, value, replace) _putenv_s((name), (value))
+#define unlink _unlink
+#define dlopen(path, flags) ((void *)LoadLibraryA(path))
+#define dlsym(handle, name) ((void *)(uintptr_t)GetProcAddress((HMODULE)(handle), (name)))
+#define dlclose(handle) FreeLibrary((HMODULE)(handle))
+#define RTLD_NOW 0
+#define RTLD_LOCAL 0
+#else
 #include <arpa/inet.h>
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <strings.h>
+#include <unistd.h>
+#endif
 #include <curl/curl.h>
 #include <ctype.h>
 #if defined(__has_include)
@@ -15,8 +41,6 @@
 #else
 #  include <ffi/ffi.h>
 #endif
-#include <dlfcn.h>
-#include <execinfo.h>
 #include <limits.h>
 #include <math.h>
 #include <openssl/evp.h>
@@ -27,8 +51,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
-#include <unistd.h>
 #include <uv.h>
 
 typedef struct HaoSourceModule {
@@ -831,9 +853,14 @@ static JSValue capture_native_stack(JSContext *ctx, JSValueConst this_value,
     if (!host || !host->native_stack_trace_enabled) return JS_UNDEFINED;
     const char *name = argc > 0 ? JS_ToCString(ctx, argv[0]) : NULL;
     if (argc > 0 && !name) return JS_EXCEPTION;
+#if defined(_WIN32)
+    int count = 0;
+    char **symbols = NULL;
+#else
     void *frames[64];
     int count = backtrace(frames, 64);
     char **symbols = count > 0 ? backtrace_symbols(frames, count) : NULL;
+#endif
     char output[16384];
     size_t used = 0;
     const char *heading = name ? name : "NativeError";
@@ -1611,6 +1638,8 @@ static JSValue open_native(JSContext *ctx, JSValueConst this_val, int argc, JSVa
         if (!path) { JS_FreeCString(ctx, name); return JS_ThrowOutOfMemory(ctx); }
 #if defined(__APPLE__)
         snprintf(path, length + 10, "lib%s.dylib", name);
+#elif defined(_WIN32)
+        snprintf(path, length + 10, "%s.dll", name);
 #else
         snprintf(path, length + 10, "lib%s.so", name);
 #endif
@@ -2197,6 +2226,22 @@ static bool sensitive_header(const char *header) {
     return strncasecmp(header, "Authorization:", 14) == 0 ||
         strncasecmp(header, "Cookie:", 7) == 0;
 }
+static int create_temporary_download(char *path) {
+#if defined(_WIN32)
+    if (_mktemp_s(path, strlen(path) + 1) != 0) return -1;
+    return _open(path, _O_CREAT | _O_EXCL | _O_RDWR | _O_BINARY,
+                 _S_IREAD | _S_IWRITE);
+#else
+    return mkstemp(path);
+#endif
+}
+static int replace_download(const char *temporary_path, const char *destination) {
+#if defined(_WIN32)
+    return MoveFileExA(temporary_path, destination, MOVEFILE_REPLACE_EXISTING) ? 0 : -1;
+#else
+    return rename(temporary_path, destination);
+#endif
+}
 static void perform_http(uv_work_t *work) {
     HaoHttpJob *job = work->data;
     HaoHttpResponse *response = &job->response;
@@ -2224,7 +2269,7 @@ static void perform_http(uv_work_t *work) {
         temporary_path = hao_alloc(length + 17);
         if (!temporary_path) { set_error(job, "out of memory"); goto done; }
         snprintf(temporary_path, length + 17, "%s.hao-XXXXXX", job->download_path);
-        int fd = mkstemp(temporary_path);
+        int fd = create_temporary_download(temporary_path);
         if (fd < 0) { set_error(job, "unable to create download file"); goto done; }
         response->download_file = fdopen(fd, "wb");
         if (!response->download_file) { close(fd); set_error(job, "unable to open download file"); goto done; }
@@ -2370,7 +2415,7 @@ static void perform_http(uv_work_t *work) {
         if (EVP_DigestFinal_ex(response->digest, digest, &digest_length) != 1 || digest_length != 32) {
             set_error(job, "unable to finish download digest"); goto done;
         }
-        if (rename(temporary_path, job->download_path) != 0) {
+        if (replace_download(temporary_path, job->download_path) != 0) {
             set_error(job, "unable to replace download destination"); goto done;
         }
         for (size_t i = 0; i < 32; i++) {

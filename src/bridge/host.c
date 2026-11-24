@@ -4,16 +4,21 @@
 #include "allocator.h"
 
 #include <errno.h>
-#include <poll.h>
-#include <signal.h>
-#include <spawn.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <poll.h>
+#include <signal.h>
+#include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 #ifdef __APPLE__
 #include <mach/mach.h>
 #include <mach/task_info.h>
@@ -44,7 +49,9 @@ void hao_process_memory_native(uint64_t *resident_bytes, uint64_t *physical_foot
 #endif
 }
 
+#if !defined(_WIN32)
 extern char **environ;
+#endif
 
 static char *copy_text(const unsigned char *bytes, size_t length) {
     if (!bytes || !length || memchr(bytes, 0, length) || length == SIZE_MAX) return NULL;
@@ -61,6 +68,151 @@ static void free_argv(char **argv, size_t count) {
     hao_free(argv);
 }
 
+#if defined(_WIN32)
+typedef struct {
+    HANDLE process;
+    HANDLE pipes[2];
+    unsigned char *outputs[2];
+    size_t capacity;
+    size_t lengths[2];
+    volatile LONG failure;
+} HaoWindowsCapture;
+
+typedef struct {
+    HaoWindowsCapture *capture;
+    int index;
+} HaoWindowsReader;
+
+static DWORD WINAPI read_capture_pipe(LPVOID opaque) {
+    HaoWindowsReader *reader = opaque;
+    HaoWindowsCapture *capture = reader->capture;
+    int index = reader->index;
+    unsigned char chunk[8192];
+    DWORD count = 0;
+    while (ReadFile(capture->pipes[index], chunk, sizeof(chunk), &count, NULL) && count) {
+        if ((size_t)count > capture->capacity - capture->lengths[index]) {
+            InterlockedExchange(&capture->failure, 3);
+            TerminateProcess(capture->process, 1);
+            break;
+        }
+        memcpy(capture->outputs[index] + capture->lengths[index], chunk, (size_t)count);
+        capture->lengths[index] += (size_t)count;
+    }
+    DWORD error = GetLastError();
+    if (error != ERROR_BROKEN_PIPE && error != ERROR_HANDLE_EOF && error != ERROR_SUCCESS &&
+        InterlockedCompareExchange(&capture->failure, 2, 0) == 0) {
+        capture->failure = 2;
+    }
+    CloseHandle(capture->pipes[index]);
+    capture->pipes[index] = NULL;
+    return 0;
+}
+
+static size_t windows_quoted_length(const char *text) {
+    size_t length = strlen(text);
+    if (length > (SIZE_MAX - 3) / 2) return SIZE_MAX;
+    return length * 2 + 3;
+}
+
+static bool windows_arg_needs_quotes(const char *text) {
+    return text[0] == 0 || strpbrk(text, " \t\n\v\f\r\"") != NULL;
+}
+
+static char *append_windows_arg(char *output, const char *text) {
+    if (!windows_arg_needs_quotes(text)) {
+        size_t length = strlen(text);
+        memcpy(output, text, length);
+        return output + length;
+    }
+    *output++ = '"';
+    size_t backslashes = 0;
+    for (const char *cursor = text;; cursor++) {
+        if (*cursor == '\\') {
+            backslashes++;
+            continue;
+        }
+        if (*cursor == '"') {
+            for (size_t i = 0; i < backslashes * 2 + 1; i++) *output++ = '\\';
+            *output++ = '"';
+            backslashes = 0;
+            continue;
+        }
+        if (*cursor == 0) {
+            for (size_t i = 0; i < backslashes * 2; i++) *output++ = '\\';
+            backslashes = 0;
+            break;
+        }
+        for (size_t i = 0; i < backslashes; i++) *output++ = '\\';
+        backslashes = 0;
+        *output++ = *cursor;
+    }
+    for (size_t i = 0; i < backslashes; i++) *output++ = '\\';
+    *output++ = '"';
+    return output;
+}
+
+static char *windows_command_line(char **argv, size_t count) {
+    size_t required = 1;
+    for (size_t i = 0; i <= count; i++) {
+        size_t length = windows_quoted_length(argv[i]);
+        if (length == SIZE_MAX || required > SIZE_MAX - length - 1) return NULL;
+        required += length + (i ? 1 : 0);
+    }
+    char *line = hao_alloc(required);
+    if (!line) return NULL;
+    char *cursor = line;
+    for (size_t i = 0; i <= count; i++) {
+        if (i) *cursor++ = ' ';
+        cursor = append_windows_arg(cursor, argv[i]);
+    }
+    *cursor = 0;
+    return line;
+}
+
+static int capture_windows(HANDLE process, HANDLE out_read, HANDLE err_read,
+                           unsigned char *out, unsigned char *err, size_t capacity,
+                           HaoRunResult *result) {
+    HaoWindowsCapture capture = {
+        .process = process,
+        .pipes = { out_read, err_read },
+        .outputs = { out, err },
+        .capacity = capacity,
+    };
+    HaoWindowsReader readers[2] = {
+        { .capture = &capture, .index = 0 },
+        { .capture = &capture, .index = 1 },
+    };
+    HANDLE threads[2] = {
+        CreateThread(NULL, 0, read_capture_pipe, &readers[0], 0, NULL),
+        CreateThread(NULL, 0, read_capture_pipe, &readers[1], 0, NULL),
+    };
+    if (!threads[0] || !threads[1]) {
+        TerminateProcess(process, 1);
+        if (threads[0]) WaitForSingleObject(threads[0], INFINITE);
+        if (threads[1]) WaitForSingleObject(threads[1], INFINITE);
+        if (threads[0]) CloseHandle(threads[0]);
+        if (threads[1]) CloseHandle(threads[1]);
+        if (capture.pipes[0]) CloseHandle(capture.pipes[0]);
+        if (capture.pipes[1]) CloseHandle(capture.pipes[1]);
+        return 2;
+    }
+    WaitForSingleObject(threads[0], INFINITE);
+    WaitForSingleObject(threads[1], INFINITE);
+    CloseHandle(threads[0]);
+    CloseHandle(threads[1]);
+    if (WaitForSingleObject(process, INFINITE) != WAIT_OBJECT_0) return 2;
+    DWORD exit_code = 0;
+    if (!GetExitCodeProcess(process, &exit_code)) return 2;
+    if (capture.failure) return (int)capture.failure;
+    result->stdout_len = capture.lengths[0];
+    result->stderr_len = capture.lengths[1];
+    result->has_exit_code = 1;
+    result->exit_code = (int)exit_code;
+    result->has_signal = 0;
+    result->signal = 0;
+    return 0;
+}
+#else
 static int capture_pipes(int out_fd, int err_fd, unsigned char *out, unsigned char *err,
                          size_t capacity, HaoRunResult *result, pid_t pid) {
     struct pollfd fds[2] = {
@@ -117,6 +269,7 @@ static int capture_pipes(int out_fd, int err_fd, unsigned char *out, unsigned ch
     result->signal = result->has_signal ? WTERMSIG(status) : 0;
     return 0;
 }
+#endif
 
 int hao_process_execute(const unsigned char *program, size_t program_len,
                         const unsigned char *args, size_t args_len, size_t args_count,
@@ -148,6 +301,60 @@ int hao_process_execute(const unsigned char *program, size_t program_len,
         offset += length + 1;
     }
     if (offset != args_len) { free_argv(argv, args_count); hao_free(directory); return 1; }
+#if defined(_WIN32)
+    char *line = windows_command_line(argv, args_count);
+    if (!line) { free_argv(argv, args_count); hao_free(directory); return 2; }
+    SECURITY_ATTRIBUTES security = {
+        .nLength = sizeof(security),
+        .lpSecurityDescriptor = NULL,
+        .bInheritHandle = TRUE,
+    };
+    HANDLE out_read = NULL, out_write = NULL, err_read = NULL, err_write = NULL;
+    HANDLE null_input = CreateFileA("NUL", GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, &security, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, NULL);
+    if (null_input == INVALID_HANDLE_VALUE ||
+        !CreatePipe(&out_read, &out_write, &security, 0) ||
+        !CreatePipe(&err_read, &err_write, &security, 0)) {
+        if (null_input != INVALID_HANDLE_VALUE) CloseHandle(null_input);
+        if (out_read) CloseHandle(out_read);
+        if (out_write) CloseHandle(out_write);
+        if (err_read) CloseHandle(err_read);
+        if (err_write) CloseHandle(err_write);
+        hao_free(line);
+        free_argv(argv, args_count);
+        hao_free(directory);
+        return 2;
+    }
+    SetHandleInformation(out_read, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(err_read, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOA startup = {
+        .cb = sizeof(startup),
+        .dwFlags = STARTF_USESTDHANDLES,
+        .hStdInput = null_input,
+        .hStdOutput = out_write,
+        .hStdError = err_write,
+    };
+    PROCESS_INFORMATION child = {0};
+    BOOL started = CreateProcessA(NULL, line, NULL, NULL, TRUE, 0, NULL,
+                                  directory, &startup, &child);
+    CloseHandle(null_input);
+    CloseHandle(out_write);
+    CloseHandle(err_write);
+    hao_free(line);
+    free_argv(argv, args_count);
+    hao_free(directory);
+    if (!started) {
+        CloseHandle(out_read);
+        CloseHandle(err_read);
+        return 2;
+    }
+    CloseHandle(child.hThread);
+    int status = capture_windows(child.hProcess, out_read, err_read,
+                                 stdout_output, stderr_output, capacity, result);
+    CloseHandle(child.hProcess);
+    return status;
+#else
     int out_pipe[2] = { -1, -1 }, err_pipe[2] = { -1, -1 };
     if (pipe(out_pipe) || pipe(err_pipe)) {
         if (out_pipe[0] >= 0) close(out_pipe[0]);
@@ -174,4 +381,5 @@ int hao_process_execute(const unsigned char *program, size_t program_len,
     if (rc) { close(out_pipe[0]); close(err_pipe[0]); return 2; }
     return capture_pipes(out_pipe[0], err_pipe[0], stdout_output, stderr_output,
                          capacity, result, pid);
+#endif
 }

@@ -1,6 +1,7 @@
 #include "allocator.h"
 #include <openssl/evp.h>
 #include <openssl/params.h>
+#include <openssl/rand.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,15 +66,20 @@ static void clear_message(HaoWire *wire) {
     wire->incoming_channel = 0;
 }
 
-static void random_id(char out[33]) {
+static int random_id(char out[33]) {
     static const char hex[] = "0123456789abcdef";
     uint8_t bytes[16];
+#if defined(_WIN32)
+    if (RAND_bytes(bytes, sizeof(bytes)) != 1) return -1;
+#else
     arc4random_buf(bytes, sizeof(bytes));
+#endif
     for (size_t i = 0; i < sizeof(bytes); i++) {
         out[i * 2] = hex[bytes[i] >> 4];
         out[i * 2 + 1] = hex[bytes[i] & 15];
     }
     out[32] = 0;
+    return 0;
 }
 
 static int bind_socket(void **out, void *context, int kind, const char *transport,
@@ -115,7 +121,14 @@ uintptr_t hao_jupyter_wire_open(const unsigned char *transport_bytes, size_t tra
     wire->key = copy_text(key_bytes, key_len);
     wire->key_length = key_len;
     wire->context = zmq_ctx_new();
-    random_id(wire->session);
+    if (random_id(wire->session) != 0) {
+        hao_free(transport);
+        hao_free(ip);
+        hao_free(wire->key);
+        if (wire->context) zmq_ctx_term(wire->context);
+        hao_free(wire);
+        return 0;
+    }
     int status = wire->context && wire->key &&
         bind_socket(&wire->shell, wire->context, ZMQ_ROUTER, transport, ip, shell_port) == 0 &&
         bind_socket(&wire->control, wire->context, ZMQ_ROUTER, transport, ip, control_port) == 0 &&
